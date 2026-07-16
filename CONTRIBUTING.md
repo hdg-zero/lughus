@@ -112,7 +112,7 @@ This module is not imported by default in `lughus/__init__.py` to avoid producti
 2. Export from `__init__.py` and add to `__all__` if it should be imported from the top-level package, or document the module-level import (e.g. `lughus.testing`).
 3. Add to the `API reference` section in `README.md`.
 4. Write tests with ≥ 90% branch coverage for the new code.
-5. Update `CHANGELOG.md` under `[Unreleased]`.
+5. Use conventional commit messages (Angular style) so that the automated release pipeline can parse them to update `CHANGELOG.md` and bump the version automatically.
 
 ---
 
@@ -130,3 +130,30 @@ If your change adds new configuration settings, environment variables, or CLI pa
 - Update the **Configuration** table in `README.md`.
 - Document any usage instructions in the relevant sections of `README.md`.
 - Ensure changes are mentioned in the **Production Checklist** if they affect operational stability or observability.
+
+---
+
+## Releases & Versioning
+
+Releases, version bumping, and changelog generation are **fully automated** using **`release-please`** (by Google) based on your commit messages.
+
+### Commit Conventions
+
+We strictly follow the **Angular Commit Message Conventions**. Your commit messages dictate how the version is bumped:
+
+| Commit Type | Release type | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `fix` | **Patch** | A bug fix (bumps `0.1.x`) | `fix(gateway): resolve memory leak` |
+| `feat` | **Minor** | A new feature (bumps `0.x.0`) | `feat(llm): support native tools` |
+| `chore` / `docs` / `style` / `refactor` | **None** | Internal updates, documentation, style | `docs(readme): add badges` |
+
+#### Breaking Changes
+
+Any commit that contains a breaking change **must** include a `BREAKING CHANGE:` footer. This will bump the **Major** version (ex: `0.1.1` ➔ `1.0.0`).
+
+Example:
+```text
+feat(gateway): change parameter order of handle()
+
+BREAKING CHANGE: The 'files' parameter is now required as the second argument.
+```

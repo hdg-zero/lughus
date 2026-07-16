@@ -1,6 +1,7 @@
 # Changelog
 
 All notable changes to `lughus` will be documented in this file.
+Versions and changelog entries are **automatically generated** by `release-please` based on conventional commits.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
