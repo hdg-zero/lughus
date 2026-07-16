@@ -1,4 +1,5 @@
 """Tests for BaseSettings — validates the import-time env eval fix (B3)."""
+
 from __future__ import annotations
 
 import os
@@ -72,19 +73,39 @@ def test_settings_default_model_is_empty(monkeypatch) -> None:
 
 def test_settings_default_values(monkeypatch) -> None:
     """All default values match the documented defaults."""
-    for key in ("AGENT_MODEL", "MAX_OUTPUT_TOKENS", "HOST", "PORT",
-                "PUBLIC_URL", "LOG_LEVEL", "LUGHUS_ENV", "API_BEARER_TOKEN",
-                "MAX_FILE_BYTES", "MAX_FILES", "MAX_REQUEST_BYTES",
-                "MAX_HTTP_BODY_BYTES", "MAX_OBJECTIVE_CHARS",
-                "MAX_ARTIFACTS", "MAX_ARTIFACT_BYTES",
-                "MAX_TOTAL_ARTIFACT_BYTES", "MAX_CONCURRENT_REQUESTS",
-                "MAX_QUEUE_BACKLOG", "REQUEST_QUEUE_TIMEOUT",
-                "MAX_SOURCE_CHARS", "LLM_TIMEOUT", "MAX_PARALLEL_TOOLS",
-                "TOOL_TIMEOUT", "MAX_GLOBAL_TOOLS", "MAX_SYNC_THREAD_WORKERS",
-                "MAX_TOOL_ARGS_CHARS",
-                "MAX_TOOL_OUTPUT_CHARS", "LLM_RETRY_MAX_ELAPSED",
-                "TASK_STORE_TTL_SECONDS", "TASK_STORE_MAX_TASKS",
-                "MAX_MESSAGE_HISTORY_CHARS"):
+    for key in (
+        "AGENT_MODEL",
+        "MAX_OUTPUT_TOKENS",
+        "HOST",
+        "PORT",
+        "PUBLIC_URL",
+        "LOG_LEVEL",
+        "LUGHUS_ENV",
+        "API_BEARER_TOKEN",
+        "MAX_FILE_BYTES",
+        "MAX_FILES",
+        "MAX_REQUEST_BYTES",
+        "MAX_HTTP_BODY_BYTES",
+        "MAX_OBJECTIVE_CHARS",
+        "MAX_ARTIFACTS",
+        "MAX_ARTIFACT_BYTES",
+        "MAX_TOTAL_ARTIFACT_BYTES",
+        "MAX_CONCURRENT_REQUESTS",
+        "MAX_QUEUE_BACKLOG",
+        "REQUEST_QUEUE_TIMEOUT",
+        "MAX_SOURCE_CHARS",
+        "LLM_TIMEOUT",
+        "MAX_PARALLEL_TOOLS",
+        "TOOL_TIMEOUT",
+        "MAX_GLOBAL_TOOLS",
+        "MAX_SYNC_THREAD_WORKERS",
+        "MAX_TOOL_ARGS_CHARS",
+        "MAX_TOOL_OUTPUT_CHARS",
+        "LLM_RETRY_MAX_ELAPSED",
+        "TASK_STORE_TTL_SECONDS",
+        "TASK_STORE_MAX_TASKS",
+        "MAX_MESSAGE_HISTORY_CHARS",
+    ):
         monkeypatch.delenv(key, raising=False)
 
     s = BaseSettings()

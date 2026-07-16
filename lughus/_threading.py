@@ -1,4 +1,5 @@
 """Small asyncio/thread bridge used for blocking framework work."""
+
 from __future__ import annotations
 
 import atexit

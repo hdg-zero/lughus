@@ -65,11 +65,13 @@ async def _run_tool_calls(
     )
     results = await _execute_tools(tool_calls, registry, state, cfg)
     for tc_id, output in results:
-        messages.append({
-            "role": "tool",
-            "tool_call_id": tc_id,
-            "content": output,
-        })
+        messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": tc_id,
+                "content": output,
+            }
+        )
 
 
 def _finalize_loop(
@@ -102,7 +104,9 @@ def _finalize_loop(
     return result
 
 
-async def _stream_with_timeout(stream: AsyncIterator[Any], timeout: float | None) -> AsyncIterator[Any]:
+async def _stream_with_timeout(
+    stream: AsyncIterator[Any], timeout: float | None
+) -> AsyncIterator[Any]:
     """Yield stream chunks, bounding the wait for each next chunk."""
     normalized_timeout = timeout if timeout and timeout > 0 else None
     iterator = stream.__aiter__()
@@ -156,7 +160,9 @@ async def agent_loop(
 
                     if hasattr(response, "usage") and response.usage:
                         p, c, ca = _record_llm_usage(
-                            llm_span, response.usage, llm.model,
+                            llm_span,
+                            response.usage,
+                            llm.model,
                         )
                         prompt_tokens += p
                         completion_tokens += c
@@ -166,8 +172,13 @@ async def agent_loop(
 
                 if not msg.tool_calls:
                     return _finalize_loop(
-                        loop_span, msg.content or "", iteration, t0,
-                        prompt_tokens, completion_tokens, cached_tokens,
+                        loop_span,
+                        msg.content or "",
+                        iteration,
+                        t0,
+                        prompt_tokens,
+                        completion_tokens,
+                        cached_tokens,
                         llm.model,
                     )
 
@@ -256,7 +267,9 @@ async def agent_loop_stream(
                                 if not chunk.choices:
                                     if hasattr(chunk, "usage") and chunk.usage:
                                         p, c, ca = _record_llm_usage(
-                                            llm_span, chunk.usage, llm.model,
+                                            llm_span,
+                                            chunk.usage,
+                                            llm.model,
                                         )
                                         prompt_tokens += p
                                         completion_tokens += c
@@ -282,11 +295,15 @@ async def agent_loop_stream(
                                             if tc_delta.function.name:
                                                 tc_map[idx]["name"] += tc_delta.function.name
                                             if tc_delta.function.arguments:
-                                                tc_map[idx]["arguments"] += tc_delta.function.arguments
+                                                tc_map[idx]["arguments"] += (
+                                                    tc_delta.function.arguments
+                                                )
 
                                 if not _usage_recorded and hasattr(chunk, "usage") and chunk.usage:
                                     p, c, ca = _record_llm_usage(
-                                        llm_span, chunk.usage, llm.model,
+                                        llm_span,
+                                        chunk.usage,
+                                        llm.model,
                                     )
                                     prompt_tokens += p
                                     completion_tokens += c
@@ -299,7 +316,7 @@ async def agent_loop_stream(
                         if retry_after is not None:
                             delay = retry_after
                         else:
-                            raw_delay = retry_base_delay * (2 ** attempt)
+                            raw_delay = retry_base_delay * (2**attempt)
                             delay = random.uniform(0.0, raw_delay) if raw_delay > 0 else 0.0
 
                         budget = _retry_budget_var.get()
@@ -312,7 +329,10 @@ async def agent_loop_stream(
 
                         _logger.warning(
                             "LLM.astream: transient error (%s) during chunk streaming, retry %d/%d in %.1fs",
-                            type(exc).__name__, attempt + 1, max_retries, delay,
+                            type(exc).__name__,
+                            attempt + 1,
+                            max_retries,
+                            delay,
                         )
                         await asyncio.sleep(delay)
 
@@ -322,8 +342,13 @@ async def agent_loop_stream(
                     for content in content_parts:
                         yield content
                     yield _finalize_loop(
-                        loop_span, full_content, iteration, t0,
-                        prompt_tokens, completion_tokens, cached_tokens,
+                        loop_span,
+                        full_content,
+                        iteration,
+                        t0,
+                        prompt_tokens,
+                        completion_tokens,
+                        cached_tokens,
                         llm.model,
                     )
                     return
@@ -340,9 +365,7 @@ async def agent_loop_stream(
                     }
                     for tc in sorted_tcs
                 ]
-                tc_inputs = [
-                    (tc["id"], tc["name"], tc["arguments"]) for tc in sorted_tcs
-                ]
+                tc_inputs = [(tc["id"], tc["name"], tc["arguments"]) for tc in sorted_tcs]
 
                 await _run_tool_calls(
                     tc_inputs,

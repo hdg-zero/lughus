@@ -1,4 +1,5 @@
 """Tests for ToolRegistry."""
+
 from __future__ import annotations
 
 import json
@@ -11,6 +12,7 @@ from lughus import ToolRegistry, ToolValidationError
 
 def test_register_sync_tool(registry: ToolRegistry) -> None:
     """A sync tool is registered and retrievable."""
+
     @registry.tool("my_tool", "A test tool.", {"type": "object", "properties": {}})
     def my_tool(*, state) -> str:
         return json.dumps({"ok": True})
@@ -22,6 +24,7 @@ def test_register_sync_tool(registry: ToolRegistry) -> None:
 
 def test_register_async_tool(registry: ToolRegistry) -> None:
     """An async tool is registered and retrievable."""
+
     @registry.tool("async_tool", "An async test tool.", {"type": "object", "properties": {}})
     async def async_tool(*, state) -> str:
         return json.dumps({"async": True})
@@ -47,6 +50,7 @@ def test_duplicate_tool_name_raises(registry: ToolRegistry) -> None:
 
 def test_tool_without_state_raises(registry: ToolRegistry) -> None:
     with pytest.raises(ToolValidationError, match="state"):
+
         @registry.tool("bad_signature", "Missing state.", {"type": "object", "properties": {}})
         def bad_signature() -> str:
             return "bad"
@@ -54,6 +58,7 @@ def test_tool_without_state_raises(registry: ToolRegistry) -> None:
 
 def test_tool_with_positional_only_parameter_raises(registry: ToolRegistry) -> None:
     with pytest.raises(ToolValidationError, match="positional-only"):
+
         @registry.tool(
             "bad_positional",
             "Uses positional-only args.",
@@ -65,6 +70,7 @@ def test_tool_with_positional_only_parameter_raises(registry: ToolRegistry) -> N
 
 def test_schema_parameters_must_match_callable(registry: ToolRegistry) -> None:
     with pytest.raises(ToolValidationError, match="not accepted"):
+
         @registry.tool(
             "schema_mismatch",
             "Schema has an unknown parameter.",
@@ -135,6 +141,7 @@ def test_declarations_empty_names(registry: ToolRegistry) -> None:
 def test_declarations_order_preserved(registry: ToolRegistry) -> None:
     """declarations() preserves the order of requested tool names."""
     for name in ("z_tool", "a_tool", "m_tool"):
+
         @registry.tool(name, f"Tool {name}.", {"type": "object", "properties": {}})
         def _tool(*, state) -> str:
             return name

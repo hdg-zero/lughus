@@ -1,4 +1,5 @@
 """Tests for LLM retry on transient errors (J2-1)."""
+
 from __future__ import annotations
 
 import asyncio

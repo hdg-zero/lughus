@@ -1,4 +1,5 @@
 """LLM client — thin wrapper around LiteLLM."""
+
 from __future__ import annotations
 
 import asyncio
@@ -43,6 +44,7 @@ class StreamingLLM(Protocol):
         tools: list[dict] | None = None,
     ) -> AsyncIterator[Any]: ...
 
+
 # Transient errors that are safe to retry.
 _RETRYABLE_ERRORS = (
     litellm.RateLimitError,
@@ -55,6 +57,7 @@ _retry_counter = meter.create_counter(
     "lughus.llm.retries",
     description="LLM retry attempts",
 )
+
 
 def _retry_after_seconds(exc: Exception) -> float | None:
     """Extract Retry-After seconds from common exception shapes."""
@@ -117,7 +120,9 @@ class LLM:
         self.timeout = timeout if (timeout and timeout > 0) else None
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
-        self.retry_max_elapsed = retry_max_elapsed if (retry_max_elapsed and retry_max_elapsed > 0) else None
+        self.retry_max_elapsed = (
+            retry_max_elapsed if (retry_max_elapsed and retry_max_elapsed > 0) else None
+        )
 
     @classmethod
     def from_settings(cls, settings: Any) -> "LLM":
@@ -143,8 +148,7 @@ class LLM:
             try:
                 coro = coro_factory()
                 return await (
-                    asyncio.wait_for(coro, timeout=self.timeout)
-                    if self.timeout else coro
+                    asyncio.wait_for(coro, timeout=self.timeout) if self.timeout else coro
                 )
             except _RETRYABLE_ERRORS as exc:
                 if attempt >= self.max_retries:
@@ -153,7 +157,7 @@ class LLM:
                 if retry_after is not None:
                     delay = retry_after
                 else:
-                    raw_delay = self.retry_base_delay * (2 ** attempt)
+                    raw_delay = self.retry_base_delay * (2**attempt)
                     delay = random.uniform(0.0, raw_delay) if raw_delay > 0 else 0.0
                 budget = _retry_budget_var.get()
                 retry_sleep_elapsed = _retry_used_var.get()
@@ -172,7 +176,11 @@ class LLM:
                 )
                 _logger.warning(
                     "%s: transient error (%s), retry %d/%d in %.1fs after %.1fs elapsed",
-                    label, type(exc).__name__, attempt + 1, self.max_retries, delay,
+                    label,
+                    type(exc).__name__,
+                    attempt + 1,
+                    self.max_retries,
+                    delay,
                     time.perf_counter() - t0,
                 )
                 await asyncio.sleep(delay)
@@ -185,6 +193,7 @@ class LLM:
         tools: list[dict] | None = None,
     ) -> litellm.ModelResponse:
         """Send messages (and optional tool declarations) to the LLM."""
+
         def _make():
             kwargs: dict = {
                 "model": self.model,
@@ -204,6 +213,7 @@ class LLM:
         tools: list[dict] | None = None,
     ) -> Any:
         """Streaming variant — returns an async iterable of response chunks."""
+
         def _make(include_usage: bool = True):
             kwargs: dict = {
                 "model": self.model,

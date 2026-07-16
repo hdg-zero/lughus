@@ -121,10 +121,12 @@ def _assistant_tool_message(
 
 def _error_payload(exc: Exception) -> str:
     """Return structured JSON error content for the LLM tool response."""
-    return json.dumps({
-        "error": str(exc),
-        "error_type": type(exc).__name__,
-    })
+    return json.dumps(
+        {
+            "error": str(exc),
+            "error_type": type(exc).__name__,
+        }
+    )
 
 
 def _validate_tool_args(
@@ -157,9 +159,7 @@ def _validate_tool_args(
 
 def _validate_tool_output(name: str, output: Any, max_tool_output_chars: int) -> str:
     text = (
-        output
-        if isinstance(output, str)
-        else json.dumps(output, ensure_ascii=False, default=str)
+        output if isinstance(output, str) else json.dumps(output, ensure_ascii=False, default=str)
     )
     if max_tool_output_chars > 0 and len(text) > max_tool_output_chars:
         raise ToolValidationError(
@@ -268,25 +268,29 @@ async def _execute_tools(
 
     async def _run_unbounded(tc_id: str, name: str, raw_args: str) -> tuple[str, str]:
         started_at = time.perf_counter()
-        _emit_tool_event({
-            "type": "tool_start",
-            "tool_call_id": tc_id,
-            "tool_name": name,
-            "arguments": raw_args,
-        })
+        _emit_tool_event(
+            {
+                "type": "tool_start",
+                "tool_call_id": tc_id,
+                "tool_name": name,
+                "arguments": raw_args,
+            }
+        )
         tool = registry.get_tool(name)
         if tool is None:
             unknown_exc = ToolValidationError(f"Unknown tool: {name}")
             output = _error_payload(unknown_exc)
-            _emit_tool_event({
-                "type": "tool_result",
-                "tool_call_id": tc_id,
-                "tool_name": name,
-                "status": "error",
-                "error_type": type(unknown_exc).__name__,
-                "output": output,
-                "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
-            })
+            _emit_tool_event(
+                {
+                    "type": "tool_result",
+                    "tool_call_id": tc_id,
+                    "tool_name": name,
+                    "status": "error",
+                    "error_type": type(unknown_exc).__name__,
+                    "output": output,
+                    "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
+                }
+            )
             return tc_id, output
         fn = tool.fn
         with tracer.start_as_current_span(f"tool.{name}") as span:

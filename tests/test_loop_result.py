@@ -1,4 +1,5 @@
 """Tests for LoopResult — the str subclass with usage metadata."""
+
 from __future__ import annotations
 
 import copy
@@ -59,8 +60,11 @@ def test_json_loads_passthrough() -> None:
     """LoopResult with JSON content works with json.loads() directly."""
     r = LoopResult(
         '{"key": "value"}',
-        iterations=1, elapsed=0.1,
-        prompt_tokens=5, completion_tokens=5, cached_tokens=0,
+        iterations=1,
+        elapsed=0.1,
+        prompt_tokens=5,
+        completion_tokens=5,
+        cached_tokens=0,
     )
     assert json.loads(r) == {"key": "value"}
 

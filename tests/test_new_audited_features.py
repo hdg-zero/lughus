@@ -99,8 +99,10 @@ def test_ensure_dotenv_loads_file(tmp_path, monkeypatch) -> None:
     try:
         os.chdir(str(tmp_path))
         from lughus.config import _ensure_dotenv
+
         # Reset loaded flag to force reload
         import lughus.config
+
         lughus.config._DOTENV_LOADED = False
 
         _ensure_dotenv()
@@ -145,6 +147,7 @@ def test_resolve_and_validate_otel_url(monkeypatch) -> None:
     # Mock resolution to a private IP
     def mock_getaddrinfo_private(host, port):
         return [(None, None, None, None, ("192.168.1.1", 0))]
+
     monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo_private)
 
     with pytest.raises(ValueError, match="not allowed"):
@@ -153,6 +156,7 @@ def test_resolve_and_validate_otel_url(monkeypatch) -> None:
     # Mock resolution to a safe IP
     def mock_getaddrinfo_safe(host, port):
         return [(None, None, None, None, ("127.0.0.1", 0))]
+
     monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo_safe)
 
     rewritten, host = _resolve_and_validate_otel_url("http://my-host:16686/api/traces")
@@ -179,9 +183,11 @@ async def test_stream_retry_on_transient_error() -> None:
         async def astream(self, messages, tools=None):
             self.calls += 1
             if self.calls == 1:
+
                 async def faulty_iter():
                     yield _make_streaming_chunk(content="Partial")
                     raise TimeoutError("Simulated connection timeout during streaming")
+
                 return faulty_iter()
             else:
                 return _make_streaming_text_response("Hello Success")
@@ -191,8 +197,12 @@ async def test_stream_retry_on_transient_error() -> None:
     chunks = []
 
     async for chunk in agent_loop_stream(
-        llm, system="You help.", context="Hi",
-        registry=registry, tool_names=[], state=None,
+        llm,
+        system="You help.",
+        context="Hi",
+        registry=registry,
+        tool_names=[],
+        state=None,
     ):
         chunks.append(chunk)
 
@@ -201,4 +211,3 @@ async def test_stream_retry_on_transient_error() -> None:
     assert "Hello" in str(chunks[-1])
     assert chunks[-1].iterations == 1
     assert llm.calls == 2
-

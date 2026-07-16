@@ -1,4 +1,5 @@
 """Base A2A gateway — message extraction and generic artifact handling."""
+
 from __future__ import annotations
 
 import asyncio
@@ -57,9 +58,7 @@ def _validate_artifacts(artifacts: list[Artifact], settings: BaseSettings) -> No
     total_bytes = sum(len(artifact.data) for artifact in artifacts)
     max_total_artifact_bytes = getattr(settings, "max_total_artifact_bytes", 100 * 1024 * 1024)
     if max_total_artifact_bytes > 0 and total_bytes > max_total_artifact_bytes:
-        raise ValueError(
-            f"Artifacts exceed total max size {max_total_artifact_bytes} bytes"
-        )
+        raise ValueError(f"Artifacts exceed total max size {max_total_artifact_bytes} bytes")
 
     max_artifact_bytes = getattr(settings, "max_artifact_bytes", 50 * 1024 * 1024)
     if max_artifact_bytes <= 0:
@@ -138,13 +137,17 @@ class BaseGateway(AgentExecutor):
                             for artifact in event.artifacts:
                                 encoded = base64.b64encode(artifact.data).decode("ascii")
                                 await updater.add_artifact(
-                                    parts=[Part(root=FilePart(
-                                        file=FileWithBytes(
-                                            bytes=encoded,
-                                            mime_type=artifact.mime_type,
-                                            name=artifact.name,
-                                        ),
-                                    ))],
+                                    parts=[
+                                        Part(
+                                            root=FilePart(
+                                                file=FileWithBytes(
+                                                    bytes=encoded,
+                                                    mime_type=artifact.mime_type,
+                                                    name=artifact.name,
+                                                ),
+                                            )
+                                        )
+                                    ],
                                     name=artifact.name,
                                 )
 
@@ -165,7 +168,13 @@ class BaseGateway(AgentExecutor):
                 span.record_exception(exc)
                 span.set_attribute("lughus.status", "timeout")
                 msg = updater.new_agent_message(
-                    parts=[Part(root=TextPart(text=f"Error: Agent execution timed out after {self.settings.agent_timeout}s"))],
+                    parts=[
+                        Part(
+                            root=TextPart(
+                                text=f"Error: Agent execution timed out after {self.settings.agent_timeout}s"
+                            )
+                        )
+                    ],
                 )
                 await updater.failed(message=msg)
 
@@ -240,7 +249,7 @@ class BaseGateway(AgentExecutor):
 
             if isinstance(p, TextPart):
                 if p.text.startswith("__ORIGINAL_FILENAME__:"):
-                    pending_name = p.text[len("__ORIGINAL_FILENAME__:"):]
+                    pending_name = p.text[len("__ORIGINAL_FILENAME__:") :]
                 else:
                     text_parts.append(p.text)
                 continue
@@ -251,7 +260,8 @@ class BaseGateway(AgentExecutor):
                     if len(file_tasks) >= self.settings.max_files:
                         _logger.warning(
                             "Skipping file '%s': max file count %d reached",
-                            fw.name or "(unnamed)", self.settings.max_files,
+                            fw.name or "(unnamed)",
+                            self.settings.max_files,
                         )
                         continue
 
@@ -259,17 +269,21 @@ class BaseGateway(AgentExecutor):
                     if len(fw.bytes) > max_encoded_bytes:
                         _logger.warning(
                             "Skipping file '%s': encoded size %d bytes exceeds max decoded limit %d bytes",
-                            fw.name or "(unnamed)", len(fw.bytes), self.settings.max_file_bytes,
+                            fw.name or "(unnamed)",
+                            len(fw.bytes),
+                            self.settings.max_file_bytes,
                         )
                         continue
 
                     name = _safe_filename(pending_name or fw.name)
                     pending_name = None
-                    file_tasks.append({
-                        "bytes": fw.bytes,
-                        "mime": fw.mime_type or "application/octet-stream",
-                        "name": name,
-                    })
+                    file_tasks.append(
+                        {
+                            "bytes": fw.bytes,
+                            "mime": fw.mime_type or "application/octet-stream",
+                            "name": name,
+                        }
+                    )
         return text_parts, file_tasks
 
     def _process_decoded_file(
@@ -282,14 +296,17 @@ class BaseGateway(AgentExecutor):
         if len(raw) > self.settings.max_file_bytes:
             _logger.warning(
                 "Skipping file '%s': size %d bytes exceeds limit %d bytes",
-                task["name"], len(raw), self.settings.max_file_bytes,
+                task["name"],
+                len(raw),
+                self.settings.max_file_bytes,
             )
             return None
 
         if total_file_bytes + len(raw) > self.settings.max_request_bytes:
             _logger.warning(
                 "Skipping file '%s': total decoded file bytes would exceed limit %d bytes",
-                task["name"], self.settings.max_request_bytes,
+                task["name"],
+                self.settings.max_request_bytes,
             )
             return None
 
@@ -313,7 +330,8 @@ class BaseGateway(AgentExecutor):
             except Exception as exc:
                 _logger.warning(
                     "Skipping file '%s': base64 decode failed — %s",
-                    task["name"], exc,
+                    task["name"],
+                    exc,
                 )
                 continue
 
@@ -341,7 +359,8 @@ class BaseGateway(AgentExecutor):
             except Exception as exc:
                 _logger.warning(
                     "Skipping file '%s': base64 decode failed — %s",
-                    task["name"], exc,
+                    task["name"],
+                    exc,
                 )
                 continue
 

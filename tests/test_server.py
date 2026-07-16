@@ -1,4 +1,5 @@
 """Tests for serve() server entrypoint (J2-3)."""
+
 from __future__ import annotations
 
 import json
@@ -98,7 +99,14 @@ def _request(method: str, path: str, payload: dict | None = None) -> Request:
     )
 
 
-async def _call_asgi(app, *, method: str, path: str, headers: list[tuple[bytes, bytes]] | None = None, body: bytes = b"") -> tuple[int, bytes]:
+async def _call_asgi(
+    app,
+    *,
+    method: str,
+    path: str,
+    headers: list[tuple[bytes, bytes]] | None = None,
+    body: bytes = b"",
+) -> tuple[int, bytes]:
     sent_messages: list[dict] = []
     received = False
 
@@ -348,14 +356,14 @@ async def test_test_ui_run_calls_gateway() -> None:
             "POST",
             "/ui/run",
             {
-            "objective": "hello",
-            "files": [
-                {
-                    "name": "note.txt",
-                    "mime_type": "text/plain",
-                    "content_base64": "bm90ZQ==",
-                }
-            ],
+                "objective": "hello",
+                "files": [
+                    {
+                        "name": "note.txt",
+                        "mime_type": "text/plain",
+                        "content_base64": "bm90ZQ==",
+                    }
+                ],
             },
         )
     )
@@ -438,7 +446,7 @@ async def test_test_ui_fetches_otel_trace_url() -> None:
             "url": "http://localhost:16686/api/traces/abc",
             "status_code": 200,
             "content_type": "application/json",
-            "text": "{\"data\": []}",
+            "text": '{"data": []}',
             "json": {"data": []},
         }
         response = await otel(
@@ -460,9 +468,7 @@ async def test_test_ui_rejects_invalid_otel_trace_url() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
     otel = _test_ui_routes(_agent_card(), gateway)[2].endpoint
 
-    response = await otel(
-        _request("POST", "/ui/otel/traces", {"url": "grpc://localhost:4317"})
-    )
+    response = await otel(_request("POST", "/ui/otel/traces", {"url": "grpc://localhost:4317"}))
 
     assert response.status_code == 400
     assert "http(s)" in json.loads(response.body)["error"]
