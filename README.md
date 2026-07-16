@@ -2,6 +2,12 @@
   <img src="docs/logo.svg" width="360" alt="lughus logo" />
 </p>
 
+<p align="center">
+  <a href="https://pypi.org/project/lughus/"><img src="https://img.shields.io/pypi/v/lughus.svg?color=blue" alt="PyPI version" /></a>
+  <a href="https://pypi.org/project/lughus/"><img src="https://img.shields.io/pypi/pyversions/lughus.svg" alt="Supported Python versions" /></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+</p>
+
 # lughus
 
 Micro-framework for building [A2A](https://google.github.io/A2A/) agents with [LiteLLM](https://github.com/BerriAI/litellm). No magic — a small, explicit codebase that replaces the orchestration framework layer.
