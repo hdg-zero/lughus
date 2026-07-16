@@ -8,9 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.1.1] — 2026-07-16
 
+### Added
+
+- Added GitHub Actions workflow for CI (linting, type-checking, and testing matrix on Python 3.11, 3.12, 3.13).
+- Added GitHub Actions workflow for CD to automate PyPI publishing using OIDC Trusted Publishing upon GitHub Releases.
+- Added professional badges (PyPI version, Python support, MIT License) to `README.md`.
+
 ### Fixed
 
 - Added missing metadata links (`[project.urls]`) in `pyproject.toml` to display GitHub repository links on PyPI.
+- Fixed syntax parser errors in Mermaid diagrams inside `README.md`, `loop.md`, `gateway.md`, `production.md` and `testing.md` (protected special characters and reserved keywords).
+- Darkened and thickened the SVG logo to ensure better contrast on both dark and light modes.
 
 ## [0.1.0] — 2026-07-15
 
