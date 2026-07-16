@@ -1,4 +1,5 @@
 """Command line interface for lughus."""
+
 from __future__ import annotations
 
 import argparse
@@ -29,7 +30,7 @@ def _write_file(path: Path, content: str) -> None:
 
 
 def _pyproject(project_name: str, package_name: str) -> str:
-    return f'''[project]
+    return f"""[project]
 name = "{project_name}"
 version = "0.1.0"
 description = "A lughus agent."
@@ -53,11 +54,11 @@ include = ["{package_name}*"]
 
 [project.scripts]
 {package_name} = "{package_name}.__main__:main"
-'''
+"""
 
 
 def _readme(project_name: str, package_name: str, display_name: str) -> str:
-    return f'''# {display_name}
+    return f"""# {display_name}
 
 A lughus agent scaffold generated with:
 
@@ -101,7 +102,7 @@ The agent exposes:
 - `GET /.well-known/agent-card.json`
 - `GET /health`
 - `GET /healthz`
-'''
+"""
 
 
 def _env_example() -> str:
@@ -379,11 +380,11 @@ async def test_workspace_runs_with_mock_llm() -> None:
 
 
 def _pytest_ini() -> str:
-    return '''[pytest]
+    return """[pytest]
 asyncio_mode = auto
 pythonpath = .
 addopts = --import-mode=importlib
-'''
+"""
 
 
 def create_agent(

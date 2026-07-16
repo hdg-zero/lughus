@@ -4,6 +4,7 @@ NOT imported by the main lughus package. Import explicitly:
 
     from lughus.testing import MockLLM, MockStreamingLLM
 """
+
 from __future__ import annotations
 
 import copy
@@ -96,10 +97,12 @@ class MockLLM:
         messages: list[dict],
         tools: list[dict] | None = None,
     ) -> MagicMock:
-        self.calls.append({
-            "messages": copy.deepcopy(messages),
-            "tools": copy.deepcopy(tools),
-        })
+        self.calls.append(
+            {
+                "messages": copy.deepcopy(messages),
+                "tools": copy.deepcopy(tools),
+            }
+        )
         resp = self._responses.pop(0)
         if isinstance(resp, str):
             return _make_text_response(resp)
@@ -174,6 +177,7 @@ def _make_streaming_text_response(text: str) -> AsyncIterator[MagicMock]:
 
 def _make_streaming_tool_response(tool_calls: list[dict]) -> AsyncIterator[MagicMock]:
     """Build a fake async streaming response for a tool call."""
+
     async def _aiter():
         # Single chunk carrying all tool call deltas
         yield _make_streaming_chunk(tool_calls=tool_calls, finish_reason="tool_calls")
@@ -214,10 +218,12 @@ class MockStreamingLLM:
         messages: list[dict],
         tools: list[dict] | None = None,
     ) -> AsyncIterator[MagicMock]:
-        self.calls.append({
-            "messages": copy.deepcopy(messages),
-            "tools": copy.deepcopy(tools),
-        })
+        self.calls.append(
+            {
+                "messages": copy.deepcopy(messages),
+                "tools": copy.deepcopy(tools),
+            }
+        )
         resp = self._responses.pop(0)
         if isinstance(resp, str):
             return _make_streaming_text_response(resp)

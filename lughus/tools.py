@@ -1,4 +1,5 @@
 """Per-instance tool registry — OpenAI function-calling format (LiteLLM-compatible)."""
+
 from __future__ import annotations
 
 import logging
@@ -23,9 +24,7 @@ def _compact_schema(schema: Any) -> Any:
     """
     if isinstance(schema, dict):
         return {
-            key: _compact_schema(value)
-            for key, value in schema.items()
-            if key != "description"
+            key: _compact_schema(value) for key, value in schema.items() if key != "description"
         }
     if isinstance(schema, list):
         return [_compact_schema(item) for item in schema]
@@ -36,15 +35,11 @@ def _validate_tool_callable(name: str, fn: Callable[..., Any], parameters_schema
     try:
         signature = inspect.signature(fn)
     except (TypeError, ValueError) as exc:
-        raise ToolValidationError(
-            f"Tool '{name}' must have an inspectable signature"
-        ) from exc
+        raise ToolValidationError(f"Tool '{name}' must have an inspectable signature") from exc
 
     params = signature.parameters
     if any(p.kind is inspect.Parameter.POSITIONAL_ONLY for p in params.values()):
-        raise ToolValidationError(
-            f"Tool '{name}' must not use positional-only parameters"
-        )
+        raise ToolValidationError(f"Tool '{name}' must not use positional-only parameters")
 
     has_var_keyword = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
     properties = parameters_schema.get("properties", {})
@@ -53,7 +48,8 @@ def _validate_tool_callable(name: str, fn: Callable[..., Any], parameters_schema
             param_name
             for param_name, parameter in params.items()
             if param_name != "state"
-            and parameter.kind in {
+            and parameter.kind
+            in {
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
                 inspect.Parameter.KEYWORD_ONLY,
             }
@@ -71,9 +67,7 @@ def _validate_tool_callable(name: str, fn: Callable[..., Any], parameters_schema
             inspect.Parameter.POSITIONAL_ONLY,
             inspect.Parameter.VAR_POSITIONAL,
         }:
-            raise ToolValidationError(
-                f"Tool '{name}' parameter 'state' must be keyword-callable"
-            )
+            raise ToolValidationError(f"Tool '{name}' parameter 'state' must be keyword-callable")
         return
     if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
         return
@@ -85,6 +79,7 @@ def _validate_tool_callable(name: str, fn: Callable[..., Any], parameters_schema
 @dataclass
 class ToolDef:
     """A tool definition: name, description, callable, and JSON Schema."""
+
     name: str
     description: str
     fn: Callable[..., Any]
@@ -99,7 +94,10 @@ class ToolRegistry:
         self._tools: dict[str, ToolDef] = {}
 
     def tool(
-        self, name: str, description: str, parameters: dict,
+        self,
+        name: str,
+        description: str,
+        parameters: dict,
     ) -> Callable:
         """Decorator to register a tool function (sync or async)."""
         if name in self._tools:
@@ -120,6 +118,7 @@ class ToolRegistry:
                 validator=validator,
             )
             return fn
+
         return decorator
 
     def get_fn(self, name: str) -> Callable[..., str] | None:
@@ -152,16 +151,18 @@ class ToolRegistry:
                     raise ToolValidationError(f"Tool '{n}' is not registered")
                 _logger.warning("Tool '%s' not found in registry — skipped", n)
                 continue
-            result.append({
-                "type": "function",
-                "function": {
-                    "name": td.name,
-                    "description": td.description,
-                    "parameters": (
-                        _compact_schema(td.parameters_schema)
-                        if compact
-                        else copy.deepcopy(td.parameters_schema)
-                    ),
-                },
-            })
+            result.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": td.name,
+                        "description": td.description,
+                        "parameters": (
+                            _compact_schema(td.parameters_schema)
+                            if compact
+                            else copy.deepcopy(td.parameters_schema)
+                        ),
+                    },
+                }
+            )
         return result

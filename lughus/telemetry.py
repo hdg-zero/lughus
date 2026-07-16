@@ -1,4 +1,5 @@
 """OpenTelemetry setup — traces + metrics for lughus agents."""
+
 from __future__ import annotations
 
 import logging
@@ -38,7 +39,12 @@ def setup_telemetry(service_name: str, *, configure_logging: bool = True) -> Non
     resource = Resource.create({"service.name": service_name})
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 
-    if otlp_endpoint or os.getenv("LUGHUS_TELEMETRY_CONSOLE", "").lower() in ("1", "true", "yes", "on"):
+    if otlp_endpoint or os.getenv("LUGHUS_TELEMETRY_CONSOLE", "").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    ):
         if otlp_endpoint:
             from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
                 OTLPMetricExporter,

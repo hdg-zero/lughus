@@ -1,0 +1,18 @@
+repos:
+  - repo: local
+    hooks:
+      # Run Ruff linter from the local virtualenv to ensure version consistency
+      - id: ruff
+        name: ruff
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+        require_serial: true
+
+      # Run Ruff formatter from the local virtualenv to ensure version consistency
+      - id: ruff-format
+        name: ruff-format
+        entry: uv run ruff format
+        language: system
+        types: [python]
+        require_serial: true

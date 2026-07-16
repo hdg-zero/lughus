@@ -1,4 +1,5 @@
 """Public exception types raised or reported by lughus."""
+
 from __future__ import annotations
 
 

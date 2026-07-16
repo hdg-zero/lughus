@@ -1,4 +1,5 @@
 """Local browser test UI routes and helpers."""
+
 from __future__ import annotations
 
 import asyncio
@@ -40,10 +41,8 @@ def _read_ui_asset(name: str) -> str:
 
 def _render_test_ui_html(agent_card: AgentCard) -> str:
     template = _read_ui_asset("test_ui.html")
-    return (
-        template
-        .replace("__AGENT_NAME__", html.escape(agent_card.name))
-        .replace("__AGENT_DESCRIPTION__", html.escape(agent_card.description or ""))
+    return template.replace("__AGENT_NAME__", html.escape(agent_card.name)).replace(
+        "__AGENT_DESCRIPTION__", html.escape(agent_card.description or "")
     )
 
 
@@ -76,10 +75,14 @@ def _is_safe_otel_url(url: str) -> bool:
         # Block private subnets (SSRF protection)
         # IPv4 private/local addresses:
         if (
-            ip.startswith("10.") or
-            ip.startswith("192.168.") or
-            ip.startswith("169.254.") or
-            (ip.startswith("172.") and len(ip.split(".")) > 1 and 16 <= int(ip.split(".")[1]) <= 31)
+            ip.startswith("10.")
+            or ip.startswith("192.168.")
+            or ip.startswith("169.254.")
+            or (
+                ip.startswith("172.")
+                and len(ip.split(".")) > 1
+                and 16 <= int(ip.split(".")[1]) <= 31
+            )
         ):
             return False
         # IPv6 link-local (fe80::) and unique local (fc00::, fd00::)
@@ -118,10 +121,14 @@ def _resolve_and_validate_otel_url(url: str) -> tuple[str, str]:
                 pass
             # Block private subnets (SSRF protection)
             elif (
-                ip.startswith("10.") or
-                ip.startswith("192.168.") or
-                ip.startswith("169.254.") or
-                (ip.startswith("172.") and len(ip.split(".")) > 1 and 16 <= int(ip.split(".")[1]) <= 31)
+                ip.startswith("10.")
+                or ip.startswith("192.168.")
+                or ip.startswith("169.254.")
+                or (
+                    ip.startswith("172.")
+                    and len(ip.split(".")) > 1
+                    and 16 <= int(ip.split(".")[1]) <= 31
+                )
             ):
                 raise ValueError("Trace URL destination is not allowed (SSRF protection)")
             # IPv6 link-local (fe80::) and unique local (fc00::, fd00::)
@@ -158,10 +165,7 @@ def _fetch_otel_url(url: str) -> dict[str, Any]:
 
     request = urllib.request.Request(
         rewritten_url,
-        headers={
-            "Host": original_host,
-            "accept": "application/json, text/plain;q=0.9, */*;q=0.1"
-        },
+        headers={"Host": original_host, "accept": "application/json, text/plain;q=0.9, */*;q=0.1"},
         method="GET",
     )
     try:
@@ -209,10 +213,7 @@ def _completion_event(event: CompletionEvent, settings: Any) -> dict[str, Any]:
 
 
 def _json_line(event: dict[str, Any]) -> bytes:
-    return (
-        json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        + b"\n"
-    )
+    return json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode("utf-8") + b"\n"
 
 
 def _telemetry_event(
@@ -235,11 +236,13 @@ def _telemetry_event(
     tool_elapsed = sum(float(event.get("elapsed_ms") or 0) for event in tool_results)
     tool_errors = sum(1 for event in tool_results if event.get("status") == "error")
     otel_attributes = dict(metadata.get("otel_attributes") or {})
-    otel_attributes.update({
-        "lughus.ui.request_elapsed_ms": round(request_elapsed_ms, 2),
-        "lughus.ui.tool_call_count": len(tool_results),
-        "lughus.ui.tool_error_count": tool_errors,
-    })
+    otel_attributes.update(
+        {
+            "lughus.ui.request_elapsed_ms": round(request_elapsed_ms, 2),
+            "lughus.ui.tool_call_count": len(tool_results),
+            "lughus.ui.tool_error_count": tool_errors,
+        }
+    )
 
     return {
         "type": "telemetry",
@@ -416,9 +419,7 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
                                         _enqueue_nowait({"type": "progress", "text": event.text})
                                     elif isinstance(event, CompletionEvent):
                                         completion_metadata = dict(event.metadata or {})
-                                        _enqueue_nowait(
-                                            _completion_event(event, gateway.settings)
-                                        )
+                                        _enqueue_nowait(_completion_event(event, gateway.settings))
 
                         telemetry = _telemetry_event(
                             metadata=completion_metadata,
@@ -431,10 +432,12 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
                                     span.set_attribute(key, value)
                             _enqueue_nowait(telemetry)
                 except TimeoutError:
-                    _enqueue_nowait({
-                        "type": "error",
-                        "text": f"Agent execution timed out after {gateway.settings.agent_timeout}s",
-                    })
+                    _enqueue_nowait(
+                        {
+                            "type": "error",
+                            "text": f"Agent execution timed out after {gateway.settings.agent_timeout}s",
+                        }
+                    )
                 except ValueError as exc:
                     _enqueue_nowait({"type": "error", "text": str(exc)})
                 except Exception as exc:

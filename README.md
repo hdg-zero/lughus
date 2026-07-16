@@ -2,6 +2,12 @@
   <img src="docs/logo.svg" width="360" alt="lughus logo" />
 </p>
 
+<p align="center">
+  <a href="https://pypi.org/project/lughus/"><img src="https://img.shields.io/pypi/v/lughus.svg?color=blue" alt="PyPI version" /></a>
+  <a href="https://pypi.org/project/lughus/"><img src="https://img.shields.io/pypi/pyversions/lughus.svg" alt="Supported Python versions" /></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+</p>
+
 # lughus
 
 Micro-framework for building [A2A](https://google.github.io/A2A/) agents with [LiteLLM](https://github.com/BerriAI/litellm). No magic — a small, explicit codebase that replaces the orchestration framework layer.
@@ -31,10 +37,13 @@ You write your tools, your prompts, and your orchestration logic. The framework 
 pip install lughus
 ```
 
-Or for development:
+Or for development (see [CONTRIBUTING.md](CONTRIBUTING.md) for details):
 
 ```bash
-pip install -e path/to/lughus/package
+git clone https://github.com/hdg-zero/lughus.git
+cd lughus
+uv sync --all-extras --dev
+.venv/bin/pre-commit install
 ```
 
 ---
@@ -825,17 +834,7 @@ lughus/
 
 ## Creating a new agent
 
-See `examples/minimal_agent/` for a complete runnable example with:
-- `build_app()` ASGI integration
-- custom placeholder `TaskStore`
-- production-style `ToolExecutionConfig`
-- offline tests using `MockLLM`
-
-See `examples/excel_agent/` for a richer workbook automation example with:
-- batched Excel tools (`edit`, `manage_sheets`)
-- request-scoped workbook state, snapshots, and undo
-- `.xlsx` A2A artifacts
-- optional PDF/DOCX/text source extraction
+To create a new agent, structure your project with the following standard layout:
 
 ```
 my_agent/

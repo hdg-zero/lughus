@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 class LoopResult(str):
     """String subclass that carries usage metadata.
 

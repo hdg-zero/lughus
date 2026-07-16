@@ -8,11 +8,14 @@ Thank you for your interest in contributing!
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-org/lughus.git
+git clone https://github.com/hdg-zero/lughus.git
 cd lughus
 
-# Install in editable mode with dev dependencies
-pip install -e ".[dev]"
+# Install in editable mode with dev dependencies using uv
+uv sync --all-extras --dev
+
+# Install git pre-commit hooks locally
+.venv/bin/pre-commit install
 ```
 
 ---
@@ -42,6 +45,22 @@ mypy lughus/
 
 The package ships with a `py.typed` marker (PEP 561). All public APIs must be
 fully typed. `mypy` must pass with no errors before any PR is merged.
+
+---
+
+## Code style & Linting
+
+We enforce strict formatting rules using **Ruff**. 
+
+Your code is automatically checked and formatted when you commit thanks to the `pre-commit` hooks. If you need to manually run the checks or reformat the codebase, use:
+
+```bash
+# Lint the codebase
+uv run ruff check .
+
+# Format the codebase
+uv run ruff format .
+```
 
 ---
 
@@ -111,3 +130,15 @@ If your change adds new configuration settings, environment variables, or CLI pa
 - Update the **Configuration** table in `README.md`.
 - Document any usage instructions in the relevant sections of `README.md`.
 - Ensure changes are mentioned in the **Production Checklist** if they affect operational stability or observability.
+
+---
+
+## Releases & Versioning
+
+We follow **Semantic Versioning** (`major.minor.patch`) and use the **Angular Commit Message Conventions** to structure our commits (`feat:`, `fix:`, `docs:`, etc.).
+
+When you want to publish a release:
+1. Increment the version in `pyproject.toml`.
+2. Document the changes in `CHANGELOG.md`.
+3. Create a Pull Request, merge it, and then create a manual **Release** on GitHub.
+4. GitHub Actions will automatically detect the new release and deploy the packages to PyPI via OIDC.
