@@ -7,6 +7,7 @@
 !.gitignore
 !.github/
 !.github/**
+!.pre-commit-config.yaml
 
 # --- Lughus Specific ignores ---
 key.json
