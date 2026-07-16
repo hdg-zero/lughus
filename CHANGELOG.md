@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.1] — 2026-07-16
+
+### Fixed
+
+- Added missing metadata links (`[project.urls]`) in `pyproject.toml` to display GitHub repository links on PyPI.
+
 ## [0.1.0] — 2026-07-15
 
 ### Added

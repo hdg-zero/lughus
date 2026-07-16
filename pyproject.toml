@@ -1,6 +1,6 @@
 [project]
 name = "lughus"
-version = "0.1.0"
+version = "0.1.1"
 description = "Micro-framework for building A2A agents with LiteLLM — agent loop, tool registry, A2A gateway."
 readme = "README.md"
 license = "MIT"
@@ -33,6 +33,12 @@ dependencies = [
     "opentelemetry-sdk>=1.20",
     "opentelemetry-exporter-otlp-proto-grpc>=1.20",
 ]
+
+[project.urls]
+Homepage = "https://github.com/hdg-zero/lughus"
+Repository = "https://github.com/hdg-zero/lughus"
+Issues = "https://github.com/hdg-zero/lughus/issues"
+Changelog = "https://github.com/hdg-zero/lughus/blob/main/CHANGELOG.md"
 
 [project.scripts]
 lughus = "lughus.cli:main"
