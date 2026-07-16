@@ -112,7 +112,6 @@ def test_ensure_dotenv_loads_file(tmp_path, monkeypatch) -> None:
 
 def test_event_loop_weakref_no_leak() -> None:
     import gc
-    import weakref
     from lughus._threading import _get_sync_semaphore, _SYNC_SEMAPHORES
 
     class FakeLoop:
@@ -163,7 +162,7 @@ def test_resolve_and_validate_otel_url(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_stream_retry_on_transient_error() -> None:
-    from lughus.loop import agent_loop_stream, LoopResult
+    from lughus.loop import agent_loop_stream
     from lughus.testing import _make_streaming_chunk, _make_streaming_text_response
     from lughus.tools import ToolRegistry
 
