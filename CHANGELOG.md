@@ -13,6 +13,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added GitHub Actions workflow for CI (linting, type-checking, and testing matrix on Python 3.11, 3.12, 3.13).
 - Added GitHub Actions workflow for CD to automate PyPI publishing using OIDC Trusted Publishing upon GitHub Releases.
 - Added professional badges (PyPI version, Python support, MIT License) to `README.md`.
+- Added local development git pre-commit hooks (using Ruff check and format) to ensure clean code before commits.
+- Documented dev setup, testing workflow and coding style guidelines in `CONTRIBUTING.md`.
 
 ### Fixed
 

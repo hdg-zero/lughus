@@ -37,10 +37,13 @@ You write your tools, your prompts, and your orchestration logic. The framework 
 pip install lughus
 ```
 
-Or for development:
+Or for development (see [CONTRIBUTING.md](CONTRIBUTING.md) for details):
 
 ```bash
-pip install -e path/to/lughus/package
+git clone https://github.com/hdg-zero/lughus.git
+cd lughus
+uv sync --all-extras --dev
+.venv/bin/pre-commit install
 ```
 
 ---
