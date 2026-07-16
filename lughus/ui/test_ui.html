@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>__AGENT_NAME__ Debug Console</title>
+  <link rel="stylesheet" href="/ui/assets/test_ui.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <main>
+    <header>
+      <div class="brand">
+        <div class="logo-container">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div>
+          <h1>__AGENT_NAME__</h1>
+          <p>__AGENT_DESCRIPTION__</p>
+        </div>
+      </div>
+      <div class="status-container">
+        <span id="status-indicator" class="status-dot"></span>
+        <div id="status" class="status">idle</div>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <!-- Left sidebar: Configuration & History -->
+      <aside class="side">
+        <!-- Section 1: Objective & Input -->
+        <section class="card">
+          <form id="form">
+            <label for="objective">Objective</label>
+            <textarea id="objective" name="objective" autofocus placeholder="Explain what the agent should accomplish...">Greet Ada</textarea>
+            
+            <label for="files" style="margin-top: 16px;">Files</label>
+            <div class="file-dropzone">
+              <input id="files" name="files" type="file" multiple>
+              <div class="dropzone-text">Click to choose or drag files here</div>
+            </div>
+            
+            <div class="actions">
+              <button id="run" type="submit" class="btn-primary">Run Agent</button>
+              <button id="cancel" type="button" class="btn-danger" disabled>Cancel</button>
+            </div>
+            <div class="file-meta">
+              <span id="file-count" class="meta">0 files attached</span>
+            </div>
+          </form>
+        </section>
+
+        <!-- Section 2: Run History -->
+        <section class="card history-card">
+          <div class="section-header">
+            <h3>Execution History</h3>
+            <button id="clear-history" class="btn-text" title="Clear History">Clear</button>
+          </div>
+          <div id="run-list" class="run-list">
+            <div class="empty-history">No runs in this session</div>
+          </div>
+        </section>
+
+        <!-- Section 3: OpenTelemetry -->
+        <section class="card otel-panel">
+          <form id="otel-form">
+            <label for="otel-url">OpenTelemetry traces</label>
+            <div class="otel-input-group">
+              <input
+                id="otel-url"
+                name="otel-url"
+                type="url"
+                placeholder="http://localhost:16686/api/traces/{trace_id}"
+              >
+              <button id="load-otel" type="submit" class="btn-secondary">Load</button>
+            </div>
+          </form>
+          <pre id="otel-output">No trace query yet</pre>
+        </section>
+      </aside>
+
+      <!-- Right content: Event Logs & Details -->
+      <section class="events-container">
+        <div class="logs-header">
+          <h3>Event Logs</h3>
+          <div id="event-filters" class="event-filters">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="progress">Progress</button>
+            <button class="filter-btn" data-filter="tool">Tools</button>
+            <button class="filter-btn" data-filter="telemetry">Telemetry</button>
+            <button class="filter-btn" data-filter="error">Errors</button>
+          </div>
+        </div>
+        <div class="events" id="events">
+          <div class="empty">Execute the agent to see logs here</div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script src="/ui/assets/test_ui.js"></script>
+</body>
+</html>

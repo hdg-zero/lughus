@@ -1,0 +1,34 @@
+<svg viewBox="0 0 100 100" width="120" height="120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Dark Royal Blue to Dark Steel Metal Gradient -->
+    <linearGradient id="royal-metal-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" /> <!-- Very Dark Slate Blue -->
+      <stop offset="50%" stop-color="#1e3a8a" /> <!-- Dark Royal Blue -->
+      <stop offset="100%" stop-color="#475569" /> <!-- Dark Steel Slate -->
+    </linearGradient>
+
+    <!-- Mask to cut the lines under the dots for transparent background compatibility -->
+    <mask id="cutout-dots">
+      <rect width="100" height="100" fill="white"/>
+      <circle cx="50" cy="14.5" r="6.0" fill="black"/>
+      <circle cx="80.74" cy="67.75" r="6.0" fill="black"/>
+      <circle cx="19.26" cy="67.75" r="6.0" fill="black"/>
+    </mask>
+    
+    <g id="valknut-triangle">
+      <path d="M 50 18 L 74 60 L 26 60 Z" fill="none" stroke="url(#royal-metal-gradient)" stroke-width="3.2" stroke-linejoin="round"/>
+    </g>
+  </defs>
+  
+  <!-- 3 rotated triangles with gap mask -->
+  <g mask="url(#cutout-dots)">
+    <use href="#valknut-triangle" transform="translate(0, -3.5)"/>
+    <use href="#valknut-triangle" transform="rotate(120, 50, 50) translate(0, -3.5)"/>
+    <use href="#valknut-triangle" transform="rotate(240, 50, 50) translate(0, -3.5)"/>
+  </g>
+  
+  <!-- Dots on tips -->
+  <circle cx="50" cy="14.5" r="3.8" fill="url(#royal-metal-gradient)"/>
+  <circle cx="80.74" cy="67.75" r="3.8" fill="url(#royal-metal-gradient)"/>
+  <circle cx="19.26" cy="67.75" r="3.8" fill="url(#royal-metal-gradient)"/>
+</svg>
