@@ -5,6 +5,8 @@
 
 # EXCEPT for essential project and repository configuration
 !.gitignore
+!.github/
+!.github/**
 
 # --- Lughus Specific ignores ---
 key.json
