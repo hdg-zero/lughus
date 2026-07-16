@@ -1,4 +1,5 @@
 """Shared retry-budget context for LLM calls."""
+
 from __future__ import annotations
 
 import contextlib

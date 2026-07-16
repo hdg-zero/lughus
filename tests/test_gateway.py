@@ -1,4 +1,5 @@
 """Tests for BaseGateway._extract() — A2A message parsing (fixes B2, M2)."""
+
 from __future__ import annotations
 
 import base64
@@ -52,6 +53,7 @@ def _make_context(parts) -> MagicMock:
 
 def _text_part(text: str) -> MagicMock:
     from a2a.types import TextPart
+
     part = MagicMock()
     part.root = MagicMock(spec=TextPart)
     part.root.text = text
@@ -60,6 +62,7 @@ def _text_part(text: str) -> MagicMock:
 
 def _file_part(data: bytes, mime: str = "application/pdf", name: str = "file.pdf") -> MagicMock:
     from a2a.types import FilePart, FileWithBytes
+
     fw = MagicMock(spec=FileWithBytes)
     fw.bytes = base64.b64encode(data).decode()
     fw.mime_type = mime
@@ -75,6 +78,7 @@ def _file_part(data: bytes, mime: str = "application/pdf", name: str = "file.pdf
 
 def _invalid_file_part(name: str = "bad.bin") -> MagicMock:
     from a2a.types import FilePart, FileWithBytes
+
     fw = MagicMock(spec=FileWithBytes)
     fw.bytes = "!!!NOT_VALID_BASE64!!!"
     fw.mime_type = "application/octet-stream"
@@ -181,10 +185,12 @@ def test_extract_file_exceeding_encoded_max_size_skipped_before_decode(
 def test_extract_max_files_limit(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
     """Files beyond max_files are skipped with a warning."""
     gw = _make_gateway(monkeypatch, max_files=1)
-    ctx = _make_context([
-        _file_part(b"one", "text/plain", "one.txt"),
-        _file_part(b"two", "text/plain", "two.txt"),
-    ])
+    ctx = _make_context(
+        [
+            _file_part(b"one", "text/plain", "one.txt"),
+            _file_part(b"two", "text/plain", "two.txt"),
+        ]
+    )
 
     with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
         _, files = gw._extract(ctx)
@@ -194,15 +200,15 @@ def test_extract_max_files_limit(monkeypatch, caplog: pytest.LogCaptureFixture) 
     assert "max file count" in caplog.text
 
 
-def test_extract_max_request_bytes_limit(
-    monkeypatch, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_extract_max_request_bytes_limit(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
     """Total decoded file bytes are bounded per request."""
     gw = _make_gateway(monkeypatch, max_request_bytes=5)
-    ctx = _make_context([
-        _file_part(b"abc", "text/plain", "a.txt"),
-        _file_part(b"def", "text/plain", "b.txt"),
-    ])
+    ctx = _make_context(
+        [
+            _file_part(b"abc", "text/plain", "a.txt"),
+            _file_part(b"def", "text/plain", "b.txt"),
+        ]
+    )
 
     with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
         _, files = gw._extract(ctx)
@@ -226,10 +232,12 @@ def test_extract_original_filename_prefix(monkeypatch) -> None:
     """__ORIGINAL_FILENAME__: prefix sets the name of the next FilePart."""
     gw = _make_gateway(monkeypatch)
     raw = b"binary content"
-    ctx = _make_context([
-        _text_part("__ORIGINAL_FILENAME__:custom_name.xlsx"),
-        _file_part(raw, "application/vnd.ms-excel", "upload.bin"),
-    ])
+    ctx = _make_context(
+        [
+            _text_part("__ORIGINAL_FILENAME__:custom_name.xlsx"),
+            _file_part(raw, "application/vnd.ms-excel", "upload.bin"),
+        ]
+    )
     objective, files = gw._extract(ctx)
     assert objective == ""  # prefix part is consumed, not added to objective
     assert len(files) == 1
@@ -239,10 +247,12 @@ def test_extract_original_filename_prefix(monkeypatch) -> None:
 
 def test_extract_sanitizes_uploaded_filename(monkeypatch) -> None:
     gw = _make_gateway(monkeypatch)
-    ctx = _make_context([
-        _text_part("__ORIGINAL_FILENAME__:../../secret.txt"),
-        _file_part(b"binary content", "text/plain", "upload.bin"),
-    ])
+    ctx = _make_context(
+        [
+            _text_part("__ORIGINAL_FILENAME__:../../secret.txt"),
+            _file_part(b"binary content", "text/plain", "upload.bin"),
+        ]
+    )
 
     _, files = gw._extract(ctx)
 
@@ -251,9 +261,11 @@ def test_extract_sanitizes_uploaded_filename(monkeypatch) -> None:
 
 def test_extract_sanitizes_windows_uploaded_filename(monkeypatch) -> None:
     gw = _make_gateway(monkeypatch)
-    ctx = _make_context([
-        _file_part(b"binary content", "text/plain", r"..\\..\\secret.txt"),
-    ])
+    ctx = _make_context(
+        [
+            _file_part(b"binary content", "text/plain", r"..\\..\\secret.txt"),
+        ]
+    )
 
     _, files = gw._extract(ctx)
 
@@ -277,9 +289,11 @@ def test_validate_artifacts_total_size_limit(monkeypatch) -> None:
 
 def test_extract_sanitizes_shell_injection_characters(monkeypatch) -> None:
     gw = _make_gateway(monkeypatch)
-    ctx = _make_context([
-        _file_part(b"binary content", "text/plain", r"foo; rm -rf ; `id`.txt"),
-    ])
+    ctx = _make_context(
+        [
+            _file_part(b"binary content", "text/plain", r"foo; rm -rf ; `id`.txt"),
+        ]
+    )
 
     _, files = gw._extract(ctx)
 

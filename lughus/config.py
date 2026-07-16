@@ -1,4 +1,5 @@
 """Base settings for lughus agents."""
+
 from __future__ import annotations
 
 import os
@@ -17,6 +18,7 @@ def _ensure_dotenv() -> None:
         _DOTENV_LOADED = True
         try:
             from dotenv import load_dotenv
+
             dotenv_path = os.path.join(os.getcwd(), ".env")
             if os.path.exists(dotenv_path):
                 load_dotenv(dotenv_path)
@@ -48,7 +50,9 @@ def _env_int(key: str, default: int) -> int:
     except (TypeError, ValueError):
         _logger.warning(
             "Invalid integer environment variable %s=%r; using default %r",
-            key, value, default,
+            key,
+            value,
+            default,
         )
         return default
 
@@ -63,7 +67,9 @@ def _env_float(key: str, default: float) -> float:
     except (TypeError, ValueError):
         _logger.warning(
             "Invalid float environment variable %s=%r; using default %r",
-            key, value, default,
+            key,
+            value,
+            default,
         )
         return default
 
@@ -100,19 +106,33 @@ class BaseSettings:
     api_bearer_token: str = field(default_factory=lambda: os.getenv("API_BEARER_TOKEN", ""))
     cors_origins: str = field(default_factory=lambda: os.getenv("CORS_ORIGINS", ""))
 
-    max_file_bytes: int = field(default_factory=lambda: _env_int("MAX_FILE_BYTES", 25 * 1024 * 1024))
+    max_file_bytes: int = field(
+        default_factory=lambda: _env_int("MAX_FILE_BYTES", 25 * 1024 * 1024)
+    )
     max_files: int = field(default_factory=lambda: _env_int("MAX_FILES", 10))
-    max_request_bytes: int = field(default_factory=lambda: _env_int("MAX_REQUEST_BYTES", 50 * 1024 * 1024))
-    max_http_body_bytes: int = field(default_factory=lambda: _env_int("MAX_HTTP_BODY_BYTES", 80 * 1024 * 1024))
-    max_objective_chars: int = field(default_factory=lambda: _env_int("MAX_OBJECTIVE_CHARS", 100_000))
+    max_request_bytes: int = field(
+        default_factory=lambda: _env_int("MAX_REQUEST_BYTES", 50 * 1024 * 1024)
+    )
+    max_http_body_bytes: int = field(
+        default_factory=lambda: _env_int("MAX_HTTP_BODY_BYTES", 80 * 1024 * 1024)
+    )
+    max_objective_chars: int = field(
+        default_factory=lambda: _env_int("MAX_OBJECTIVE_CHARS", 100_000)
+    )
     max_source_chars: int = field(default_factory=lambda: _env_int("MAX_SOURCE_CHARS", 12_000))
     max_artifacts: int = field(default_factory=lambda: _env_int("MAX_ARTIFACTS", 10))
-    max_artifact_bytes: int = field(default_factory=lambda: _env_int("MAX_ARTIFACT_BYTES", 50 * 1024 * 1024))
-    max_total_artifact_bytes: int = field(default_factory=lambda: _env_int("MAX_TOTAL_ARTIFACT_BYTES", 100 * 1024 * 1024))
+    max_artifact_bytes: int = field(
+        default_factory=lambda: _env_int("MAX_ARTIFACT_BYTES", 50 * 1024 * 1024)
+    )
+    max_total_artifact_bytes: int = field(
+        default_factory=lambda: _env_int("MAX_TOTAL_ARTIFACT_BYTES", 100 * 1024 * 1024)
+    )
 
     # Maximum active HTTP requests handled by one ASGI app instance. Set to 0
     # to disable this framework-level backpressure guard. Env: MAX_CONCURRENT_REQUESTS.
-    max_concurrent_requests: int = field(default_factory=lambda: _env_int("MAX_CONCURRENT_REQUESTS", 0))
+    max_concurrent_requests: int = field(
+        default_factory=lambda: _env_int("MAX_CONCURRENT_REQUESTS", 0)
+    )
 
     # Maximum requests allowed to wait for a concurrency slot in one ASGI app
     # instance. Set to 0 to reject once all slots are active. Env: MAX_QUEUE_BACKLOG.
@@ -120,7 +140,9 @@ class BaseSettings:
 
     # How long a request waits for an available concurrency slot before the
     # server responds with 503. Set to 0 to fail immediately. Env: REQUEST_QUEUE_TIMEOUT.
-    request_queue_timeout: float = field(default_factory=lambda: _env_float("REQUEST_QUEUE_TIMEOUT", 5.0))
+    request_queue_timeout: float = field(
+        default_factory=lambda: _env_float("REQUEST_QUEUE_TIMEOUT", 5.0)
+    )
 
     # LLM call timeout in seconds. Set to 0 or a negative value to disable.
     # Increase for slow local models (e.g. Ollama). Env: LLM_TIMEOUT.
@@ -136,7 +158,9 @@ class BaseSettings:
 
     # Total retry delay budget in seconds. Set to 0 or a negative value to disable.
     # Env: LLM_RETRY_MAX_ELAPSED.
-    retry_max_elapsed: float = field(default_factory=lambda: _env_float("LLM_RETRY_MAX_ELAPSED", 0.0))
+    retry_max_elapsed: float = field(
+        default_factory=lambda: _env_float("LLM_RETRY_MAX_ELAPSED", 0.0)
+    )
 
     # Total agent timeout in seconds — applied to the entire handle() call in BaseGateway.
     # Set to 0 to disable. Env: AGENT_TIMEOUT.
@@ -146,8 +170,12 @@ class BaseSettings:
     # to 0 to disable TTL expiry; set TASK_STORE_MAX_TASKS to 0 to disable
     # count-based eviction. Persistent stores should still be used for
     # horizontally scaled production deployments.
-    task_store_ttl_seconds: float = field(default_factory=lambda: _env_float("TASK_STORE_TTL_SECONDS", 24 * 60 * 60))
-    task_store_max_tasks: int = field(default_factory=lambda: _env_int("TASK_STORE_MAX_TASKS", 10_000))
+    task_store_ttl_seconds: float = field(
+        default_factory=lambda: _env_float("TASK_STORE_TTL_SECONDS", 24 * 60 * 60)
+    )
+    task_store_max_tasks: int = field(
+        default_factory=lambda: _env_int("TASK_STORE_MAX_TASKS", 10_000)
+    )
 
     # Maximum number of tool calls to run concurrently inside one loop iteration.
     # Env: MAX_PARALLEL_TOOLS.
@@ -159,7 +187,9 @@ class BaseSettings:
 
     # Maximum worker threads used for synchronous tools and framework blocking
     # work. Env: MAX_SYNC_THREAD_WORKERS.
-    max_sync_thread_workers: int = field(default_factory=lambda: _env_int("MAX_SYNC_THREAD_WORKERS", 32))
+    max_sync_thread_workers: int = field(
+        default_factory=lambda: _env_int("MAX_SYNC_THREAD_WORKERS", 32)
+    )
 
     # Per-tool timeout in seconds. Set to 0 or a negative value to disable.
     # Env: TOOL_TIMEOUT.
@@ -167,11 +197,21 @@ class BaseSettings:
 
     # How long a tool waits for a worker-local global tool slot before returning
     # a structured timeout error. Set to 0 to fail immediately. Env: TOOL_QUEUE_TIMEOUT.
-    tool_queue_timeout: float = field(default_factory=lambda: _env_float("TOOL_QUEUE_TIMEOUT", 30.0))
+    tool_queue_timeout: float = field(
+        default_factory=lambda: _env_float("TOOL_QUEUE_TIMEOUT", 30.0)
+    )
 
     # Size limits that protect the LLM message history from tool payload blowups.
     # Env: MAX_TOOL_ARGS_CHARS / MAX_TOOL_OUTPUT_CHARS / COMPACT_TOOL_SCHEMAS.
-    max_tool_args_chars: int = field(default_factory=lambda: _env_int("MAX_TOOL_ARGS_CHARS", 20_000))
-    max_tool_output_chars: int = field(default_factory=lambda: _env_int("MAX_TOOL_OUTPUT_CHARS", 20_000))
-    max_message_history_chars: int = field(default_factory=lambda: _env_int("MAX_MESSAGE_HISTORY_CHARS", 200_000))
-    compact_tool_schemas: bool = field(default_factory=lambda: _env_bool("COMPACT_TOOL_SCHEMAS", False))
+    max_tool_args_chars: int = field(
+        default_factory=lambda: _env_int("MAX_TOOL_ARGS_CHARS", 20_000)
+    )
+    max_tool_output_chars: int = field(
+        default_factory=lambda: _env_int("MAX_TOOL_OUTPUT_CHARS", 20_000)
+    )
+    max_message_history_chars: int = field(
+        default_factory=lambda: _env_int("MAX_MESSAGE_HISTORY_CHARS", 200_000)
+    )
+    compact_tool_schemas: bool = field(
+        default_factory=lambda: _env_bool("COMPACT_TOOL_SCHEMAS", False)
+    )

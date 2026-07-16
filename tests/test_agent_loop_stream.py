@@ -8,6 +8,7 @@ Covers:
 - max_iterations enforcement
 - LoopResult as last yielded value
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,19 +25,27 @@ from lughus.testing import MockStreamingLLM
 def registry() -> ToolRegistry:
     r = ToolRegistry()
 
-    @r.tool("greet", "Greet by name.", {
-        "type": "object",
-        "properties": {"name": {"type": "string"}},
-        "required": ["name"],
-    })
+    @r.tool(
+        "greet",
+        "Greet by name.",
+        {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+    )
     def greet(*, name: str, state) -> str:
         return json.dumps({"greeting": f"Hello {name}!"})
 
-    @r.tool("add", "Add two numbers.", {
-        "type": "object",
-        "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
-        "required": ["a", "b"],
-    })
+    @r.tool(
+        "add",
+        "Add two numbers.",
+        {
+            "type": "object",
+            "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+            "required": ["a", "b"],
+        },
+    )
     def add(*, a: int, b: int, state) -> str:
         return json.dumps({"result": a + b})
 
@@ -53,8 +62,12 @@ async def test_stream_direct_text_response(registry: ToolRegistry) -> None:
     chunks: list[str | LoopResult] = []
 
     async for chunk in agent_loop_stream(
-        llm, system="You help.", context="Hi",
-        registry=registry, tool_names=[], state=None,
+        llm,
+        system="You help.",
+        context="Hi",
+        registry=registry,
+        tool_names=[],
+        state=None,
     ):
         chunks.append(chunk)
 
@@ -68,16 +81,22 @@ async def test_stream_direct_text_response(registry: ToolRegistry) -> None:
 @pytest.mark.asyncio
 async def test_stream_one_tool_call_then_text(registry: ToolRegistry) -> None:
     """LLM calls a tool, gets result, then streams a text response."""
-    llm = MockStreamingLLM([
-        [{"id": "c1", "name": "greet", "arguments": {"name": "World"}}],
-        "Greeting done!",
-    ])
+    llm = MockStreamingLLM(
+        [
+            [{"id": "c1", "name": "greet", "arguments": {"name": "World"}}],
+            "Greeting done!",
+        ]
+    )
     text_chunks: list[str] = []
     result: LoopResult | None = None
 
     async for chunk in agent_loop_stream(
-        llm, system="Greet.", context="Say hi to World",
-        registry=registry, tool_names=["greet"], state=None,
+        llm,
+        system="Greet.",
+        context="Say hi to World",
+        registry=registry,
+        tool_names=["greet"],
+        state=None,
     ):
         if isinstance(chunk, LoopResult):
             result = chunk
@@ -149,12 +168,18 @@ async def test_stream_buffers_content_from_tool_call_iterations(registry: ToolRe
     chunks: list[str | LoopResult] = []
 
     async for item in agent_loop_stream(
-        llm, system="Greet.", context="Say hi to World",
-        registry=registry, tool_names=["greet"], state=None,
+        llm,
+        system="Greet.",
+        context="Say hi to World",
+        registry=registry,
+        tool_names=["greet"],
+        state=None,
     ):
         chunks.append(item)
 
-    streamed_text = "".join(item for item in chunks if isinstance(item, str) and not isinstance(item, LoopResult))
+    streamed_text = "".join(
+        item for item in chunks if isinstance(item, str) and not isinstance(item, LoopResult)
+    )
     assert streamed_text == "Final answer."
     assert chunks[-1] == "Final answer."
     assistant_messages = [
@@ -168,18 +193,24 @@ async def test_stream_buffers_content_from_tool_call_iterations(registry: ToolRe
 @pytest.mark.asyncio
 async def test_stream_two_parallel_tool_calls(registry: ToolRegistry) -> None:
     """LLM requests two tools in one chunk — both are executed in parallel."""
-    llm = MockStreamingLLM([
+    llm = MockStreamingLLM(
         [
-            {"id": "c1", "name": "greet", "arguments": {"name": "Alice"}},
-            {"id": "c2", "name": "add", "arguments": {"a": 2, "b": 3}},
-        ],
-        "Done with both tools.",
-    ])
+            [
+                {"id": "c1", "name": "greet", "arguments": {"name": "Alice"}},
+                {"id": "c2", "name": "add", "arguments": {"a": 2, "b": 3}},
+            ],
+            "Done with both tools.",
+        ]
+    )
     result: LoopResult | None = None
 
     async for chunk in agent_loop_stream(
-        llm, system="Use tools.", context="Greet and add",
-        registry=registry, tool_names=["greet", "add"], state=None,
+        llm,
+        system="Use tools.",
+        context="Greet and add",
+        registry=registry,
+        tool_names=["greet", "add"],
+        state=None,
     ):
         if isinstance(chunk, LoopResult):
             result = chunk
@@ -199,8 +230,12 @@ async def test_stream_loop_result_is_last_yield(registry: ToolRegistry) -> None:
     last_chunk = None
 
     async for chunk in agent_loop_stream(
-        llm, system=".", context=".", registry=registry,
-        tool_names=[], state=None,
+        llm,
+        system=".",
+        context=".",
+        registry=registry,
+        tool_names=[],
+        state=None,
     ):
         last_chunk = chunk
 
@@ -216,8 +251,12 @@ async def test_stream_max_iterations_raises(registry: ToolRegistry) -> None:
 
     with pytest.raises(RuntimeError, match="exceeded"):
         async for _ in agent_loop_stream(
-            llm, system=".", context=".",
-            registry=registry, tool_names=["greet"], state=None,
+            llm,
+            system=".",
+            context=".",
+            registry=registry,
+            tool_names=["greet"],
+            state=None,
             max_iterations=3,
         ):
             pass
@@ -232,21 +271,27 @@ async def test_stream_tokens_not_double_counted(registry: ToolRegistry) -> None:
     iteration contributes exactly 10 prompt + 5 completion tokens.
     Two iterations (tool call + text) → 20 prompt + 10 completion total.
     """
-    llm = MockStreamingLLM([
-        [{"id": "c1", "name": "greet", "arguments": {"name": "Test"}}],
-        "Done.",
-    ])
+    llm = MockStreamingLLM(
+        [
+            [{"id": "c1", "name": "greet", "arguments": {"name": "Test"}}],
+            "Done.",
+        ]
+    )
     result: LoopResult | None = None
 
     async for chunk in agent_loop_stream(
-        llm, system=".", context=".",
-        registry=registry, tool_names=["greet"], state=None,
+        llm,
+        system=".",
+        context=".",
+        registry=registry,
+        tool_names=["greet"],
+        state=None,
     ):
         if isinstance(chunk, LoopResult):
             result = chunk
 
     assert result is not None
-    assert result.prompt_tokens == 20      # 2 iterations × 10
+    assert result.prompt_tokens == 20  # 2 iterations × 10
     assert result.completion_tokens == 10  # 2 iterations × 5
     assert result.total_tokens == 30
     assert result.iterations == 2
@@ -259,8 +304,12 @@ async def test_stream_usage_metadata_single_iteration(registry: ToolRegistry) ->
     result: LoopResult | None = None
 
     async for chunk in agent_loop_stream(
-        llm, system=".", context=".",
-        registry=registry, tool_names=[], state=None,
+        llm,
+        system=".",
+        context=".",
+        registry=registry,
+        tool_names=[],
+        state=None,
     ):
         if isinstance(chunk, LoopResult):
             result = chunk
@@ -275,14 +324,20 @@ async def test_stream_usage_metadata_single_iteration(registry: ToolRegistry) ->
 @pytest.mark.asyncio
 async def test_stream_tool_call_content_none_not_in_message(registry: ToolRegistry) -> None:
     """Streaming tool-call messages must not include content=None."""
-    llm = MockStreamingLLM([
-        [{"id": "c1", "name": "greet", "arguments": {"name": "Azure"}}],
-        "Done.",
-    ])
+    llm = MockStreamingLLM(
+        [
+            [{"id": "c1", "name": "greet", "arguments": {"name": "Azure"}}],
+            "Done.",
+        ]
+    )
 
     async for _ in agent_loop_stream(
-        llm, system=".", context=".",
-        registry=registry, tool_names=["greet"], state=None,
+        llm,
+        system=".",
+        context=".",
+        registry=registry,
+        tool_names=["greet"],
+        state=None,
     ):
         pass
 
@@ -296,6 +351,7 @@ async def test_stream_tool_call_content_none_not_in_message(registry: ToolRegist
 @pytest.mark.asyncio
 async def test_stream_next_chunk_timeout(registry: ToolRegistry) -> None:
     """Streaming stalls are bounded while waiting for the next chunk."""
+
     class HangingStreamingLLM:
         model = "test/hanging-stream"
         timeout: float | None = 0.01
@@ -304,6 +360,7 @@ async def test_stream_next_chunk_timeout(registry: ToolRegistry) -> None:
             async def _aiter():
                 await asyncio.sleep(1)
                 yield None
+
             return _aiter()
 
     with pytest.raises(asyncio.TimeoutError):

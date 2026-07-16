@@ -1,4 +1,5 @@
 """Tests for _execute_tools() — parallel tool execution in the agent loop."""
+
 from __future__ import annotations
 
 import asyncio
@@ -19,35 +20,55 @@ def registry_with_tools() -> tuple[ToolRegistry, list]:
     registry = ToolRegistry()
     call_log: list[str] = []
 
-    @registry.tool("sync_tool", "Sync tool.", {
-        "type": "object",
-        "properties": {"x": {"type": "string"}},
-        "required": ["x"],
-    })
+    @registry.tool(
+        "sync_tool",
+        "Sync tool.",
+        {
+            "type": "object",
+            "properties": {"x": {"type": "string"}},
+            "required": ["x"],
+        },
+    )
     def sync_tool(*, x: str, state) -> str:
         call_log.append(f"sync:{x}")
         return json.dumps({"result": x.upper()})
 
-    @registry.tool("async_tool", "Async tool.", {
-        "type": "object",
-        "properties": {"y": {"type": "integer"}},
-        "required": ["y"],
-    })
+    @registry.tool(
+        "async_tool",
+        "Async tool.",
+        {
+            "type": "object",
+            "properties": {"y": {"type": "integer"}},
+            "required": ["y"],
+        },
+    )
     async def async_tool(*, y: int, state) -> str:
         call_log.append(f"async:{y}")
         return json.dumps({"result": y * 2})
 
-    @registry.tool("slow_tool", "Slow tool for parallelism test.", {
-        "type": "object", "properties": {}, "required": [],
-    })
+    @registry.tool(
+        "slow_tool",
+        "Slow tool for parallelism test.",
+        {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    )
     async def slow_tool(*, state) -> str:
         await asyncio.sleep(0.05)
         call_log.append("slow:done")
         return json.dumps({"slow": True})
 
-    @registry.tool("failing_tool", "Tool that always fails.", {
-        "type": "object", "properties": {}, "required": [],
-    })
+    @registry.tool(
+        "failing_tool",
+        "Tool that always fails.",
+        {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    )
     def failing_tool(*, state) -> str:
         raise ValueError("intentional failure")
 
@@ -60,7 +81,8 @@ async def test_sync_tool_executes(registry_with_tools) -> None:
     registry, _ = registry_with_tools
     results = await _execute_tools(
         [("call_1", "sync_tool", '{"x": "hello"}')],
-        registry, state=None,
+        registry,
+        state=None,
     )
     assert len(results) == 1
     tc_id, output = results[0]
@@ -77,7 +99,8 @@ async def test_tool_events_are_collected(registry_with_tools) -> None:
     with collect_tool_events(events.append):
         await _execute_tools(
             [("call_1", "sync_tool", '{"x": "hello"}')],
-            registry, state=None,
+            registry,
+            state=None,
         )
 
     assert events[0] == {
@@ -100,7 +123,8 @@ async def test_async_tool_executes(registry_with_tools) -> None:
     registry, _ = registry_with_tools
     results = await _execute_tools(
         [("call_2", "async_tool", '{"y": 21}')],
-        registry, state=None,
+        registry,
+        state=None,
     )
     _, output = results[0]
     assert json.loads(output) == {"result": 42}
@@ -112,7 +136,8 @@ async def test_unknown_tool_returns_error_json(registry_with_tools) -> None:
     registry, _ = registry_with_tools
     results = await _execute_tools(
         [("call_3", "no_such_tool", "{}")],
-        registry, state=None,
+        registry,
+        state=None,
     )
     _, output = results[0]
     data = json.loads(output)
@@ -127,7 +152,8 @@ async def test_failing_tool_returns_error_json(registry_with_tools) -> None:
     registry, _ = registry_with_tools
     results = await _execute_tools(
         [("call_4", "failing_tool", "{}")],
-        registry, state=None,
+        registry,
+        state=None,
     )
     _, output = results[0]
     data = json.loads(output)
@@ -158,7 +184,8 @@ async def test_empty_args_handled(registry_with_tools) -> None:
     registry, _ = registry_with_tools
     results = await _execute_tools(
         [("call_5", "slow_tool", "")],
-        registry, state=None,
+        registry,
+        state=None,
     )
     _, output = results[0]
     assert json.loads(output) == {"slow": True}
@@ -248,12 +275,16 @@ async def test_tool_args_schema_validation() -> None:
     registry = ToolRegistry()
     called = False
 
-    @registry.tool("needs_int", "Needs an int.", {
-        "type": "object",
-        "properties": {"value": {"type": "integer"}},
-        "required": ["value"],
-        "additionalProperties": False,
-    })
+    @registry.tool(
+        "needs_int",
+        "Needs an int.",
+        {
+            "type": "object",
+            "properties": {"value": {"type": "integer"}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+    )
     def needs_int(*, value: int, state) -> str:
         nonlocal called
         called = True

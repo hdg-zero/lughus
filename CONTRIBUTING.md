@@ -8,11 +8,14 @@ Thank you for your interest in contributing!
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-org/lughus.git
+git clone https://github.com/hdg-zero/lughus.git
 cd lughus
 
-# Install in editable mode with dev dependencies
-pip install -e ".[dev]"
+# Install in editable mode with dev dependencies using uv
+uv sync --all-extras --dev
+
+# Install git pre-commit hooks locally
+.venv/bin/pre-commit install
 ```
 
 ---
@@ -42,6 +45,22 @@ mypy lughus/
 
 The package ships with a `py.typed` marker (PEP 561). All public APIs must be
 fully typed. `mypy` must pass with no errors before any PR is merged.
+
+---
+
+## Code style & Linting
+
+We enforce strict formatting rules using **Ruff**. 
+
+Your code is automatically checked and formatted when you commit thanks to the `pre-commit` hooks. If you need to manually run the checks or reformat the codebase, use:
+
+```bash
+# Lint the codebase
+uv run ruff check .
+
+# Format the codebase
+uv run ruff format .
+```
 
 ---
 

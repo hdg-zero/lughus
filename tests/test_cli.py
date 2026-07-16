@@ -18,7 +18,9 @@ def test_package_name_rejects_empty_values() -> None:
         _package_name("!!!")
 
 
-def test_new_command_creates_agent_project(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_new_command_creates_agent_project(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     target = tmp_path / "agent_test"
 
     exit_code = main(["new", "agent_test", "--dir", str(target)])

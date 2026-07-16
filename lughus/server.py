@@ -1,4 +1,5 @@
 """One-call A2A server setup — AgentCard + Gateway + uvicorn."""
+
 from __future__ import annotations
 
 import asyncio
@@ -52,7 +53,9 @@ class ProductionGuardMiddleware:
         self.app = app
         self.max_body_bytes = max_body_bytes if max_body_bytes and max_body_bytes > 0 else None
         self.bearer_token = bearer_token
-        self.bearer_tokens = {t.strip() for t in bearer_token.split(",") if t.strip()} if bearer_token else set()
+        self.bearer_tokens = (
+            {t.strip() for t in bearer_token.split(",") if t.strip()} if bearer_token else set()
+        )
         self.gateway = gateway
         self.request_queue_timeout = (
             request_queue_timeout if request_queue_timeout and request_queue_timeout > 0 else 0.0
@@ -72,12 +75,14 @@ class ProductionGuardMiddleware:
 
     async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
         if scope.get("type") == "lifespan":
+
             async def lifespan_receive() -> dict:
                 msg = await receive()
                 if msg.get("type") == "lifespan.shutdown":
                     if self.gateway and hasattr(self.gateway, "shutdown"):
                         await self.gateway.shutdown()
                 return msg
+
             await self.app(scope, lifespan_receive, send)
             return
 
@@ -127,10 +132,7 @@ class ProductionGuardMiddleware:
         async def guarded_receive() -> dict:
             nonlocal body_bytes_seen
             message = await receive()
-            if (
-                self.max_body_bytes is not None
-                and message.get("type") == "http.request"
-            ):
+            if self.max_body_bytes is not None and message.get("type") == "http.request":
                 body = message.get("body", b"")
                 body_bytes_seen += len(body)
                 if body_bytes_seen > self.max_body_bytes:
@@ -280,11 +282,7 @@ def _validate_production_config(
     if task_store is None:
         errors.append("a persistent task_store must be provided")
     if errors:
-        raise RuntimeError(
-            "Invalid production configuration: " + "; ".join(errors)
-        )
-
-
+        raise RuntimeError("Invalid production configuration: " + "; ".join(errors))
 
 
 def build_app(
@@ -356,6 +354,7 @@ def build_app(
     cors_origins = getattr(gateway.settings, "cors_origins", "")
     if cors_origins:
         from starlette.middleware.cors import CORSMiddleware
+
         origins = [o.strip() for o in cors_origins.split(",") if o.strip()]
         if origins:
             app.add_middleware(

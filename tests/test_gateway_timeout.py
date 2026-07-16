@@ -1,4 +1,5 @@
 """Tests for agent timeout in BaseGateway.execute (J2-2)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -13,8 +14,10 @@ from lughus.llm import LLM
 
 class SlowGateway(BaseGateway):
     """Gateway that takes time to produce events."""
+
     async def handle(self, objective, files):
         from lughus.events import ProgressEvent
+
         yield ProgressEvent("started")
         await asyncio.sleep(0.5)
         yield ProgressEvent("finished")
@@ -22,8 +25,10 @@ class SlowGateway(BaseGateway):
 
 class NoCompletionGateway(BaseGateway):
     """Gateway that returns progress but never completes."""
+
     async def handle(self, objective, files):
         from lughus.events import ProgressEvent
+
         yield ProgressEvent("started")
 
 
@@ -90,7 +95,8 @@ async def test_gateway_execute_timeout(monkeypatch) -> None:
 
     # Check that parts contain the timeout text
     timeout_call = [
-        call for call in mock_updater.new_agent_message.call_args_list
+        call
+        for call in mock_updater.new_agent_message.call_args_list
         if any("timed out" in getattr(p.root, "text", "") for p in call.kwargs.get("parts", []))
     ]
     assert len(timeout_call) > 0
@@ -126,8 +132,12 @@ async def test_gateway_execute_fails_without_completion(monkeypatch) -> None:
     mock_updater.complete.assert_not_called()
     mock_updater.failed.assert_called_once()
     failure_call = [
-        call for call in mock_updater.new_agent_message.call_args_list
-        if any("without CompletionEvent" in getattr(p.root, "text", "") for p in call.kwargs.get("parts", []))
+        call
+        for call in mock_updater.new_agent_message.call_args_list
+        if any(
+            "without CompletionEvent" in getattr(p.root, "text", "")
+            for p in call.kwargs.get("parts", [])
+        )
     ]
     assert len(failure_call) == 1
 

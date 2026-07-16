@@ -1,4 +1,5 @@
 """Tests for agent_loop() — the core agentic loop."""
+
 from __future__ import annotations
 
 import json
@@ -13,19 +14,27 @@ from lughus.testing import MockLLM
 def registry() -> ToolRegistry:
     r = ToolRegistry()
 
-    @r.tool("greet", "Greet by name.", {
-        "type": "object",
-        "properties": {"name": {"type": "string"}},
-        "required": ["name"],
-    })
+    @r.tool(
+        "greet",
+        "Greet by name.",
+        {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+    )
     def greet(*, name: str, state) -> str:
         return json.dumps({"greeting": f"Hello {name}!"})
 
-    @r.tool("add", "Add two numbers.", {
-        "type": "object",
-        "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
-        "required": ["a", "b"],
-    })
+    @r.tool(
+        "add",
+        "Add two numbers.",
+        {
+            "type": "object",
+            "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+            "required": ["a", "b"],
+        },
+    )
     def add(*, a: int, b: int, state) -> str:
         return json.dumps({"result": a + b})
 
@@ -65,8 +74,12 @@ async def test_direct_text_response(registry: ToolRegistry) -> None:
     """LLM responds with text immediately → LoopResult with 1 iteration."""
     llm = MockLLM(["Hello, I'm ready to help!"])
     result = await agent_loop(
-        llm, system="You help.", context="Hi", registry=registry,
-        tool_names=["greet"], state=None,
+        llm,
+        system="You help.",
+        context="Hi",
+        registry=registry,
+        tool_names=["greet"],
+        state=None,
     )
     assert isinstance(result, LoopResult)
     assert result == "Hello, I'm ready to help!"
@@ -76,13 +89,19 @@ async def test_direct_text_response(registry: ToolRegistry) -> None:
 @pytest.mark.asyncio
 async def test_one_tool_call_then_text(registry: ToolRegistry) -> None:
     """LLM calls one tool, gets result, then responds with text."""
-    llm = MockLLM([
-        [{"id": "c1", "name": "greet", "arguments": {"name": "World"}}],
-        "Greeting done: Hello World!",
-    ])
+    llm = MockLLM(
+        [
+            [{"id": "c1", "name": "greet", "arguments": {"name": "World"}}],
+            "Greeting done: Hello World!",
+        ]
+    )
     result = await agent_loop(
-        llm, system="Greet the user.", context="Say hi to World",
-        registry=registry, tool_names=["greet"], state=None,
+        llm,
+        system="Greet the user.",
+        context="Say hi to World",
+        registry=registry,
+        tool_names=["greet"],
+        state=None,
     )
     assert "Greeting done" in result
     assert result.iterations == 2
@@ -91,16 +110,22 @@ async def test_one_tool_call_then_text(registry: ToolRegistry) -> None:
 @pytest.mark.asyncio
 async def test_two_parallel_tool_calls(registry: ToolRegistry) -> None:
     """LLM requests two tools in one round-trip — both are executed."""
-    llm = MockLLM([
+    llm = MockLLM(
         [
-            {"id": "c1", "name": "greet", "arguments": {"name": "Alice"}},
-            {"id": "c2", "name": "add", "arguments": {"a": 3, "b": 4}},
-        ],
-        "Done with both tools.",
-    ])
+            [
+                {"id": "c1", "name": "greet", "arguments": {"name": "Alice"}},
+                {"id": "c2", "name": "add", "arguments": {"a": 3, "b": 4}},
+            ],
+            "Done with both tools.",
+        ]
+    )
     result = await agent_loop(
-        llm, system="Use tools.", context="Greet and add",
-        registry=registry, tool_names=["greet", "add"], state=None,
+        llm,
+        system="Use tools.",
+        context="Greet and add",
+        registry=registry,
+        tool_names=["greet", "add"],
+        state=None,
     )
     assert result.iterations == 2
     # Both tool results should be in the messages sent to the LLM
@@ -116,8 +141,12 @@ async def test_unknown_declared_tool_name_raises(registry: ToolRegistry) -> None
 
     with pytest.raises(Exception, match="not registered"):
         await agent_loop(
-            llm, system=".", context=".", registry=registry,
-            tool_names=["missing"], state=None,
+            llm,
+            system=".",
+            context=".",
+            registry=registry,
+            tool_names=["missing"],
+            state=None,
         )
 
     assert llm.calls == []
@@ -132,8 +161,12 @@ async def test_max_iterations_raises(registry: ToolRegistry) -> None:
 
     with pytest.raises((RuntimeError, LughusError), match="exceeded") as exc_info:
         await agent_loop(
-            llm, system="Loop.", context="Go",
-            registry=registry, tool_names=["greet"], state=None,
+            llm,
+            system="Loop.",
+            context="Go",
+            registry=registry,
+            tool_names=["greet"],
+            state=None,
             max_iterations=3,
         )
     assert isinstance(exc_info.value, LughusError)
@@ -163,8 +196,12 @@ async def test_loop_result_is_str_subclass(registry: ToolRegistry) -> None:
     """LoopResult behaves as a str in all string contexts."""
     llm = MockLLM(['{"status": "ok"}'])
     result = await agent_loop(
-        llm, system=".", context=".", registry=registry,
-        tool_names=[], state=None,
+        llm,
+        system=".",
+        context=".",
+        registry=registry,
+        tool_names=[],
+        state=None,
     )
     assert isinstance(result, str)
     assert json.loads(result) == {"status": "ok"}
@@ -173,13 +210,19 @@ async def test_loop_result_is_str_subclass(registry: ToolRegistry) -> None:
 @pytest.mark.asyncio
 async def test_usage_metadata_accumulated(registry: ToolRegistry) -> None:
     """Token counts accumulate across all LLM iterations."""
-    llm = MockLLM([
-        [{"id": "c1", "name": "greet", "arguments": {"name": "Test"}}],
-        "Done.",
-    ])
+    llm = MockLLM(
+        [
+            [{"id": "c1", "name": "greet", "arguments": {"name": "Test"}}],
+            "Done.",
+        ]
+    )
     result = await agent_loop(
-        llm, system=".", context=".", registry=registry,
-        tool_names=["greet"], state=None,
+        llm,
+        system=".",
+        context=".",
+        registry=registry,
+        tool_names=["greet"],
+        state=None,
     )
     # MockLLM: call 1 (tool) = 15 prompt + 8 completion
     #          call 2 (text) = 10 prompt + 5 completion
@@ -235,6 +278,7 @@ async def test_compact_tool_schema_removes_parameter_descriptions() -> None:
 @pytest.mark.asyncio
 async def test_state_passed_to_tools(registry: ToolRegistry) -> None:
     """The state object is correctly forwarded to tool functions."""
+
     class State:
         received_name: str = ""
 
@@ -242,22 +286,32 @@ async def test_state_passed_to_tools(registry: ToolRegistry) -> None:
 
     r = ToolRegistry()
 
-    @r.tool("capture", "Capture name.", {
-        "type": "object",
-        "properties": {"name": {"type": "string"}},
-        "required": ["name"],
-    })
+    @r.tool(
+        "capture",
+        "Capture name.",
+        {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+    )
     def capture(*, name: str, state: State) -> str:
         state.received_name = name
         return json.dumps({"ok": True})
 
-    llm = MockLLM([
-        [{"id": "c1", "name": "capture", "arguments": {"name": "Lughus"}}],
-        "Captured.",
-    ])
+    llm = MockLLM(
+        [
+            [{"id": "c1", "name": "capture", "arguments": {"name": "Lughus"}}],
+            "Captured.",
+        ]
+    )
     await agent_loop(
-        llm, system=".", context=".", registry=r,
-        tool_names=["capture"], state=state,
+        llm,
+        system=".",
+        context=".",
+        registry=r,
+        tool_names=["capture"],
+        state=state,
     )
     assert state.received_name == "Lughus"
 
@@ -271,13 +325,18 @@ async def test_tool_can_return_dict(registry: ToolRegistry) -> None:
     def dict_tool(*, state) -> dict:
         return {"ok": True}
 
-    llm = MockLLM([
-        [{"id": "c1", "name": "dict_tool", "arguments": {}}],
-        "Done.",
-    ])
+    llm = MockLLM(
+        [
+            [{"id": "c1", "name": "dict_tool", "arguments": {}}],
+            "Done.",
+        ]
+    )
 
     await agent_loop(
-        llm, system=".", context=".", registry=r,
+        llm,
+        system=".",
+        context=".",
+        registry=r,
         tool_names=["dict_tool"],
     )
 
@@ -290,13 +349,19 @@ async def test_tool_call_content_none_not_in_message(registry: ToolRegistry) -> 
     """J1-3: When msg.content is None during a tool call, the 'content' key is
     omitted from the assistant message — prevents 400 errors on Azure OpenAI and
     other strict providers that reject null content."""
-    llm = MockLLM([
-        [{"id": "c1", "name": "greet", "arguments": {"name": "Azure"}}],
-        "Done.",
-    ])
+    llm = MockLLM(
+        [
+            [{"id": "c1", "name": "greet", "arguments": {"name": "Azure"}}],
+            "Done.",
+        ]
+    )
     await agent_loop(
-        llm, system=".", context=".", registry=registry,
-        tool_names=["greet"], state=None,
+        llm,
+        system=".",
+        context=".",
+        registry=registry,
+        tool_names=["greet"],
+        state=None,
     )
     # Inspect all assistant messages in the conversation history
     for call in llm.calls:
