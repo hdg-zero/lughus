@@ -37,7 +37,10 @@ def setup_telemetry(service_name: str, *, configure_logging: bool = True) -> Non
         resource = Resource.create({"service.name": service_name})
         otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
         console_enabled = os.getenv("LUGHUS_TELEMETRY_CONSOLE", "").lower() in {
-            "1", "true", "yes", "on"
+            "1",
+            "true",
+            "yes",
+            "on",
         }
         if otlp_endpoint or console_enabled:
             if otlp_endpoint:

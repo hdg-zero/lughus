@@ -362,9 +362,7 @@ def build_app(
 
         origins = [o.strip() for o in cors_origins.split(",") if o.strip()]
         if origins:
-            allow_credentials = bool(
-                getattr(gateway.settings, "cors_allow_credentials", False)
-            )
+            allow_credentials = bool(getattr(gateway.settings, "cors_allow_credentials", False))
             if allow_credentials and "*" in origins:
                 raise ValueError("CORS wildcard origins cannot be used with credentials")
             app.add_middleware(
