@@ -724,9 +724,10 @@ Before running your agent in a production environment, review the following conf
 ### 2b. Public Surface
 - Set `PUBLIC_URL` to the externally reachable agent URL; otherwise scaffolds fall back to `http://HOST:PORT`.
 - Set `API_BEARER_TOKEN` to require `Authorization: Bearer ...` on non-health routes.
+- Set `CORS_ORIGINS` to allow cross-origin browser requests, and `CORS_ALLOW_CREDENTIALS=true` if credentials are required (wildcard `*` origins are rejected when credentials are enabled).
 - Use `MAX_HTTP_BODY_BYTES`, `MAX_OBJECTIVE_CHARS`, `MAX_ARTIFACTS`, `MAX_ARTIFACT_BYTES`, and `MAX_TOTAL_ARTIFACT_BYTES` to bound request and response payloads before exposing an agent publicly.
 - Set `MAX_CONCURRENT_REQUESTS` to add per-worker backpressure; at most `MAX_QUEUE_BACKLOG` additional requests wait, and requests that wait longer than `REQUEST_QUEUE_TIMEOUT` receive `503`.
-- Set `LUGHUS_ENV=production` to fail fast unless `PUBLIC_URL`, `API_BEARER_TOKEN`, and a custom persistent `task_store` are configured and the test UI is disabled.
+- Set `LUGHUS_ENV=production` to fail fast unless `PUBLIC_URL`, `API_BEARER_TOKEN`, and a custom persistent `task_store` (announcing `durable = True` capability) are configured and the test UI is disabled.
 
 ### 3. Timeouts
 - **LLM Timeout**: `LLM_TIMEOUT` (default `120.0`s) limits individual LLM requests.
@@ -736,11 +737,18 @@ Before running your agent in a production environment, review the following conf
 - Configure `OTEL_EXPORTER_OTLP_ENDPOINT` to export traces and metrics to your OpenTelemetry collector.
 - Monitor the `lughus.tool.errors` counter to detect failing tools, and `lughus.loop.duration` to track performance.
 
+### 5. Guarantees & Architecture
+- See [docs/guarantees.md](docs/guarantees.md) for explicit guarantees and non-guarantees.
+- See [docs/security/error-disclosure.md](docs/security/error-disclosure.md) for error redaction policies.
+- Architecture decisions are recorded in [ADR-001](docs/architecture/ADR-001-compatibility.md), [ADR-002](docs/architecture/ADR-002-streaming.md), and [ADR-003](docs/architecture/ADR-003-runtime.md).
+
 ---
 
 ## Configuration
 
 ### Environment variables
+
+All environment variables are parsed strictly at instantiation time: invalid types or out-of-range bounds raise a `ValueError` immediately at startup (fail-fast).
 
 | Variable | Default | Description |
 |---|---|---|
@@ -753,6 +761,7 @@ Before running your agent in a production environment, review the following conf
 | `LUGHUS_ENV` | `development` | Set to `production` to enable strict startup validation. |
 | `API_BEARER_TOKEN` | *(not set)* | Optional bearer token required on non-health HTTP routes. Supports comma-separated list of multiple tokens (e.g. `token1,token2`) for key rotation. |
 | `CORS_ORIGINS` | *(not set)* | Optional comma-separated list of allowed CORS origins (e.g. `http://example.com,https://test.com`) or `*`. |
+| `CORS_ALLOW_CREDENTIALS` | `false` | Enable credentials on CORS requests. Must be `false` if `CORS_ORIGINS` contains `*`. |
 | `LUGHUS_TELEMETRY_CONSOLE` | *(not set)* | Set to `true` to enable Console OTel exporter if `OTEL_EXPORTER_OTLP_ENDPOINT` is unset. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | *(not set)* | OTLP gRPC endpoint (e.g. `http://localhost:4317`). No exporter (disabled) if unset unless `LUGHUS_TELEMETRY_CONSOLE` is enabled. |
 | `MAX_HTTP_BODY_BYTES` | `83886080` (80 MB) | Max HTTP body bytes accepted before A2A parsing, including streamed/chunked bodies. |

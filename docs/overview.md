@@ -62,3 +62,12 @@ flowchart TD
 - **[ToolRegistry](api/tools.md)**: Handles registration of synchronous and asynchronous tool functions, generates JSON schema declarations for the LLM, and executes functions safely.
 - **[LLM](api/llm.md)**: A thin wrapper around LiteLLM that supports per-call timeouts and automatic retries with exponential backoff on transient provider errors.
 - **[CLI](api/cli.md)**: Generates a ready-to-run agent architecture so new projects start with settings, gateway, tools, task store hook, ASGI entrypoint, and offline tests.
+
+## Framework Guarantees & Architecture
+
+- **[Guarantees & Non-guarantees](guarantees.md)**: Explicit scope and limitations regarding state, concurrency, and thread execution.
+- **[Error Disclosure Policy](security/error-disclosure.md)**: Policies on exception redaction and diagnostic exposure.
+- **Architecture Decisions**:
+  - [ADR-001 — Compatibility and Release Policy](architecture/ADR-001-compatibility.md)
+  - [ADR-002 — Streaming and Retries](architecture/ADR-002-streaming.md)
+  - [ADR-003 — Runtime Resource Ownership](architecture/ADR-003-runtime.md)

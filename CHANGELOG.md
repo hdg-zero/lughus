@@ -4,6 +4,25 @@ All notable changes to `lughus` will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.2] — 2026-07-21
+
+### Added
+
+- Added `CORS_ALLOW_CREDENTIALS` configuration to control cross-origin credential support.
+- Added strict capability check (`durable = True`) for custom `TaskStore` instances when running in production mode (`LUGHUS_ENV=production`).
+- Added non-negative bounds validation (`>= 0`) for timeouts, retries, and backlog settings in `BaseSettings`.
+- Added branch coverage quality gate (`fail_under = 85`) in `pyproject.toml`.
+- Added Architecture Decision Records: `ADR-001` (Compatibility), `ADR-002` (Streaming), and `ADR-003` (Runtime Ownership).
+- Added `docs/guarantees.md` (explicit runtime guarantees and non-guarantees) and `docs/security/error-disclosure.md` (error redaction policies).
+- Added comprehensive unit tests covering settings validation, CORS constraints, TaskStore capabilities, atomic telemetry setup, and lazy imports.
+
+### Fixed
+
+- Fixed environment variable parsing (`_env_bool`, `_env_int`, `_env_float`) to fail fast at startup (`ValueError`) on invalid values instead of falling back silently.
+- Fixed inter-field limit validation (`max_file_bytes <= max_request_bytes <= max_http_body_bytes`).
+- Fixed CORS security boundary to reject wildcard origins (`CORS_ORIGINS=*`) when credentials are enabled.
+- Fixed OpenTelemetry setup to ensure atomic initialization without poisoning process state on failure.
+
 ---
 
 ## [0.1.1] — 2026-07-16

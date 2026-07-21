@@ -32,7 +32,7 @@ Returns the Starlette-compatible ASGI application built by the A2A SDK. Use this
 *   `setup_otel`: If `True`, automatically configures standard OpenTelemetry exporters (traces and metrics). Set to `False` if your parent application already sets up custom OTel providers.
 *   `enable_test_ui`: If `True`, exposes a local testing interface at `/ui` and a JSON run endpoint at `/ui/run`.
 
-`build_app()` also installs `ProductionGuardMiddleware`, which enforces `MAX_HTTP_BODY_BYTES`, optional per-worker request backpressure through `MAX_CONCURRENT_REQUESTS` / `MAX_QUEUE_BACKLOG`, and, when `API_BEARER_TOKEN` is set (supports multiple comma-separated keys), timing-safe bearer-token auth on non-health routes. If `CORS_ORIGINS` is set, `build_app()` configures Starlette `CORSMiddleware`. When `LUGHUS_ENV=production`, `build_app()` fails fast unless `PUBLIC_URL`, `API_BEARER_TOKEN`, and a custom persistent `task_store` are configured and the test UI is disabled.
+`build_app()` also installs `ProductionGuardMiddleware`, which enforces `MAX_HTTP_BODY_BYTES`, optional per-worker request backpressure through `MAX_CONCURRENT_REQUESTS` / `MAX_QUEUE_BACKLOG`, and, when `API_BEARER_TOKEN` is set (supports multiple comma-separated keys), timing-safe bearer-token auth on non-health routes. If `CORS_ORIGINS` is set, `build_app()` configures Starlette `CORSMiddleware` (with `CORS_ALLOW_CREDENTIALS` support; wildcard origins with credentials raise a `ValueError`). When `LUGHUS_ENV=production`, `build_app()` fails fast unless `PUBLIC_URL`, `API_BEARER_TOKEN`, and a custom persistent `task_store` (with `durable = True` capability) are configured and the test UI is disabled.
 
 ## `serve`
 

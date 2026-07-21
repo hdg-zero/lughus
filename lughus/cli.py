@@ -273,7 +273,7 @@ from lughus import BoundedInMemoryTaskStore
 
 
 class AgentTaskStore(BoundedInMemoryTaskStore):
-    """Placeholder custom TaskStore used by the scaffold."""
+    """Development-only store; replace it before production deployment."""
 '''
 
 

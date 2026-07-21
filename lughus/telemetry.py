@@ -24,58 +24,56 @@ _INIT_LOCK = threading.Lock()
 
 
 def setup_telemetry(service_name: str, *, configure_logging: bool = True) -> None:
-    """Configure OTel providers. OTLP if endpoint set, console otherwise.
+    """Configure OpenTelemetry atomically and at most once.
 
-    Thread-safe: safe to call from multiple threads simultaneously.
-    Idempotent: subsequent calls after the first are no-ops.
-    Set ``configure_logging=False`` when the host application owns logging.
+    Provider construction happens under the initialization lock.  A failure leaves the
+    module retryable instead of poisoning the process-wide initialized flag.
     """
     global _INITIALIZED
     with _INIT_LOCK:
         if _INITIALIZED:
             return
+
+        resource = Resource.create({"service.name": service_name})
+        otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+        console_enabled = os.getenv("LUGHUS_TELEMETRY_CONSOLE", "").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if otlp_endpoint or console_enabled:
+            if otlp_endpoint:
+                from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
+                    OTLPMetricExporter,
+                )
+                from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                    OTLPSpanExporter,
+                )
+
+                span_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
+                metric_exporter = OTLPMetricExporter(endpoint=otlp_endpoint)
+            else:
+                span_exporter = ConsoleSpanExporter()  # type: ignore[assignment]
+                metric_exporter = ConsoleMetricExporter()  # type: ignore[assignment]
+
+            tracer_provider = TracerProvider(resource=resource)
+            tracer_provider.add_span_processor(BatchSpanProcessor(span_exporter))
+            meter_provider = MeterProvider(
+                resource=resource,
+                metric_readers=[PeriodicExportingMetricReader(metric_exporter)],
+            )
+            trace.set_tracer_provider(tracer_provider)
+            metrics.set_meter_provider(meter_provider)
+
+        root_logger = logging.getLogger()
+        if configure_logging and not root_logger.handlers:
+            log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+            logging.basicConfig(
+                level=getattr(logging, log_level, logging.INFO),
+                format="%(asctime)s %(name)s %(levelname)s %(message)s",
+            )
         _INITIALIZED = True
-
-    resource = Resource.create({"service.name": service_name})
-    otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-
-    if otlp_endpoint or os.getenv("LUGHUS_TELEMETRY_CONSOLE", "").lower() in (
-        "1",
-        "true",
-        "yes",
-        "on",
-    ):
-        if otlp_endpoint:
-            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
-                OTLPMetricExporter,
-            )
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
-                OTLPSpanExporter,
-            )
-
-            span_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
-            metric_exporter = OTLPMetricExporter(endpoint=otlp_endpoint)
-        else:
-            span_exporter = ConsoleSpanExporter()  # type: ignore[assignment]
-            metric_exporter = ConsoleMetricExporter()  # type: ignore[assignment]
-
-        tracer_provider = TracerProvider(resource=resource)
-        tracer_provider.add_span_processor(BatchSpanProcessor(span_exporter))
-        trace.set_tracer_provider(tracer_provider)
-
-        meter_provider = MeterProvider(
-            resource=resource,
-            metric_readers=[PeriodicExportingMetricReader(metric_exporter)],
-        )
-        metrics.set_meter_provider(meter_provider)
-
-    root_logger = logging.getLogger()
-    if configure_logging and not root_logger.handlers:
-        log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-        logging.basicConfig(
-            level=getattr(logging, log_level, logging.INFO),
-            format="%(asctime)s %(name)s %(levelname)s %(message)s",
-        )
 
 
 tracer = trace.get_tracer("lughus")

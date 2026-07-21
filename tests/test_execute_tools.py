@@ -492,7 +492,7 @@ async def test_sync_tool_worker_pool_is_bounded() -> None:
         state=None,
         config=ToolExecutionConfig(
             max_parallel_tools=4,
-            max_global_tools=0,
+            max_global_tools=4,
             max_sync_thread_workers=2,
         ),
     )

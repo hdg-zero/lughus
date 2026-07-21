@@ -1,6 +1,6 @@
 [project]
 name = "lughus"
-version = "0.1.1"
+version = "0.1.2"
 description = "Micro-framework for building A2A agents with LiteLLM — agent loop, tool registry, A2A gateway."
 readme = "README.md"
 license = "MIT"
@@ -64,6 +64,15 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.coverage.run]
+branch = true
+source = ["lughus"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
 
 [build-system]
 requires = ["setuptools>=68.0"]

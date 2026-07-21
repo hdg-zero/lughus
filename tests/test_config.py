@@ -6,7 +6,8 @@ import os
 
 import pytest
 
-from lughus.config import BaseSettings, _env_int, _env_float
+from lughus.config import BaseSettings, _env_int, _env_float, _env_bool
+from lughus.loop._config import ToolExecutionConfig
 
 
 # ── _env_int ──────────────────────────────────────────────────────────────────
@@ -22,11 +23,10 @@ def test_env_int_fallback_on_missing(monkeypatch) -> None:
     assert _env_int("TEST_INT", 99) == 99
 
 
-def test_env_int_fallback_on_invalid(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
+def test_env_int_fallback_on_invalid(monkeypatch) -> None:
     monkeypatch.setenv("TEST_INT", "not_a_number")
-    with caplog.at_level("WARNING", logger="lughus.config"):
-        assert _env_int("TEST_INT", 7) == 7
-    assert "Invalid integer environment variable TEST_INT" in caplog.text
+    with pytest.raises(ValueError, match="must be an integer"):
+        _env_int("TEST_INT", 7)
 
 
 # ── _env_float ────────────────────────────────────────────────────────────────
@@ -37,11 +37,10 @@ def test_env_float_reads_env(monkeypatch) -> None:
     assert _env_float("TEST_FLOAT", 0.0) == pytest.approx(3.14)
 
 
-def test_env_float_fallback_on_invalid(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
+def test_env_float_fallback_on_invalid(monkeypatch) -> None:
     monkeypatch.setenv("TEST_FLOAT", "oops")
-    with caplog.at_level("WARNING", logger="lughus.config"):
-        assert _env_float("TEST_FLOAT", 1.5) == pytest.approx(1.5)
-    assert "Invalid float environment variable TEST_FLOAT" in caplog.text
+    with pytest.raises(ValueError, match="must be a number"):
+        _env_float("TEST_FLOAT", 1.5)
 
 
 # ── BaseSettings — core fix (B3) ──────────────────────────────────────────────
@@ -151,10 +150,10 @@ def test_settings_custom_port(monkeypatch) -> None:
 
 
 def test_settings_invalid_port_fallback(monkeypatch) -> None:
-    """Invalid int env var falls back to default."""
+    """Invalid int env var raises ValueError."""
     monkeypatch.setenv("PORT", "not_a_port")
-    s = BaseSettings()
-    assert s.port == 8080
+    with pytest.raises(ValueError, match="must be an integer"):
+        BaseSettings()
 
 
 def test_settings_llm_timeout(monkeypatch) -> None:
@@ -166,6 +165,7 @@ def test_settings_llm_timeout(monkeypatch) -> None:
 
 
 def test_settings_file_limits(monkeypatch) -> None:
+    monkeypatch.setenv("MAX_FILE_BYTES", "512")
     monkeypatch.setenv("MAX_FILES", "4")
     monkeypatch.setenv("MAX_REQUEST_BYTES", "1024")
     monkeypatch.setenv("MAX_HTTP_BODY_BYTES", "2048")
@@ -232,3 +232,112 @@ def test_settings_frozen(monkeypatch) -> None:
     s = BaseSettings()
     with pytest.raises((AttributeError, TypeError)):
         s.model = "other"  # type: ignore[misc]
+
+
+# ── _env_bool ─────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("val", ("1", "true", "yes", "on", "TRUE", "  Yes  "))
+def test_env_bool_true_values(monkeypatch, val: str) -> None:
+    monkeypatch.setenv("TEST_BOOL", val)
+    assert _env_bool("TEST_BOOL", False) is True
+
+
+@pytest.mark.parametrize("val", ("0", "false", "no", "off", "OFF"))
+def test_env_bool_false_values(monkeypatch, val: str) -> None:
+    monkeypatch.setenv("TEST_BOOL", val)
+    assert _env_bool("TEST_BOOL", True) is False
+
+
+def test_env_bool_fallback_on_missing(monkeypatch) -> None:
+    monkeypatch.delenv("TEST_BOOL", raising=False)
+    assert _env_bool("TEST_BOOL", True) is True
+
+
+@pytest.mark.parametrize("val", ("ture", "yess", "2", "oui", ""))
+def test_env_bool_rejects_unknown(monkeypatch, val: str) -> None:
+    monkeypatch.setenv("TEST_BOOL", val)
+    with pytest.raises(ValueError):
+        _env_bool("TEST_BOOL", False)
+
+
+# ── BaseSettings Validation ───────────────────────────────────────────────────
+
+
+def test_settings_rejects_zero_positive_field() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        BaseSettings(max_files=0)
+
+
+def test_settings_rejects_negative_positive_field() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        BaseSettings(max_parallel_tools=-1)
+
+
+def test_settings_rejects_multiple_invalid_fields() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        BaseSettings(max_files=0, max_artifacts=-1)
+    msg = str(exc_info.value)
+    assert "max_artifacts" in msg
+    assert "max_files" in msg
+
+
+def test_settings_rejects_file_bytes_exceeding_request() -> None:
+    with pytest.raises(ValueError, match="cannot exceed MAX_REQUEST_BYTES"):
+        BaseSettings(max_file_bytes=100, max_request_bytes=50)
+
+
+def test_settings_rejects_request_exceeding_body() -> None:
+    with pytest.raises(ValueError, match="cannot exceed MAX_HTTP_BODY_BYTES"):
+        BaseSettings(max_file_bytes=50, max_request_bytes=100, max_http_body_bytes=50)
+
+
+def test_settings_rejects_port_zero() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        BaseSettings(port=0)
+
+
+def test_settings_rejects_port_out_of_range() -> None:
+    with pytest.raises(ValueError, match="PORT must be between"):
+        BaseSettings(port=70000)
+
+
+def test_settings_rejects_empty_model_in_production(monkeypatch) -> None:
+    monkeypatch.setenv("LUGHUS_ENV", "production")
+    with pytest.raises(ValueError, match="AGENT_MODEL must be set in production"):
+        BaseSettings(model="", environment="production")
+
+
+def test_settings_allows_empty_model_in_development(monkeypatch) -> None:
+    monkeypatch.setenv("LUGHUS_ENV", "development")
+    s = BaseSettings(model="", environment="development")
+    assert s.model == ""
+
+
+def test_settings_rejects_negative_timeout() -> None:
+    with pytest.raises(ValueError, match="must be non-negative"):
+        BaseSettings(llm_timeout=-1.0)
+
+
+def test_settings_allows_zero_timeout() -> None:
+    s = BaseSettings(llm_timeout=0.0)
+    assert s.llm_timeout == 0.0
+
+
+def test_settings_reads_cors_allow_credentials(monkeypatch) -> None:
+    monkeypatch.setenv("CORS_ALLOW_CREDENTIALS", "true")
+    s = BaseSettings()
+    assert s.cors_allow_credentials is True
+
+
+# ── ToolExecutionConfig ───────────────────────────────────────────────────────
+
+
+def test_tool_config_rejects_zero() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        ToolExecutionConfig(max_parallel_tools=0)
+
+
+def test_tool_config_rejects_negative() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        ToolExecutionConfig(max_global_tools=-1)
