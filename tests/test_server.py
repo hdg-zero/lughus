@@ -325,6 +325,7 @@ async def test_production_guard_rejects_requests_beyond_backlog() -> None:
 
 def test_build_app_rejects_unsafe_production_config(monkeypatch) -> None:
     monkeypatch.setenv("LUGHUS_ENV", "production")
+    monkeypatch.setenv("AGENT_MODEL", "test/model")
     monkeypatch.delenv("API_BEARER_TOKEN", raising=False)
     monkeypatch.delenv("PUBLIC_URL", raising=False)
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
@@ -574,3 +575,75 @@ async def test_bounded_in_memory_task_store_refreshes_saved_task_order() -> None
     assert await store.get("task-0") is task_0
     assert await store.get("task-1") is None
     assert await store.get("task-2") is task_2
+
+
+def test_production_rejects_non_durable_store(monkeypatch) -> None:
+    monkeypatch.setenv("LUGHUS_ENV", "production")
+    monkeypatch.setenv("API_BEARER_TOKEN", "secret")
+    monkeypatch.setenv("PUBLIC_URL", "https://example.com")
+    monkeypatch.setenv("AGENT_MODEL", "test/model")
+    monkeypatch.setenv("ENABLE_TEST_UI", "false")
+    gateway = MockGateway(llm=MagicMock(), settings=BaseSettings())
+    task_store = BoundedInMemoryTaskStore()
+
+    with pytest.raises(RuntimeError, match="persistent task_store"):
+        build_app(_agent_card(), gateway, task_store=task_store, setup_otel=False)
+
+
+def test_production_rejects_store_without_durable_attr(monkeypatch) -> None:
+    monkeypatch.setenv("LUGHUS_ENV", "production")
+    monkeypatch.setenv("API_BEARER_TOKEN", "secret")
+    monkeypatch.setenv("PUBLIC_URL", "https://example.com")
+    monkeypatch.setenv("AGENT_MODEL", "test/model")
+    monkeypatch.setenv("ENABLE_TEST_UI", "false")
+    gateway = MockGateway(llm=MagicMock(), settings=BaseSettings())
+    task_store = MagicMock()
+    del task_store.durable
+
+    with pytest.raises(RuntimeError, match="persistent task_store"):
+        build_app(_agent_card(), gateway, task_store=task_store, setup_otel=False)
+
+
+def test_production_accepts_durable_store(monkeypatch) -> None:
+    monkeypatch.setenv("LUGHUS_ENV", "production")
+    monkeypatch.setenv("API_BEARER_TOKEN", "secret")
+    monkeypatch.setenv("PUBLIC_URL", "https://example.com")
+    monkeypatch.setenv("AGENT_MODEL", "test/model")
+    monkeypatch.setenv("ENABLE_TEST_UI", "false")
+    gateway = MockGateway(llm=MagicMock(), settings=BaseSettings())
+    task_store = MagicMock()
+    task_store.durable = True
+
+    app = build_app(_agent_card(), gateway, task_store=task_store, setup_otel=False)
+    assert app is not None
+
+
+def test_build_app_rejects_cors_wildcard_with_credentials(monkeypatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "*")
+    monkeypatch.setenv("CORS_ALLOW_CREDENTIALS", "true")
+    gateway = MockGateway(llm=MagicMock(), settings=BaseSettings())
+
+    with pytest.raises(ValueError, match="CORS wildcard origins cannot be used with credentials"):
+        build_app(_agent_card(), gateway, setup_otel=False)
+
+
+def test_build_app_uses_explicit_methods(monkeypatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "http://example.com")
+    gateway = MockGateway(llm=MagicMock(), settings=BaseSettings())
+    app = build_app(_agent_card(), gateway, setup_otel=False)
+
+    from starlette.middleware.cors import CORSMiddleware
+
+    cors_mw = next(mw for mw in app.user_middleware if mw.cls is CORSMiddleware)
+    assert list(cors_mw.kwargs["allow_methods"]) == ["GET", "POST", "OPTIONS"]
+
+
+def test_build_app_cors_credentials_default_false(monkeypatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "http://example.com")
+    gateway = MockGateway(llm=MagicMock(), settings=BaseSettings())
+    app = build_app(_agent_card(), gateway, setup_otel=False)
+
+    from starlette.middleware.cors import CORSMiddleware
+
+    cors_mw = next(mw for mw in app.user_middleware if mw.cls is CORSMiddleware)
+    assert cors_mw.kwargs.get("allow_credentials") is False
