@@ -76,17 +76,23 @@ Protect your worker threads from hanging indefinitely or processing malicious re
 `build_app()` installs a small production guard middleware:
 *   **Health routes remain open**: `/health` and `/healthz` are not authenticated.
 *   **Bearer auth**: Set `API_BEARER_TOKEN` to require `Authorization: Bearer <token>` on other routes. Multiple tokens can be configured using a comma-separated list (e.g. `token1,token2`) to support timing-safe key rotation. Leave it empty only behind a trusted gateway or during local development.
-*   **CORS origins**: Set `CORS_ORIGINS` to a comma-separated list of allowed origins (e.g. `http://example.com,https://test.com`) or `*` to enable cross-origin browser requests.
+*   **CORS origins**: Set `CORS_ORIGINS` to a comma-separated list of allowed origins (e.g. `http://example.com,https://test.com`) or `*` to enable cross-origin browser requests. Set `CORS_ALLOW_CREDENTIALS=true` to allow credentials (cookies, authorization headers). Combining `CORS_ALLOW_CREDENTIALS=true` with a wildcard `CORS_ORIGINS=*` is rejected with a `ValueError`.
 *   **External URL**: Set `PUBLIC_URL` so generated `AgentCard.url` values point to the public endpoint instead of `http://0.0.0.0:8080`.
-*   **Strict Production Mode**: Set `LUGHUS_ENV=production` to fail startup unless `API_BEARER_TOKEN`, `PUBLIC_URL`, and a custom persistent `task_store` are configured and the test UI is disabled.
+*   **Strict Production Mode**: Set `LUGHUS_ENV=production` to fail startup unless `PUBLIC_URL`, `API_BEARER_TOKEN`, and a custom persistent `task_store` (announcing `durable = True`) are configured and the test UI is disabled.
 
 ## 4. Persistent Task Storage
 
 By default, `build_app()` / `serve()` initialize the A2A app with `BoundedInMemoryTaskStore`.
 *   **Bounded Local Memory**: The default store evicts tasks by `TASK_STORE_TTL_SECONDS` (default: `86400`) and `TASK_STORE_MAX_TASKS` (default: `10000`) to avoid unlimited memory growth in single-process deployments.
-*   **Redis or DB Task Store**: The bounded store is still process-local. For horizontal scaling, implement the `TaskStore` protocol from the `a2a` SDK and inject your custom persistent store using the `task_store` parameter in `build_app()` or `serve()` to store states externally. Local cancellation also only stops tasks running in the current process.
+*   **Redis or DB Task Store**: The bounded store is still process-local (`durable = False`). For horizontal scaling or production deployments, implement the `TaskStore` protocol from the `a2a` SDK, set `durable = True` on your store class, and inject your custom persistent store using the `task_store` parameter in `build_app()` or `serve()`. Local cancellation also only stops tasks running in the current process.
 
-## 5. Telemetry & Monitoring
+## 5. Framework Guarantees & Security
+
+*   **Guarantees & Non-guarantees**: See [Guarantees](../guarantees.md) for explicit runtime contracts.
+*   **Error Redaction**: See [Error Disclosure Policy](../security/error-disclosure.md) for how exceptions and diagnostic data are redacted.
+*   **Architecture Decisions**: Review [ADR-001 (Compatibility)](../architecture/ADR-001-compatibility.md), [ADR-002 (Streaming)](../architecture/ADR-002-streaming.md), and [ADR-003 (Runtime)](../architecture/ADR-003-runtime.md).
+
+## 6. Telemetry & Monitoring
 
 Lughus exports standard traces and metrics using OpenTelemetry.
 *   **Collector Endpoint**: Set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. `http://otel-collector:4317`) to route telemetry data.
@@ -96,7 +102,7 @@ Lughus exports standard traces and metrics using OpenTelemetry.
     *   `lughus.tool.errors` (Counter): Monitor spikes in this counter to detect failing tools.
     *   `lughus.loop.duration` (Histogram): Monitor P95 or P99 latency of the agentic loop.
 
-## 6. High-Volume Scalability & File Offloading
+## 7. High-Volume Scalability & File Offloading
 
 When scaling to thousands of concurrent users, memory exhaustion and distributed state coordination become critical concerns.
 
