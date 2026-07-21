@@ -235,6 +235,23 @@ class BaseSettings:
         invalid = [name for name, value in positive.items() if value <= 0]
         if invalid:
             raise ValueError(f"Settings must be positive: {', '.join(sorted(invalid))}")
+        non_negative = {
+            "max_concurrent_requests": self.max_concurrent_requests,
+            "max_queue_backlog": self.max_queue_backlog,
+            "max_retries": self.max_retries,
+            "request_queue_timeout": self.request_queue_timeout,
+            "llm_timeout": self.llm_timeout,
+            "tool_timeout": self.tool_timeout,
+            "tool_queue_timeout": self.tool_queue_timeout,
+            "agent_timeout": self.agent_timeout,
+            "retry_base_delay": self.retry_base_delay,
+            "retry_max_elapsed": self.retry_max_elapsed,
+            "task_store_ttl_seconds": self.task_store_ttl_seconds,
+            "task_store_max_tasks": self.task_store_max_tasks,
+        }
+        neg = [name for name, value in non_negative.items() if value < 0]
+        if neg:
+            raise ValueError(f"Settings must be non-negative: {', '.join(sorted(neg))}")
         if not 1 <= self.port <= 65535:
             raise ValueError("PORT must be between 1 and 65535")
         if self.max_file_bytes > self.max_request_bytes:
