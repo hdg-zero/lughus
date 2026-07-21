@@ -208,6 +208,11 @@ class BoundedInMemoryTaskStore(InMemoryTaskStore):
     replicas or durable task status.
     """
 
+    durable = False
+    shared_across_replicas = False
+    atomic_updates = False
+    supports_idempotency = False
+
     def __init__(
         self,
         *,
@@ -279,7 +284,7 @@ def _validate_production_config(
         errors.append("PUBLIC_URL must be set")
     if enable_test_ui:
         errors.append("ENABLE_TEST_UI must be false")
-    if task_store is None:
+    if task_store is None or not bool(getattr(task_store, "durable", False)):
         errors.append("a persistent task_store must be provided")
     if errors:
         raise RuntimeError("Invalid production configuration: " + "; ".join(errors))
@@ -357,12 +362,17 @@ def build_app(
 
         origins = [o.strip() for o in cors_origins.split(",") if o.strip()]
         if origins:
+            allow_credentials = bool(
+                getattr(gateway.settings, "cors_allow_credentials", False)
+            )
+            if allow_credentials and "*" in origins:
+                raise ValueError("CORS wildcard origins cannot be used with credentials")
             app.add_middleware(
                 CORSMiddleware,
                 allow_origins=origins,
-                allow_credentials=True,
-                allow_methods=["*"],
-                allow_headers=["*"],
+                allow_credentials=allow_credentials,
+                allow_methods=["GET", "POST", "OPTIONS"],
+                allow_headers=["Authorization", "Content-Type", "Accept"],
             )
     return app
 

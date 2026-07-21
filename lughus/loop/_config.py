@@ -28,3 +28,16 @@ class ToolExecutionConfig:
     max_message_history_chars: int = DEFAULT_MAX_MESSAGE_HISTORY_CHARS
     tool_queue_timeout: float | None = DEFAULT_TOOL_QUEUE_TIMEOUT
     compact_tool_schemas: bool = False
+
+    def __post_init__(self) -> None:
+        positive = {
+            "max_parallel_tools": self.max_parallel_tools,
+            "max_global_tools": self.max_global_tools,
+            "max_tool_args_chars": self.max_tool_args_chars,
+            "max_tool_output_chars": self.max_tool_output_chars,
+            "max_sync_thread_workers": self.max_sync_thread_workers,
+            "max_message_history_chars": self.max_message_history_chars,
+        }
+        invalid = [name for name, value in positive.items() if value <= 0]
+        if invalid:
+            raise ValueError(f"Tool execution limits must be positive: {', '.join(invalid)}")

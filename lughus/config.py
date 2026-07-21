@@ -47,14 +47,8 @@ def _env_int(key: str, default: int) -> int:
         return default
     try:
         return int(value)
-    except (TypeError, ValueError):
-        _logger.warning(
-            "Invalid integer environment variable %s=%r; using default %r",
-            key,
-            value,
-            default,
-        )
-        return default
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be an integer, got {value!r}") from exc
 
 
 def _env_float(key: str, default: float) -> float:
@@ -64,14 +58,8 @@ def _env_float(key: str, default: float) -> float:
         return default
     try:
         return float(value)
-    except (TypeError, ValueError):
-        _logger.warning(
-            "Invalid float environment variable %s=%r; using default %r",
-            key,
-            value,
-            default,
-        )
-        return default
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be a number, got {value!r}") from exc
 
 
 def _env_bool(key: str, default: bool) -> bool:
@@ -79,7 +67,12 @@ def _env_bool(key: str, default: bool) -> bool:
     value = os.getenv(key)
     if value is None:
         return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{key} must be a boolean, got {value!r}")
 
 
 @dataclass(frozen=True)
@@ -215,3 +208,38 @@ class BaseSettings:
     compact_tool_schemas: bool = field(
         default_factory=lambda: _env_bool("COMPACT_TOOL_SCHEMAS", False)
     )
+
+    cors_allow_credentials: bool = field(
+        default_factory=lambda: _env_bool("CORS_ALLOW_CREDENTIALS", False)
+    )
+
+    def __post_init__(self) -> None:
+        positive = {
+            "port": self.port,
+            "max_output_tokens": self.max_output_tokens,
+            "max_file_bytes": self.max_file_bytes,
+            "max_files": self.max_files,
+            "max_request_bytes": self.max_request_bytes,
+            "max_http_body_bytes": self.max_http_body_bytes,
+            "max_objective_chars": self.max_objective_chars,
+            "max_artifacts": self.max_artifacts,
+            "max_artifact_bytes": self.max_artifact_bytes,
+            "max_total_artifact_bytes": self.max_total_artifact_bytes,
+            "max_parallel_tools": self.max_parallel_tools,
+            "max_global_tools": self.max_global_tools,
+            "max_sync_thread_workers": self.max_sync_thread_workers,
+            "max_tool_args_chars": self.max_tool_args_chars,
+            "max_tool_output_chars": self.max_tool_output_chars,
+            "max_message_history_chars": self.max_message_history_chars,
+        }
+        invalid = [name for name, value in positive.items() if value <= 0]
+        if invalid:
+            raise ValueError(f"Settings must be positive: {', '.join(sorted(invalid))}")
+        if not 1 <= self.port <= 65535:
+            raise ValueError("PORT must be between 1 and 65535")
+        if self.max_file_bytes > self.max_request_bytes:
+            raise ValueError("MAX_FILE_BYTES cannot exceed MAX_REQUEST_BYTES")
+        if self.max_request_bytes > self.max_http_body_bytes:
+            raise ValueError("MAX_REQUEST_BYTES cannot exceed MAX_HTTP_BODY_BYTES")
+        if self.environment.strip().lower() == "production" and not self.model:
+            raise ValueError("AGENT_MODEL must be set in production")
