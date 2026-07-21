@@ -30,6 +30,10 @@ class ToolExecutionConfig:
     tool_queue_timeout: float | None = DEFAULT_TOOL_QUEUE_TIMEOUT
     compact_tool_schemas: bool = False
     runtime: Any = field(default=None, repr=False, compare=False)
+    policy: Any = field(default=None, repr=False, compare=False)
+    principal: Any = field(default=None, repr=False, compare=False)
+    approval_store: Any = field(default=None, repr=False, compare=False)
+    run_id: str = "untracked"
 
     def __post_init__(self) -> None:
         positive = {
