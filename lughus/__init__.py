@@ -32,7 +32,12 @@ from .runner import AgentRunner
 from .runtime import ExecutionRuntime, RuntimeConfig
 from .server import BoundedInMemoryTaskStore, ProductionGuardMiddleware, build_app, serve
 from .telemetry import setup_telemetry
-from .tools import ToolDef, ToolRegistry
+from .tools import ConcurrencyMode, ToolDef, ToolEffect, ToolRegistry, ToolRisk
+from .approval import ApprovalRequest, ApprovalStatus, InMemoryApprovalStore
+from .policy import (
+    CompositePolicy, DecisionKind, LeastPrivilegePolicy, PolicyDecision,
+    Principal, ToolPolicy, ToolProposal,
+)
 
 
 def __getattr__(name: str) -> Any:
@@ -54,19 +59,28 @@ def __getattr__(name: str) -> Any:
 __all__ = [
     "LLM",
     "AgentRunner",
+    "ApprovalRequest",
+    "ApprovalStatus",
     "Artifact",
     "BaseGateway",
     "BaseSettings",
     "BoundedInMemoryTaskStore",
     "CompletionEvent",
+    "CompositePolicy",
+    "ConcurrencyMode",
+    "DecisionKind",
     "EventSink",
     "EventVisibility",
     "ExecutionRuntime",
     "GenerateLLM",
+    "InMemoryApprovalStore",
     "InMemoryEventSink",
+    "LeastPrivilegePolicy",
     "LoopLimitError",
     "LoopResult",
     "LughusError",
+    "PolicyDecision",
+    "Principal",
     "ProductionGuardMiddleware",
     "ProgressEvent",
     "Run",
@@ -76,9 +90,13 @@ __all__ = [
     "SafeToolError",
     "StreamingLLM",
     "ToolDef",
+    "ToolEffect",
     "ToolExecutionConfig",
     "ToolExecutionError",
+    "ToolPolicy",
+    "ToolProposal",
     "ToolRegistry",
+    "ToolRisk",
     "ToolTimeoutError",
     "ToolValidationError",
     "Usage",

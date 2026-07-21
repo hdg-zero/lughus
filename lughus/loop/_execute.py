@@ -330,6 +330,12 @@ async def _execute_tools(
                         output = await asyncio.wait_for(call, timeout=timeout)
                     else:
                         output = await call
+                if tool.output_validator is not None:
+                    errors = sorted(tool.output_validator.iter_errors(output), key=lambda e: list(e.path))
+                    if errors:
+                        raise ToolValidationError(
+                            f"Tool '{name}' returned an invalid result: {errors[0].message}"
+                        )
                 output = _validate_tool_output(
                     name=name,
                     output=output,
