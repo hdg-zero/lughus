@@ -142,13 +142,13 @@ async def test_unknown_tool_returns_error_json(registry_with_tools) -> None:
     _, output = results[0]
     data = json.loads(output)
     assert "error" in data
-    assert data["error_type"] == "ToolValidationError"
+    assert data["error_code"] == "ToolValidationError"
     assert "no_such_tool" in data["error"]
 
 
 @pytest.mark.asyncio
 async def test_failing_tool_returns_error_json(registry_with_tools) -> None:
-    """A tool that raises an exception returns error JSON without propagating."""
+    """A tool that raises an unknown exception returns redacted error JSON."""
     registry, _ = registry_with_tools
     results = await _execute_tools(
         [("call_4", "failing_tool", "{}")],
@@ -158,8 +158,8 @@ async def test_failing_tool_returns_error_json(registry_with_tools) -> None:
     _, output = results[0]
     data = json.loads(output)
     assert "error" in data
-    assert data["error_type"] == "ToolExecutionError"
-    assert "intentional failure" in data["error"]
+    assert data["error_code"] == "ToolExecutionError"
+    assert data["error"] == "Tool execution failed"
 
 
 @pytest.mark.asyncio
@@ -265,7 +265,7 @@ async def test_tool_timeout_returns_error_json() -> None:
 
     data = json.loads(results[0][1])
     assert "error" in data
-    assert data["error_type"] == "ToolTimeoutError"
+    assert data["error_code"] == "ToolTimeoutError"
     assert "timed out" in data["error"]
 
 
@@ -298,7 +298,7 @@ async def test_tool_args_schema_validation() -> None:
 
     data = json.loads(results[0][1])
     assert called is False
-    assert data["error_type"] == "ToolValidationError"
+    assert data["error_code"] == "ToolValidationError"
     assert "Invalid arguments" in data["error"]
 
 
@@ -319,7 +319,7 @@ async def test_tool_args_size_limit() -> None:
     )
 
     data = json.loads(results[0][1])
-    assert data["error_type"] == "ToolValidationError"
+    assert data["error_code"] == "ToolValidationError"
     assert "exceed" in data["error"]
 
 
@@ -340,7 +340,7 @@ async def test_tool_output_size_limit() -> None:
     )
 
     data = json.loads(results[0][1])
-    assert data["error_type"] == "ToolValidationError"
+    assert data["error_code"] == "ToolValidationError"
     assert "Output from tool" in data["error"]
 
 
@@ -403,7 +403,7 @@ async def test_global_tool_queue_timeout_returns_error_json() -> None:
     release.set()
     await first
     data = json.loads(results[0][1])
-    assert data["error_type"] == "ToolTimeoutError"
+    assert data["error_code"] == "ToolTimeoutError"
     assert "global tool slot" in data["error"]
 
 

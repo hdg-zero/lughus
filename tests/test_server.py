@@ -264,7 +264,7 @@ async def test_production_guard_rejects_streamed_body_without_content_length() -
     )
 
     assert status == 413
-    assert b"Request body exceeds" in body
+    assert b"request_body_too_large" in body
 
 
 @pytest.mark.asyncio
