@@ -4,6 +4,24 @@ All notable changes to `lughus` will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.3] — 2026-07-23
+
+### Added
+
+- Added `SafeToolError` exception class allowing tool authors to explicitly opt in to exposing safe business error messages and codes to the LLM.
+- Added structured `error_code` and `retryable` properties to tool execution error payloads.
+- Added `_NoRedirect` handler in OpenTelemetry trace fetch proxy (`ui_server.py`) to prevent SSRF redirect bypasses.
+- Added `docs/security/threat-model.md` (Security boundaries and threat model) and `docs/operations-readiness.md` (Operational readiness checklist).
+- Added comprehensive unit tests for `SafeToolError`, error redaction, and ASGI response guards.
+
+### Fixed
+
+- Fixed tool error payload leakage: unknown exceptions raised by tools are now redacted to generic `"Tool execution failed"` strings.
+- Fixed ASGI protocol violation in `ProductionGuardMiddleware`: prevents duplicate 413 responses if an oversized body is detected after `http.response.start`.
+- Fixed internal error disclosure in test UI server (`/ui/run`, `/ui/stream`, `/ui/otel/traces` return generic `"internal_error"` on unhandled exceptions).
+
+---
+
 ## [0.1.2] — 2026-07-21
 
 ### Added
