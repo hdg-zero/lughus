@@ -1,5 +1,4 @@
-# Implementation status
+# Implementation status — 0.1.3
 
-This branch is the 0.1.2 hardening baseline. It introduces strict settings validation,
-production task-store capability checks, safe CORS defaults, atomic telemetry setup,
-quality gates and the initial architecture/security documentation.
+This branch extends 0.1.2 with safe tool errors, diagnostic redaction, safer UI URL fetching,
+response-state-aware request limits and a documented threat/readiness model.

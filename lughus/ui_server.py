@@ -168,8 +168,14 @@ def _fetch_otel_url(url: str) -> dict[str, Any]:
         headers={"Host": original_host, "accept": "application/json, text/plain;q=0.9, */*;q=0.1"},
         method="GET",
     )
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
     try:
-        with urllib.request.urlopen(request, timeout=_OTEL_TIMEOUT_SECONDS) as response:
+        opener = urllib.request.build_opener(_NoRedirect)
+        with opener.open(request, timeout=_OTEL_TIMEOUT_SECONDS) as response:
             data = response.read(_OTEL_MAX_BYTES + 1)
             if len(data) > _OTEL_MAX_BYTES:
                 raise ValueError(f"Trace response exceeds {_OTEL_MAX_BYTES} bytes")
@@ -379,9 +385,9 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
             )
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        except Exception as exc:
+        except Exception:
             _logger.exception("Test UI run failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
+            return JSONResponse({"error": "internal_error"}, status_code=500)
 
         return JSONResponse({"events": events})
 
@@ -440,9 +446,9 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
                     )
                 except ValueError as exc:
                     _enqueue_nowait({"type": "error", "text": str(exc)})
-                except Exception as exc:
+                except Exception:
                     _logger.exception("Test UI stream failed")
-                    _enqueue_nowait({"type": "error", "text": str(exc)})
+                    _enqueue_nowait({"type": "error", "code": "internal_error"})
                 finally:
                     queue.put_nowait(None)
 
@@ -482,9 +488,9 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
             )
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        except Exception as exc:
+        except Exception:
             _logger.exception("Test UI trace fetch failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
+            return JSONResponse({"error": "internal_error"}, status_code=500)
         return JSONResponse(result)
 
     return [

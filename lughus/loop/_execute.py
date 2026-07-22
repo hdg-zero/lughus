@@ -18,6 +18,7 @@ from opentelemetry.trace import StatusCode
 
 from ..errors import (
     LoopLimitError,
+    SafeToolError,
     ToolExecutionError,
     ToolTimeoutError,
     ToolValidationError,
@@ -121,10 +122,12 @@ def _assistant_tool_message(
 
 def _error_payload(exc: Exception) -> str:
     """Return structured JSON error content for the LLM tool response."""
+    safe = isinstance(exc, (SafeToolError, ToolValidationError, ToolTimeoutError))
     return json.dumps(
         {
-            "error": str(exc),
-            "error_type": type(exc).__name__,
+            "error": str(exc) if safe else "Tool execution failed",
+            "error_code": getattr(exc, "code", type(exc).__name__),
+            "retryable": bool(getattr(exc, "retryable", False)),
         }
     )
 

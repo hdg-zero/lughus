@@ -128,6 +128,13 @@ class ProductionGuardMiddleware:
                 return
 
         body_bytes_seen = 0
+        response_started = False
+
+        async def guarded_send(message: dict) -> None:
+            nonlocal response_started
+            if message.get("type") == "http.response.start":
+                response_started = True
+            await send(message)
 
         async def guarded_receive() -> dict:
             nonlocal body_bytes_seen
@@ -141,13 +148,13 @@ class ProductionGuardMiddleware:
 
         if self._semaphore is None:
             try:
-                await self.app(scope, guarded_receive, send)
+                await self.app(scope, guarded_receive, guarded_send)
             except RequestBodyTooLarge:
-                response = JSONResponse(
-                    {"error": f"Request body exceeds {self.max_body_bytes} bytes"},
-                    status_code=413,
-                )
-                await response(scope, receive, send)
+                if not response_started:
+                    response = JSONResponse({"error": "request_body_too_large"}, status_code=413)
+                    await response(scope, receive, send)
+                else:
+                    _logger.warning("Request body exceeded limit after response start")
             return
 
         reject_for_backlog = False
@@ -186,13 +193,13 @@ class ProductionGuardMiddleware:
             acquired = True
 
             try:
-                await self.app(scope, guarded_receive, send)
+                await self.app(scope, guarded_receive, guarded_send)
             except RequestBodyTooLarge:
-                response = JSONResponse(
-                    {"error": f"Request body exceeds {self.max_body_bytes} bytes"},
-                    status_code=413,
-                )
-                await response(scope, receive, send)
+                if not response_started:
+                    response = JSONResponse({"error": "request_body_too_large"}, status_code=413)
+                    await response(scope, receive, send)
+                else:
+                    _logger.warning("Request body exceeded limit after response start")
         finally:
             if acquired:
                 self._semaphore.release()

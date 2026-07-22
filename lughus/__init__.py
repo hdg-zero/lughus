@@ -15,6 +15,7 @@ from .config import BaseSettings
 from .errors import (
     LoopLimitError,
     LughusError,
+    SafeToolError,
     ToolExecutionError,
     ToolTimeoutError,
     ToolValidationError,
@@ -50,6 +51,7 @@ __all__ = [
     "ToolExecutionError",
     "ToolTimeoutError",
     "LoopLimitError",
+    "SafeToolError",
     "LLM",
     "GenerateLLM",
     "StreamingLLM",
