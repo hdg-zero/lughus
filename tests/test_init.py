@@ -27,8 +27,9 @@ def test_lazy_import_streaming_llm() -> None:
 
 def test_lazy_import_unknown_raises() -> None:
     """Unknown attribute raises AttributeError."""
-    import lughus
     import pytest
+
+    import lughus
 
     with pytest.raises(AttributeError, match="no attribute"):
         _ = lughus.does_not_exist

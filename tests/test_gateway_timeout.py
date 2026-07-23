@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, ANY
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 
@@ -88,7 +88,7 @@ async def test_gateway_execute_timeout(monkeypatch) -> None:
 
     # Check if failed was called with a timeout message
     mock_updater.failed.assert_called_once()
-    called_args, called_kwargs = mock_updater.failed.call_args
+    _called_args, called_kwargs = mock_updater.failed.call_args
     # message parameter was passed
     assert called_kwargs.get("message") == "mock-message"
     mock_updater.new_agent_message.assert_any_call(parts=ANY)

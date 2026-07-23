@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 import litellm
 import pytest
 
-from lughus.llm import LLM, retry_budget
 from lughus.config import BaseSettings
+from lughus.llm import LLM, retry_budget
 
 
 def _make_text_response(text: str) -> MagicMock:

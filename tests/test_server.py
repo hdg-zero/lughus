@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from unittest.mock import MagicMock, patch
-from a2a.types import AgentCapabilities, AgentCard, AgentSkill
+
 import pytest
+from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from starlette.requests import Request
 
 from lughus import Artifact, BaseSettings, CompletionEvent, ProgressEvent, build_app, serve

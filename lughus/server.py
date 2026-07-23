@@ -78,9 +78,12 @@ class ProductionGuardMiddleware:
 
             async def lifespan_receive() -> dict:
                 msg = await receive()
-                if msg.get("type") == "lifespan.shutdown":
-                    if self.gateway and hasattr(self.gateway, "shutdown"):
-                        await self.gateway.shutdown()
+                if (
+                    msg.get("type") == "lifespan.shutdown"
+                    and self.gateway
+                    and hasattr(self.gateway, "shutdown")
+                ):
+                    await self.gateway.shutdown()
                 return msg
 
             await self.app(scope, lifespan_receive, send)
@@ -186,7 +189,7 @@ class ProductionGuardMiddleware:
                         self._semaphore.acquire(),
                         timeout=self.request_queue_timeout,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     response = JSONResponse({"error": "Server is busy"}, status_code=503)
                     await response(scope, receive, send)
                     return
@@ -325,7 +328,8 @@ def build_app(
 
     if task_store is None:
         _logger.warning(
-            "Using bounded in-memory TaskStore; inject a persistent TaskStore for horizontally scaled production deployments."
+            "Using bounded in-memory TaskStore; "
+            "inject a persistent TaskStore for horizontally scaled production deployments."
         )
         task_store_ttl = getattr(gateway.settings, "task_store_ttl_seconds", 24 * 60 * 60)
         task_store_max = getattr(gateway.settings, "task_store_max_tasks", 10_000)

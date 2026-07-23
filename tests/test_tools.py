@@ -142,9 +142,12 @@ def test_declarations_order_preserved(registry: ToolRegistry) -> None:
     """declarations() preserves the order of requested tool names."""
     for name in ("z_tool", "a_tool", "m_tool"):
 
-        @registry.tool(name, f"Tool {name}.", {"type": "object", "properties": {}})
-        def _tool(*, state) -> str:
-            return name
+        def _make_tool(tool_name: str):
+            @registry.tool(tool_name, f"Tool {tool_name}.", {"type": "object", "properties": {}})
+            def _tool(*, state) -> str:
+                return tool_name
+
+        _make_tool(name)
 
     decls = registry.declarations(["m_tool", "z_tool", "a_tool"])
     assert [d["function"]["name"] for d in decls] == ["m_tool", "z_tool", "a_tool"]

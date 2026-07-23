@@ -165,7 +165,7 @@ async def test_failing_tool_returns_error_json(registry_with_tools) -> None:
 @pytest.mark.asyncio
 async def test_multiple_tools_run_in_parallel(registry_with_tools) -> None:
     """Multiple slow tools run concurrently, not sequentially."""
-    registry, call_log = registry_with_tools
+    registry, _call_log = registry_with_tools
     n = 3
     tool_calls = [(f"call_{i}", "slow_tool", "{}") for i in range(n)]
 
@@ -174,7 +174,7 @@ async def test_multiple_tools_run_in_parallel(registry_with_tools) -> None:
     elapsed = time.perf_counter() - t0
 
     assert len(results) == n
-    # 3 tools × 50ms each, should run in ~50ms if truly parallel (not ~150ms)
+    # 3 tools * 50ms each, should run in ~50ms if truly parallel (not ~150ms)
     assert elapsed < 0.12, f"Expected parallel execution but took {elapsed:.3f}s"
 
 
@@ -503,7 +503,7 @@ async def test_sync_tool_worker_pool_is_bounded() -> None:
 
 @pytest.mark.asyncio
 async def test_global_tool_semaphore_is_shared_across_configurations() -> None:
-    """The global tool semaphore is shared per event loop, even with different max_global_tools configs."""
+    """The global tool semaphore is shared per event loop across configs."""
     from lughus.loop._execute import _global_tool_semaphore
 
     sem1 = _global_tool_semaphore(2)

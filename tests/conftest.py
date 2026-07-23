@@ -7,7 +7,6 @@ import pytest
 from lughus import ToolRegistry
 from lughus.config import BaseSettings
 
-
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
 

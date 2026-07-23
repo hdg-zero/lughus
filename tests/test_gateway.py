@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from lughus import Artifact
-from lughus.gateway import BaseGateway, _validate_artifacts
 from lughus.config import BaseSettings
+from lughus.gateway import BaseGateway, _validate_artifacts
 
 
 def _make_gateway(
@@ -27,8 +27,9 @@ def _make_gateway(
     monkeypatch.setenv("MAX_REQUEST_BYTES", str(max_request_bytes))
     monkeypatch.setenv("MAX_OBJECTIVE_CHARS", str(max_objective_chars))
 
-    from lughus.llm import LLM
     from unittest.mock import MagicMock
+
+    from lughus.llm import LLM
 
     # We use a concrete subclass because BaseGateway.handle() is abstract
     class ConcreteGateway(BaseGateway):
@@ -108,7 +109,7 @@ def test_extract_multiple_text_parts(monkeypatch) -> None:
     """Multiple TextParts are joined with newlines."""
     gw = _make_gateway(monkeypatch)
     ctx = _make_context([_text_part("Part 1"), _text_part("Part 2")])
-    objective, files = gw._extract(ctx)
+    objective, _files = gw._extract(ctx)
     assert objective == "Part 1\nPart 2"
 
 
@@ -159,7 +160,7 @@ def test_extract_file_exceeding_max_size_skipped_with_warning(
     ctx = _make_context([_file_part(big_data, "application/octet-stream", "big.bin")])
 
     with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
-        objective, files = gw._extract(ctx)
+        _objective, files = gw._extract(ctx)
 
     assert files == []
     assert "big.bin" in caplog.text

@@ -6,9 +6,8 @@ import os
 
 import pytest
 
-from lughus.config import BaseSettings, _env_int, _env_float, _env_bool
+from lughus.config import BaseSettings, _env_bool, _env_float, _env_int
 from lughus.loop._config import ToolExecutionConfig
-
 
 # ── _env_int ──────────────────────────────────────────────────────────────────
 

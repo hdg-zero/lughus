@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import os
 import asyncio
+import os
 from unittest.mock import MagicMock
+
 import pytest
 from starlette.testclient import TestClient
 
@@ -98,10 +99,9 @@ def test_ensure_dotenv_loads_file(tmp_path, monkeypatch) -> None:
     cwd = os.getcwd()
     try:
         os.chdir(str(tmp_path))
-        from lughus.config import _ensure_dotenv
-
         # Reset loaded flag to force reload
         import lughus.config
+        from lughus.config import _ensure_dotenv
 
         lughus.config._DOTENV_LOADED = False
 
@@ -114,7 +114,8 @@ def test_ensure_dotenv_loads_file(tmp_path, monkeypatch) -> None:
 
 def test_event_loop_weakref_no_leak() -> None:
     import gc
-    from lughus._threading import _get_sync_semaphore, _SYNC_SEMAPHORES
+
+    from lughus._threading import _SYNC_SEMAPHORES, _get_sync_semaphore
 
     class FakeLoop:
         pass
@@ -142,6 +143,7 @@ def test_event_loop_weakref_no_leak() -> None:
 
 def test_resolve_and_validate_otel_url(monkeypatch) -> None:
     import socket
+
     from lughus.ui_server import _resolve_and_validate_otel_url
 
     # Mock resolution to a private IP

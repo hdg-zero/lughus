@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 from ._config import ToolExecutionConfig
-from ._result import LoopResult
-from ._execute import _execute_tools, collect_tool_events, _extract_usage
+from ._execute import _execute_tools, _extract_usage, collect_tool_events
 from ._loop import agent_loop, agent_loop_stream
+from ._result import LoopResult
 
 __all__ = [
     "LoopResult",
     "ToolExecutionConfig",
+    "_execute_tools",
+    "_extract_usage",
     "agent_loop",
     "agent_loop_stream",
     "collect_tool_events",
-    "_execute_tools",
-    "_extract_usage",
 ]
