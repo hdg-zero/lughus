@@ -50,15 +50,19 @@ Used to mock non-streaming LLM responses. You supply a list of simulated respons
 from lughus.testing import MockLLM
 from lughus import ToolRegistry, agent_loop
 
+
 async def test_my_agent():
     # Sequence of two LLM turns: first calls tool 'greet', second returns text
     llm = MockLLM([
         [{"id": "call_1", "name": "greet", "arguments": {"name": "Alice"}}],
-        "Done greeting Alice."
+        "Done greeting Alice.",
     ])
 
     registry = ToolRegistry()
-    @registry.tool("greet", "Greet.", {"type": "object", "properties": {"name": {"type": "string"}}})
+
+    @registry.tool(
+        "greet", "Greet.", {"type": "object", "properties": {"name": {"type": "string"}}}
+    )
     def greet(*, name: str, state) -> str:
         return f"Hello {name}!"
 
@@ -87,6 +91,7 @@ Used to mock streaming LLM responses. Works identically to `MockLLM` but returns
 ```python
 from lughus.testing import MockStreamingLLM
 from lughus import ToolRegistry, agent_loop_stream
+
 
 async def test_my_streaming_agent():
     llm = MockStreamingLLM(["Hello word-by-word!"])

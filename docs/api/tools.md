@@ -43,6 +43,7 @@ Tool names must be unique in one registry. The callable must accept `state=...` 
 ```python
 registry = ToolRegistry()
 
+
 @registry.tool(
     name="add",
     description="Add two numbers.",
@@ -53,7 +54,7 @@ registry = ToolRegistry()
             "b": {"type": "integer"},
         },
         "required": ["a", "b"],
-    }
+    },
 )
 def add(*, a: int, b: int, state) -> dict:
     return {"result": a + b}

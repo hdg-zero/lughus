@@ -95,10 +95,13 @@ from lughus import ToolRegistry
 
 registry = ToolRegistry()
 
+
 @dataclass
 class AgentState:
     """Mutable state shared between tools."""
+
     result: str = ""
+
 
 @registry.tool(
     "greet",
@@ -127,6 +130,7 @@ from .tools import AgentState, registry
 
 SYSTEM_PROMPT = "You are an assistant. Use the greet tool to greet the user."
 
+
 class Workspace:
     def __init__(self, objective, llm):
         self.objective = objective
@@ -153,6 +157,7 @@ class Workspace:
 ```python
 from lughus import BaseGateway
 from .workspace import Workspace
+
 
 class MyGateway(BaseGateway):
     async def handle(self, objective, files):
@@ -186,8 +191,10 @@ agent_card = AgentCard(
 llm = LLM.from_settings(settings)
 gateway = MyGateway(llm=llm, settings=settings)
 
+
 def main():
     serve(agent_card, gateway, settings.host, settings.port)
+
 
 if __name__ == "__main__":
     main()
@@ -293,6 +300,7 @@ sequenceDiagram
 ```python
 from lughus import BaseSettings
 
+
 @dataclass(frozen=True)
 class Settings(BaseSettings):
     # Inherited fields:
@@ -370,27 +378,37 @@ from lughus import ToolRegistry
 
 registry = ToolRegistry()
 
+
 # Sync tool
-@registry.tool("my_tool", "Description for the LLM.", {
-    "type": "object",
-    "properties": {
-        "param1": {"type": "string", "description": "..."},
+@registry.tool(
+    "my_tool",
+    "Description for the LLM.",
+    {
+        "type": "object",
+        "properties": {
+            "param1": {"type": "string", "description": "..."},
+        },
+        "required": ["param1"],
+        "additionalProperties": False,
     },
-    "required": ["param1"],
-    "additionalProperties": False,
-})
+)
 def my_tool(*, param1: str, state) -> str:
     return {"status": "success", "result": "..."}
 
+
 # Async tool — same decorator, just use async def
-@registry.tool("fetch_data", "Fetch data from an external API.", {
-    "type": "object",
-    "properties": {
-        "url": {"type": "string", "description": "URL to fetch."},
+@registry.tool(
+    "fetch_data",
+    "Fetch data from an external API.",
+    {
+        "type": "object",
+        "properties": {
+            "url": {"type": "string", "description": "URL to fetch."},
+        },
+        "required": ["url"],
+        "additionalProperties": False,
     },
-    "required": ["url"],
-    "additionalProperties": False,
-})
+)
 async def fetch_data(*, url: str, state) -> str:
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
@@ -418,6 +436,7 @@ def read_file(*, path: str, state) -> str:
     with open(path) as f:
         return json.dumps({"content": f.read()})
 
+
 # Async tool — use when you want to await inside
 @registry.tool("fetch_url", "Fetch a URL.", {...})
 async def fetch_url(*, url: str, state) -> str:
@@ -436,19 +455,19 @@ Methods:
 from lughus import ToolExecutionConfig, agent_loop
 
 result = await agent_loop(
-    llm,                              # LLM instance
-    system="You are an assistant...", # system prompt
-    context="The user request",       # first user message
-    registry=registry,                # tool registry
-    tool_names=["tool1", "tool2"],    # accessible tools
-    state=my_state,                   # optional state object (passed to tools)
-    max_iterations=50,                # safety limit (default: 50)
+    llm,  # LLM instance
+    system="You are an assistant...",  # system prompt
+    context="The user request",  # first user message
+    registry=registry,  # tool registry
+    tool_names=["tool1", "tool2"],  # accessible tools
+    state=my_state,  # optional state object (passed to tools)
+    max_iterations=50,  # safety limit (default: 50)
     tool_config=ToolExecutionConfig(
-        max_parallel_tools=8,          # per-iteration tool concurrency
-        max_global_tools=64,           # worker-local tool concurrency
-        max_sync_thread_workers=32,     # worker pool for sync tools
-        tool_timeout=120.0,            # per-tool timeout in seconds
-        max_tool_args_chars=20_000,    # raw tool-call arguments limit
+        max_parallel_tools=8,  # per-iteration tool concurrency
+        max_global_tools=64,  # worker-local tool concurrency
+        max_sync_thread_workers=32,  # worker pool for sync tools
+        tool_timeout=120.0,  # per-tool timeout in seconds
+        max_tool_args_chars=20_000,  # raw tool-call arguments limit
         max_tool_output_chars=20_000,  # tool response size limit
         max_message_history_chars=200_000,  # accumulated message history limit
     ),
@@ -473,13 +492,13 @@ Call `agent_loop()` as many times as needed in your workspace — once per "phas
 ```python
 result = await agent_loop(...)
 
-result.iterations        # number of LLM round-trips
-result.elapsed           # wall-clock seconds
-result.prompt_tokens     # total input tokens across all iterations
-result.completion_tokens # total output tokens across all iterations
-result.total_tokens      # prompt_tokens + completion_tokens
-result.cached_tokens     # prompt cache hits (OpenAI, Anthropic, etc.)
-result.uncached_prompt_tokens # prompt_tokens - cached_tokens
+result.iterations  # number of LLM round-trips
+result.elapsed  # wall-clock seconds
+result.prompt_tokens  # total input tokens across all iterations
+result.completion_tokens  # total output tokens across all iterations
+result.total_tokens  # prompt_tokens + completion_tokens
+result.cached_tokens  # prompt cache hits (OpenAI, Anthropic, etc.)
+result.uncached_prompt_tokens  # prompt_tokens - cached_tokens
 ```
 
 These are also recorded as OpenTelemetry span attributes on the `agent_loop` span.
@@ -539,6 +558,7 @@ Each text chunk becomes an A2A progress update — the user sees the response ap
 
 ```python
 from lughus import BaseGateway, ProgressEvent, CompletionEvent, Artifact
+
 
 class MyGateway(BaseGateway):
     # self.llm and self.settings are available (passed to constructor)
@@ -624,8 +644,8 @@ serve(
     host="0.0.0.0",
     port=8080,
     task_store=BoundedInMemoryTaskStore(),  # Or inject a persistent Redis/SQL TaskStore
-    setup_otel=False,                # Skip automatic OTel configuration if already configured
-    enable_test_ui=False,            # Keep the browser test UI disabled in production
+    setup_otel=False,  # Skip automatic OTel configuration if already configured
+    enable_test_ui=False,  # Keep the browser test UI disabled in production
 )
 ```
 
@@ -681,18 +701,20 @@ To use them:
 from lughus.testing import MockLLM, MockStreamingLLM
 from lughus import ToolRegistry, agent_loop
 
+
 async def test_my_agent():
     # Pass a list of simulated responses (either str for text, or lists of dict for tool calls)
     llm = MockLLM([
         [{"id": "call_1", "name": "greet", "arguments": {"name": "Test"}}],
         "Done.",
     ])
-    
+
     registry = ToolRegistry()
+
     @registry.tool("greet", "Greet.", {"type": "object", "properties": {}})
     def greet(*, name: str, state) -> str:
         return f"Hello {name}!"
-        
+
     result = await agent_loop(
         llm,
         system=".",
@@ -964,8 +986,9 @@ setup_telemetry("my-agent")
 `agent_loop()` returns a `LoopResult` (a `str` subclass) with attached metrics:
 
 ```python
-result = await agent_loop(llm, system=..., context=..., registry=registry,
-                          tool_names=["my_tool"], state=state)
+result = await agent_loop(
+    llm, system=..., context=..., registry=registry, tool_names=["my_tool"], state=state
+)
 
 print(f"Took {result.elapsed:.1f}s, {result.total_tokens} tokens")
 # Took 6.8s, 3412 tokens
