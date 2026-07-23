@@ -79,10 +79,12 @@ class MockLLM:
 
     Example::
 
-        llm = MockLLM([
-            [{"name": "greet", "arguments": {"name": "World"}, "id": "c1"}],
-            "Hello World!",
-        ])
+        llm = MockLLM(
+            [
+                [{"name": "greet", "arguments": {"name": "World"}, "id": "c1"}],
+                "Hello World!",
+            ]
+        )
     """
 
     model = "test/mock-model"
@@ -200,10 +202,12 @@ class MockStreamingLLM:
 
     Example::
 
-        llm = MockStreamingLLM([
-            [{"name": "greet", "arguments": {"name": "World"}, "id": "c1"}],
-            "Hello World!",
-        ])
+        llm = MockStreamingLLM(
+            [
+                [{"name": "greet", "arguments": {"name": "World"}, "id": "c1"}],
+                "Hello World!",
+            ]
+        )
     """
 
     model = "test/mock-model"

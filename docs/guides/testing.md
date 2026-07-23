@@ -53,10 +53,12 @@ from lughus import ToolRegistry, agent_loop
 
 async def test_my_agent():
     # Sequence of two LLM turns: first calls tool 'greet', second returns text
-    llm = MockLLM([
-        [{"id": "call_1", "name": "greet", "arguments": {"name": "Alice"}}],
-        "Done greeting Alice.",
-    ])
+    llm = MockLLM(
+        [
+            [{"id": "call_1", "name": "greet", "arguments": {"name": "Alice"}}],
+            "Done greeting Alice.",
+        ]
+    )
 
     registry = ToolRegistry()
 

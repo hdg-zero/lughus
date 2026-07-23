@@ -704,10 +704,12 @@ from lughus import ToolRegistry, agent_loop
 
 async def test_my_agent():
     # Pass a list of simulated responses (either str for text, or lists of dict for tool calls)
-    llm = MockLLM([
-        [{"id": "call_1", "name": "greet", "arguments": {"name": "Test"}}],
-        "Done.",
-    ])
+    llm = MockLLM(
+        [
+            [{"id": "call_1", "name": "greet", "arguments": {"name": "Test"}}],
+            "Done.",
+        ]
+    )
 
     registry = ToolRegistry()
 
