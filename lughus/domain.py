@@ -1,10 +1,12 @@
 """Versioned domain records for observable agent execution."""
+
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any, Mapping
+from typing import Any
 from uuid import uuid4
 
 SCHEMA_VERSION = "1.0"
@@ -52,9 +54,7 @@ class RunEvent:
     step_id: str | None = None
     causation_id: str | None = None
     visibility: EventVisibility = EventVisibility.INTERNAL
-    occurred_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    occurred_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     schema_version: str = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -69,7 +69,7 @@ class RunEvent:
         return result
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "RunEvent":
+    def from_dict(cls, value: Mapping[str, Any]) -> RunEvent:
         data = dict(value)
         data["visibility"] = EventVisibility(data.get("visibility", "internal"))
         return cls(**data)
@@ -82,7 +82,7 @@ class Run:
     status: RunStatus = RunStatus.PENDING
     version: int = 0
     context_id: str | None = None
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     usage: Usage = field(default_factory=Usage)
 
     def __post_init__(self) -> None:

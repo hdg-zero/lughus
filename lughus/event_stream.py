@@ -1,4 +1,5 @@
 """Event sinks and in-memory subscriptions."""
+
 from __future__ import annotations
 
 import asyncio
@@ -38,9 +39,11 @@ class InMemoryEventSink:
         cursor = after_sequence
         while True:
             async with self._condition:
-                await self._condition.wait_for(
-                    lambda: any(e.sequence > cursor for e in self._events)
-                )
+
+                def _has_new_events(c: int = cursor) -> bool:
+                    return any(e.sequence > c for e in self._events)
+
+                await self._condition.wait_for(_has_new_events)
                 pending = tuple(e for e in self._events if e.sequence > cursor)
             for event in pending:
                 cursor = event.sequence

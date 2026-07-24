@@ -4,6 +4,19 @@ All notable changes to `lughus` will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] — 2026-07-24
+
+### Added
+
+- Added explicit process-local `ExecutionRuntime` and `RuntimeConfig` managing worker threadpools and bulkhead semaphores.
+- Added structured domain models: `Run`, `RunEvent`, `RunStatus`, `EventVisibility`, and `Usage`.
+- Added pub/sub event stream sinks (`EventSink`, `InMemoryEventSink`) with monotonic sequence enforcement.
+- Added `AgentRunner` orchestrator emitting `run.started`, `text.delta`, `run.completed`, and `run.failed` events.
+- Added architecture contracts documentation (`docs/contracts/events.md` and `docs/contracts/streaming.md`).
+- Added comprehensive unit test suite covering event sinks, runtime isolation, and runner event invariants (204 tests, 85.93% coverage).
+
+---
+
 ## [0.1.3] — 2026-07-23
 
 ### Added

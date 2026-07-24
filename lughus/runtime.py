@@ -1,12 +1,14 @@
 """Explicit ownership of process-local execution resources."""
+
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator, Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, AsyncIterator, Callable
+from typing import Any
 
 from .errors import ToolTimeoutError
 
@@ -64,7 +66,7 @@ class ExecutionRuntime:
                 await self._semaphore.acquire()
             else:
                 await asyncio.wait_for(self._semaphore.acquire(), timeout=wait)
-        except asyncio.TimeoutError as exc:
+        except TimeoutError as exc:
             raise ToolTimeoutError("Timed out waiting for a global tool slot") from exc
         try:
             yield
@@ -82,7 +84,7 @@ class ExecutionRuntime:
         self._closed = True
         self._executor.shutdown(wait=wait, cancel_futures=True)
 
-    async def __aenter__(self) -> "ExecutionRuntime":
+    async def __aenter__(self) -> ExecutionRuntime:
         self._bind()
         return self
 
