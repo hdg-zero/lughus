@@ -19,9 +19,11 @@ def reset_telemetry_initialized():
 
 
 def test_telemetry_retryable_after_failure(monkeypatch) -> None:
-    with patch("lughus.telemetry.Resource.create", side_effect=RuntimeError("simulated error")):
-        with pytest.raises(RuntimeError, match="simulated error"):
-            setup_telemetry("test")
+    with (
+        patch("lughus.telemetry.Resource.create", side_effect=RuntimeError("simulated error")),
+        pytest.raises(RuntimeError, match="simulated error"),
+    ):
+        setup_telemetry("test")
 
     assert lughus.telemetry._INITIALIZED is False
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 from types import SimpleNamespace
+
 import pytest
 
 from lughus import ToolRegistry
@@ -291,8 +292,8 @@ async def test_stream_tokens_not_double_counted(registry: ToolRegistry) -> None:
             result = chunk
 
     assert result is not None
-    assert result.prompt_tokens == 20  # 2 iterations × 10
-    assert result.completion_tokens == 10  # 2 iterations × 5
+    assert result.prompt_tokens == 20  # 2 iterations * 10
+    assert result.completion_tokens == 10  # 2 iterations * 5
     assert result.total_tokens == 30
     assert result.iterations == 2
 
@@ -343,9 +344,8 @@ async def test_stream_tool_call_content_none_not_in_message(registry: ToolRegist
 
     for call in llm.calls:
         for msg in call["messages"]:
-            if msg["role"] == "assistant" and "tool_calls" in msg:
-                if "content" in msg:
-                    assert msg["content"] is not None
+            if msg["role"] == "assistant" and "tool_calls" in msg and "content" in msg:
+                assert msg["content"] is not None
 
 
 @pytest.mark.asyncio

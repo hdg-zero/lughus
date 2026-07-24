@@ -78,9 +78,12 @@ class ProductionGuardMiddleware:
 
             async def lifespan_receive() -> dict:
                 msg = await receive()
-                if msg.get("type") == "lifespan.shutdown":
-                    if self.gateway and hasattr(self.gateway, "shutdown"):
-                        await self.gateway.shutdown()
+                if (
+                    msg.get("type") == "lifespan.shutdown"
+                    and self.gateway
+                    and hasattr(self.gateway, "shutdown")
+                ):
+                    await self.gateway.shutdown()
                 return msg
 
             await self.app(scope, lifespan_receive, send)
@@ -128,6 +131,13 @@ class ProductionGuardMiddleware:
                 return
 
         body_bytes_seen = 0
+        response_started = False
+
+        async def guarded_send(message: dict) -> None:
+            nonlocal response_started
+            if message.get("type") == "http.response.start":
+                response_started = True
+            await send(message)
 
         async def guarded_receive() -> dict:
             nonlocal body_bytes_seen
@@ -141,13 +151,13 @@ class ProductionGuardMiddleware:
 
         if self._semaphore is None:
             try:
-                await self.app(scope, guarded_receive, send)
+                await self.app(scope, guarded_receive, guarded_send)
             except RequestBodyTooLarge:
-                response = JSONResponse(
-                    {"error": f"Request body exceeds {self.max_body_bytes} bytes"},
-                    status_code=413,
-                )
-                await response(scope, receive, send)
+                if not response_started:
+                    response = JSONResponse({"error": "request_body_too_large"}, status_code=413)
+                    await response(scope, receive, send)
+                else:
+                    _logger.warning("Request body exceeded limit after response start")
             return
 
         reject_for_backlog = False
@@ -179,20 +189,20 @@ class ProductionGuardMiddleware:
                         self._semaphore.acquire(),
                         timeout=self.request_queue_timeout,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     response = JSONResponse({"error": "Server is busy"}, status_code=503)
                     await response(scope, receive, send)
                     return
             acquired = True
 
             try:
-                await self.app(scope, guarded_receive, send)
+                await self.app(scope, guarded_receive, guarded_send)
             except RequestBodyTooLarge:
-                response = JSONResponse(
-                    {"error": f"Request body exceeds {self.max_body_bytes} bytes"},
-                    status_code=413,
-                )
-                await response(scope, receive, send)
+                if not response_started:
+                    response = JSONResponse({"error": "request_body_too_large"}, status_code=413)
+                    await response(scope, receive, send)
+                else:
+                    _logger.warning("Request body exceeded limit after response start")
         finally:
             if acquired:
                 self._semaphore.release()
@@ -318,7 +328,8 @@ def build_app(
 
     if task_store is None:
         _logger.warning(
-            "Using bounded in-memory TaskStore; inject a persistent TaskStore for horizontally scaled production deployments."
+            "Using bounded in-memory TaskStore; "
+            "inject a persistent TaskStore for horizontally scaled production deployments."
         )
         task_store_ttl = getattr(gateway.settings, "task_store_ttl_seconds", 24 * 60 * 60)
         task_store_max = getattr(gateway.settings, "task_store_max_tasks", 10_000)

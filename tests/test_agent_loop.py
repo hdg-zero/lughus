@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 import pytest
 
 from lughus import LughusError, ToolRegistry
@@ -366,9 +367,7 @@ async def test_tool_call_content_none_not_in_message(registry: ToolRegistry) -> 
     # Inspect all assistant messages in the conversation history
     for call in llm.calls:
         for msg in call["messages"]:
-            if msg["role"] == "assistant" and "tool_calls" in msg:
-                # content key must be absent (not None) when there's no content
-                if "content" in msg:
-                    assert msg["content"] is not None, (
-                        "Assistant message has 'content': None — breaks Azure OpenAI"
-                    )
+            if msg["role"] == "assistant" and "tool_calls" in msg and "content" in msg:
+                assert msg["content"] is not None, (
+                    "Assistant message has 'content': None — breaks Azure OpenAI"
+                )

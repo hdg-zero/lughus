@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import logging
-import inspect
 import copy
+import inspect
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from jsonschema import Draft202012Validator, SchemaError  # type: ignore[import-untyped]
 

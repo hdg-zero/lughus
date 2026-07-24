@@ -1,6 +1,7 @@
 """lughus — micro-framework for building A2A agents with LiteLLM."""
 
-from importlib.metadata import PackageNotFoundError, version as _pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 from typing import TYPE_CHECKING, Any
 
 try:
@@ -9,12 +10,15 @@ except PackageNotFoundError:
     __version__ = "0.0.0-dev"
 
 if TYPE_CHECKING:
-    from .llm import GenerateLLM as GenerateLLM, LLM as LLM, StreamingLLM as StreamingLLM
+    from .llm import LLM as LLM
+    from .llm import GenerateLLM as GenerateLLM
+    from .llm import StreamingLLM as StreamingLLM
 
 from .config import BaseSettings
 from .errors import (
     LoopLimitError,
     LughusError,
+    SafeToolError,
     ToolExecutionError,
     ToolTimeoutError,
     ToolValidationError,
@@ -44,27 +48,28 @@ def __getattr__(name: str) -> Any:
 
 
 __all__ = [
-    "BaseSettings",
-    "LughusError",
-    "ToolValidationError",
-    "ToolExecutionError",
-    "ToolTimeoutError",
-    "LoopLimitError",
     "LLM",
-    "GenerateLLM",
-    "StreamingLLM",
-    "agent_loop",
-    "agent_loop_stream",
-    "LoopResult",
-    "ToolExecutionConfig",
-    "ToolRegistry",
-    "ToolDef",
+    "Artifact",
     "BaseGateway",
+    "BaseSettings",
     "BoundedInMemoryTaskStore",
+    "CompletionEvent",
+    "GenerateLLM",
+    "LoopLimitError",
+    "LoopResult",
+    "LughusError",
     "ProductionGuardMiddleware",
     "ProgressEvent",
-    "CompletionEvent",
-    "Artifact",
+    "SafeToolError",
+    "StreamingLLM",
+    "ToolDef",
+    "ToolExecutionConfig",
+    "ToolExecutionError",
+    "ToolRegistry",
+    "ToolTimeoutError",
+    "ToolValidationError",
+    "agent_loop",
+    "agent_loop_stream",
     "build_app",
     "serve",
     "setup_telemetry",

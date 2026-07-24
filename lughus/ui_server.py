@@ -62,7 +62,7 @@ def _is_safe_otel_url(url: str) -> bool:
 
     try:
         ips = socket.getaddrinfo(hostname, None)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
     for item in ips:
@@ -92,7 +92,7 @@ def _is_safe_otel_url(url: str) -> bool:
 
 
 def _resolve_and_validate_otel_url(url: str) -> tuple[str, str]:
-    """Resolve the hostname of the URL, validate it against SSRF, and return (rewritten_url, original_hostname)."""
+    """Resolve URL hostname, validate against SSRF, return (rewritten_url, original_hostname)."""
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in {"http", "https"}:
         raise ValueError("Trace URL must be an absolute http(s) URL")
@@ -121,18 +121,20 @@ def _resolve_and_validate_otel_url(url: str) -> tuple[str, str]:
                 pass
             # Block private subnets (SSRF protection)
             elif (
-                ip.startswith("10.")
-                or ip.startswith("192.168.")
-                or ip.startswith("169.254.")
-                or (
-                    ip.startswith("172.")
-                    and len(ip.split(".")) > 1
-                    and 16 <= int(ip.split(".")[1]) <= 31
+                (
+                    ip.startswith("10.")
+                    or ip.startswith("192.168.")
+                    or ip.startswith("169.254.")
+                    or (
+                        ip.startswith("172.")
+                        and len(ip.split(".")) > 1
+                        and 16 <= int(ip.split(".")[1]) <= 31
+                    )
                 )
+                or ip.startswith("fe80:")
+                or ip.startswith("fc00:")
+                or ip.startswith("fd00:")
             ):
-                raise ValueError("Trace URL destination is not allowed (SSRF protection)")
-            # IPv6 link-local (fe80::) and unique local (fc00::, fd00::)
-            elif ip.startswith("fe80:") or ip.startswith("fc00:") or ip.startswith("fd00:"):
                 raise ValueError("Trace URL destination is not allowed (SSRF protection)")
 
         if resolved_ip is None:
@@ -141,7 +143,7 @@ def _resolve_and_validate_otel_url(url: str) -> tuple[str, str]:
     if not resolved_ip:
         raise ValueError(f"No IP addresses resolved for host '{hostname}'")
 
-    # Rewrite netloc with resolved IP to prevent TOCTOU DNS rebinding (only for http to avoid breaking TLS)
+    # Rewrite netloc with resolved IP to prevent TOCTOU DNS rebinding (only for http)
     if parsed.scheme == "http":
         port = parsed.port
         new_netloc = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
@@ -168,8 +170,14 @@ def _fetch_otel_url(url: str) -> dict[str, Any]:
         headers={"Host": original_host, "accept": "application/json, text/plain;q=0.9, */*;q=0.1"},
         method="GET",
     )
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
     try:
-        with urllib.request.urlopen(request, timeout=_OTEL_TIMEOUT_SECONDS) as response:
+        opener = urllib.request.build_opener(_NoRedirect)
+        with opener.open(request, timeout=_OTEL_TIMEOUT_SECONDS) as response:
             data = response.read(_OTEL_MAX_BYTES + 1)
             if len(data) > _OTEL_MAX_BYTES:
                 raise ValueError(f"Trace response exceeds {_OTEL_MAX_BYTES} bytes")
@@ -288,8 +296,13 @@ async def _decode_files(
         if not isinstance(encoded, str):
             raise ValueError(f"files[{index}].content_base64 must be a string")
         try:
+            enc_str = encoded
+
+            def _decode_enc(s: str = enc_str) -> bytes:
+                return base64.b64decode(s, validate=True)
+
             data = await run_sync_in_thread(
-                lambda: base64.b64decode(encoded, validate=True),
+                _decode_enc,
                 max_workers=gateway.settings.max_sync_thread_workers,
             )
         except binascii.Error as exc:
@@ -322,7 +335,7 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
     ) -> tuple[str, list[tuple[bytes, str, str]]] | JSONResponse:
         try:
             payload = await request.json()
-        except Exception:
+        except Exception:  # noqa: BLE001
             return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
         if not isinstance(payload, dict):
             return JSONResponse({"error": "JSON body must be an object"}, status_code=400)
@@ -379,9 +392,9 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
             )
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        except Exception as exc:
+        except Exception:
             _logger.exception("Test UI run failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
+            return JSONResponse({"error": "internal_error"}, status_code=500)
 
         return JSONResponse({"events": events})
 
@@ -435,14 +448,16 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
                     _enqueue_nowait(
                         {
                             "type": "error",
-                            "text": f"Agent execution timed out after {gateway.settings.agent_timeout}s",
+                            "text": (
+                                f"Agent execution timed out after {gateway.settings.agent_timeout}s"
+                            ),
                         }
                     )
                 except ValueError as exc:
                     _enqueue_nowait({"type": "error", "text": str(exc)})
-                except Exception as exc:
+                except Exception:
                     _logger.exception("Test UI stream failed")
-                    _enqueue_nowait({"type": "error", "text": str(exc)})
+                    _enqueue_nowait({"type": "error", "code": "internal_error"})
                 finally:
                     queue.put_nowait(None)
 
@@ -468,7 +483,7 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
     async def otel_traces(request: Request) -> JSONResponse:
         try:
             payload = await request.json()
-        except Exception:
+        except Exception:  # noqa: BLE001
             return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
         if not isinstance(payload, dict):
             return JSONResponse({"error": "JSON body must be an object"}, status_code=400)
@@ -482,9 +497,9 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
             )
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        except Exception as exc:
+        except Exception:
             _logger.exception("Test UI trace fetch failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
+            return JSONResponse({"error": "internal_error"}, status_code=500)
         return JSONResponse(result)
 
     return [

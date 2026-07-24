@@ -6,7 +6,8 @@ import asyncio
 import logging
 import random
 import time
-from typing import Any, Protocol, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any, Protocol
 
 import litellm
 
@@ -15,7 +16,7 @@ from .telemetry import meter
 
 _logger = logging.getLogger(__name__)
 
-__all__ = ["GenerateLLM", "StreamingLLM", "LLM", "retry_budget"]
+__all__ = ["LLM", "GenerateLLM", "StreamingLLM", "retry_budget"]
 
 
 class GenerateLLM(Protocol):
@@ -125,7 +126,7 @@ class LLM:
         )
 
     @classmethod
-    def from_settings(cls, settings: Any) -> "LLM":
+    def from_settings(cls, settings: Any) -> LLM:
         """Create an LLM using the common fields exposed by BaseSettings."""
         return cls(
             model=settings.model,

@@ -8,15 +8,16 @@ import contextlib
 import logging
 import os
 import re
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from a2a.server.agent_execution import AgentExecutor
 from a2a.server.agent_execution.context import RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
 from a2a.types import (
-    FileWithBytes,
     FilePart,
+    FileWithBytes,
     Part,
     TaskState,
     TextPart,
@@ -167,14 +168,9 @@ class BaseGateway(AgentExecutor):
                 span.set_status(StatusCode.ERROR, "agent timeout exceeded")
                 span.record_exception(exc)
                 span.set_attribute("lughus.status", "timeout")
+                msg_text = f"Error: Agent execution timed out after {self.settings.agent_timeout}s"
                 msg = updater.new_agent_message(
-                    parts=[
-                        Part(
-                            root=TextPart(
-                                text=f"Error: Agent execution timed out after {self.settings.agent_timeout}s"
-                            )
-                        )
-                    ],
+                    parts=[Part(root=TextPart(text=msg_text))],
                 )
                 await updater.failed(message=msg)
 
@@ -182,7 +178,7 @@ class BaseGateway(AgentExecutor):
                 span.set_status(StatusCode.ERROR, "agent cancelled")
                 span.set_attribute("lughus.status", "cancelled")
 
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 span.set_status(StatusCode.ERROR, str(exc))
                 span.record_exception(exc)
                 span.set_attribute("lughus.status", "failed")
@@ -268,7 +264,7 @@ class BaseGateway(AgentExecutor):
                     max_encoded_bytes = ((self.settings.max_file_bytes + 2) // 3) * 4
                     if len(fw.bytes) > max_encoded_bytes:
                         _logger.warning(
-                            "Skipping file '%s': encoded size %d bytes exceeds max decoded limit %d bytes",
+                            "Skipping file '%s': encoded size %d bytes exceeds max limit %d bytes",
                             fw.name or "(unnamed)",
                             len(fw.bytes),
                             self.settings.max_file_bytes,
@@ -323,11 +319,16 @@ class BaseGateway(AgentExecutor):
 
         for task in file_tasks:
             try:
+                task_bytes = task["bytes"]
+
+                def _decode_b64(tb: bytes = task_bytes) -> bytes:
+                    return base64.b64decode(tb, validate=True)
+
                 raw = await run_sync_in_thread(
-                    lambda: base64.b64decode(task["bytes"], validate=True),
+                    _decode_b64,
                     max_workers=self.settings.max_sync_thread_workers,
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 _logger.warning(
                     "Skipping file '%s': base64 decode failed — %s",
                     task["name"],
@@ -356,7 +357,7 @@ class BaseGateway(AgentExecutor):
         for task in file_tasks:
             try:
                 raw = base64.b64decode(task["bytes"], validate=True)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 _logger.warning(
                     "Skipping file '%s': base64 decode failed — %s",
                     task["name"],

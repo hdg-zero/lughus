@@ -4,7 +4,8 @@ import asyncio
 import logging
 import random
 import time
-from typing import TYPE_CHECKING, Any, AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from opentelemetry.trace import StatusCode
 
@@ -14,14 +15,14 @@ from ..retry import _retry_budget_var, _retry_used_var, retry_budget
 from ..telemetry import tracer
 from ..tools import ToolRegistry
 from ._config import DEFAULT_MAX_ITERATIONS, ToolExecutionConfig
-from ._result import LoopResult
 from ._execute import (
-    _check_message_history_size,
-    _record_llm_usage,
     _assistant_tool_message,
+    _check_message_history_size,
     _execute_tools,
     _loop_duration,
+    _record_llm_usage,
 )
+from ._result import LoopResult
 
 _logger = logging.getLogger(__name__)
 
@@ -139,7 +140,7 @@ async def agent_loop(
     ``completion_tokens``, ``cached_tokens``, ``total_tokens``).
     """
     cfg = tool_config or ToolExecutionConfig()
-    with tracer.start_as_current_span("agent_loop") as loop_span:
+    with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
         with retry_budget(getattr(llm, "retry_max_elapsed", None)):
             loop_span.set_attribute("gen_ai.request.model", llm.model)
             loop_span.set_attribute("lughus.max_iterations", max_iterations)
@@ -229,7 +230,7 @@ async def agent_loop_stream(
     is always a :class:`LoopResult` (a ``str`` subclass with usage metadata).
     """
     cfg = tool_config or ToolExecutionConfig()
-    with tracer.start_as_current_span("agent_loop") as loop_span:
+    with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
         with retry_budget(getattr(llm, "retry_max_elapsed", None)):
             loop_span.set_attribute("gen_ai.request.model", llm.model)
             loop_span.set_attribute("lughus.max_iterations", max_iterations)
@@ -328,7 +329,8 @@ async def agent_loop_stream(
                         _retry_used_var.set(retry_sleep_elapsed + delay)
 
                         _logger.warning(
-                            "LLM.astream: transient error (%s) during chunk streaming, retry %d/%d in %.1fs",
+                            "LLM.astream: transient error (%s) during chunk streaming, "
+                            "retry %d/%d in %.1fs",
                             type(exc).__name__,
                             attempt + 1,
                             max_retries,

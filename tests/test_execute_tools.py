@@ -142,13 +142,13 @@ async def test_unknown_tool_returns_error_json(registry_with_tools) -> None:
     _, output = results[0]
     data = json.loads(output)
     assert "error" in data
-    assert data["error_type"] == "ToolValidationError"
+    assert data["error_code"] == "ToolValidationError"
     assert "no_such_tool" in data["error"]
 
 
 @pytest.mark.asyncio
 async def test_failing_tool_returns_error_json(registry_with_tools) -> None:
-    """A tool that raises an exception returns error JSON without propagating."""
+    """A tool that raises an unknown exception returns redacted error JSON."""
     registry, _ = registry_with_tools
     results = await _execute_tools(
         [("call_4", "failing_tool", "{}")],
@@ -158,14 +158,14 @@ async def test_failing_tool_returns_error_json(registry_with_tools) -> None:
     _, output = results[0]
     data = json.loads(output)
     assert "error" in data
-    assert data["error_type"] == "ToolExecutionError"
-    assert "intentional failure" in data["error"]
+    assert data["error_code"] == "ToolExecutionError"
+    assert data["error"] == "Tool execution failed"
 
 
 @pytest.mark.asyncio
 async def test_multiple_tools_run_in_parallel(registry_with_tools) -> None:
     """Multiple slow tools run concurrently, not sequentially."""
-    registry, call_log = registry_with_tools
+    registry, _call_log = registry_with_tools
     n = 3
     tool_calls = [(f"call_{i}", "slow_tool", "{}") for i in range(n)]
 
@@ -174,7 +174,7 @@ async def test_multiple_tools_run_in_parallel(registry_with_tools) -> None:
     elapsed = time.perf_counter() - t0
 
     assert len(results) == n
-    # 3 tools × 50ms each, should run in ~50ms if truly parallel (not ~150ms)
+    # 3 tools * 50ms each, should run in ~50ms if truly parallel (not ~150ms)
     assert elapsed < 0.12, f"Expected parallel execution but took {elapsed:.3f}s"
 
 
@@ -265,7 +265,7 @@ async def test_tool_timeout_returns_error_json() -> None:
 
     data = json.loads(results[0][1])
     assert "error" in data
-    assert data["error_type"] == "ToolTimeoutError"
+    assert data["error_code"] == "ToolTimeoutError"
     assert "timed out" in data["error"]
 
 
@@ -298,7 +298,7 @@ async def test_tool_args_schema_validation() -> None:
 
     data = json.loads(results[0][1])
     assert called is False
-    assert data["error_type"] == "ToolValidationError"
+    assert data["error_code"] == "ToolValidationError"
     assert "Invalid arguments" in data["error"]
 
 
@@ -319,7 +319,7 @@ async def test_tool_args_size_limit() -> None:
     )
 
     data = json.loads(results[0][1])
-    assert data["error_type"] == "ToolValidationError"
+    assert data["error_code"] == "ToolValidationError"
     assert "exceed" in data["error"]
 
 
@@ -340,7 +340,7 @@ async def test_tool_output_size_limit() -> None:
     )
 
     data = json.loads(results[0][1])
-    assert data["error_type"] == "ToolValidationError"
+    assert data["error_code"] == "ToolValidationError"
     assert "Output from tool" in data["error"]
 
 
@@ -403,7 +403,7 @@ async def test_global_tool_queue_timeout_returns_error_json() -> None:
     release.set()
     await first
     data = json.loads(results[0][1])
-    assert data["error_type"] == "ToolTimeoutError"
+    assert data["error_code"] == "ToolTimeoutError"
     assert "global tool slot" in data["error"]
 
 
@@ -503,7 +503,7 @@ async def test_sync_tool_worker_pool_is_bounded() -> None:
 
 @pytest.mark.asyncio
 async def test_global_tool_semaphore_is_shared_across_configurations() -> None:
-    """The global tool semaphore is shared per event loop, even with different max_global_tools configs."""
+    """The global tool semaphore is shared per event loop across configs."""
     from lughus.loop._execute import _global_tool_semaphore
 
     sem1 = _global_tool_semaphore(2)

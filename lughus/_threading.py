@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import atexit
 import asyncio
+import atexit
 import threading
 import weakref
-from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 DEFAULT_THREAD_WORKERS = 32

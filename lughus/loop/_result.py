@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Self
+
 
 class LoopResult(str):
     """String subclass that carries usage metadata.
@@ -24,7 +26,7 @@ class LoopResult(str):
         prompt_tokens: int,
         completion_tokens: int,
         cached_tokens: int,
-    ) -> LoopResult:
+    ) -> Self:
         instance = super().__new__(cls, text)
         instance.iterations = iterations
         instance.elapsed = elapsed

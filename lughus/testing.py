@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import copy
 import json
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 from unittest.mock import MagicMock
 
 
@@ -78,10 +79,12 @@ class MockLLM:
 
     Example::
 
-        llm = MockLLM([
-            [{"name": "greet", "arguments": {"name": "World"}, "id": "c1"}],
-            "Hello World!",
-        ])
+        llm = MockLLM(
+            [
+                [{"name": "greet", "arguments": {"name": "World"}, "id": "c1"}],
+                "Hello World!",
+            ]
+        )
     """
 
     model = "test/mock-model"
@@ -199,10 +202,12 @@ class MockStreamingLLM:
 
     Example::
 
-        llm = MockStreamingLLM([
-            [{"name": "greet", "arguments": {"name": "World"}, "id": "c1"}],
-            "Hello World!",
-        ])
+        llm = MockStreamingLLM(
+            [
+                [{"name": "greet", "arguments": {"name": "World"}, "id": "c1"}],
+                "Hello World!",
+            ]
+        )
     """
 
     model = "test/mock-model"

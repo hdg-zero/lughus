@@ -72,13 +72,16 @@ uv run ruff format .
 from lughus.testing import MockLLM
 from lughus import ToolRegistry, agent_loop
 
+
 async def test_my_agent():
-    llm = MockLLM([
-        # First iteration: LLM calls a tool
-        [{"id": "c1", "name": "my_tool", "arguments": {"param": "value"}}],
-        # Second iteration: LLM returns text
-        "Task completed successfully.",
-    ])
+    llm = MockLLM(
+        [
+            # First iteration: LLM calls a tool
+            [{"id": "c1", "name": "my_tool", "arguments": {"param": "value"}}],
+            # Second iteration: LLM returns text
+            "Task completed successfully.",
+        ]
+    )
     registry = ToolRegistry()
 
     @registry.tool("my_tool", "My tool.", {"type": "object", "properties": {}})
@@ -86,8 +89,12 @@ async def test_my_agent():
         return '{"ok": true}'
 
     result = await agent_loop(
-        llm, system="You are helpful.", context="Do the task",
-        registry=registry, tool_names=["my_tool"], state=None,
+        llm,
+        system="You are helpful.",
+        context="Do the task",
+        registry=registry,
+        tool_names=["my_tool"],
+        state=None,
     )
     assert "completed" in result
 ```

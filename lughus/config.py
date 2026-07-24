@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import logging
+import os
 from dataclasses import dataclass, field
 
 _logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ def _ensure_dotenv() -> None:
         except ImportError:
             # Fallback to simple manual parsing if dotenv is not installed
             if os.path.exists(".env"):
-                with open(".env", "r", encoding="utf-8") as f:
+                with open(".env", encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
                         if not line or line.startswith("#"):

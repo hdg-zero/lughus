@@ -21,3 +21,17 @@ class ToolTimeoutError(ToolExecutionError):
 
 class LoopLimitError(LughusError, RuntimeError):
     """The agent loop exceeded its configured iteration limit."""
+
+
+class SafeToolError(ToolExecutionError):
+    """Business error whose message may be shown to the model.
+
+    Unknown exceptions are deliberately redacted. Tool authors must opt in to exposing a
+    message by raising this type with a stable, non-sensitive ``code``.
+    """
+
+    def __init__(self, code: str, message: str, *, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.code = code
+        self.public_message = message
+        self.retryable = retryable

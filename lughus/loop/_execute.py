@@ -10,20 +10,21 @@ import logging
 import threading
 import time
 import weakref
-from collections.abc import Callable, Iterator
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator, Callable, Iterator
+from typing import Any
 
 from jsonschema import Draft202012Validator, ValidationError  # type: ignore[import-untyped]
 from opentelemetry.trace import StatusCode
 
+from .._threading import run_sync_in_thread
 from ..errors import (
     LoopLimitError,
+    SafeToolError,
     ToolExecutionError,
     ToolTimeoutError,
     ToolValidationError,
 )
 from ..telemetry import meter, tracer
-from .._threading import run_sync_in_thread
 from ..tools import ToolRegistry
 from ._config import ToolExecutionConfig
 
@@ -121,10 +122,12 @@ def _assistant_tool_message(
 
 def _error_payload(exc: Exception) -> str:
     """Return structured JSON error content for the LLM tool response."""
+    safe = isinstance(exc, (SafeToolError, ToolValidationError, ToolTimeoutError))
     return json.dumps(
         {
-            "error": str(exc),
-            "error_type": type(exc).__name__,
+            "error": str(exc) if safe else "Tool execution failed",
+            "error_code": getattr(exc, "code", type(exc).__name__),
+            "retryable": bool(getattr(exc, "retryable", False)),
         }
     )
 
@@ -209,7 +212,7 @@ async def _acquire_global_tool_slot(
     else:
         try:
             await asyncio.wait_for(semaphore.acquire(), timeout=normalized_timeout)
-        except asyncio.TimeoutError as exc:
+        except TimeoutError as exc:
             raise ToolTimeoutError("Timed out waiting for a global tool slot") from exc
     acquired = True
     try:
@@ -231,7 +234,9 @@ def _is_async_callable(fn: Callable[..., Any]) -> bool:
     unwrapped = _unwrap_async_target(fn)
     if inspect.iscoroutinefunction(unwrapped):
         return True
-    call = getattr(unwrapped, "__call__", None)
+    if not callable(unwrapped):
+        return False
+    call = getattr(unwrapped, "__call__", None)  # noqa: B004
     return bool(call and inspect.iscoroutinefunction(_unwrap_async_target(call)))
 
 
@@ -332,7 +337,7 @@ async def _execute_tools(
                 output = _error_payload(exc)
                 status = "error"
                 error_type = type(exc).__name__
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 timeout_exc = ToolTimeoutError(f"Tool '{name}' timed out after {timeout}s")
                 span.set_status(StatusCode.ERROR, str(timeout_exc))
                 _tool_errors.add(1, {"tool.name": name, "error.type": "timeout"})
@@ -345,7 +350,7 @@ async def _execute_tools(
                 output = _error_payload(exc)
                 status = "error"
                 error_type = type(exc).__name__
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 wrapped = ToolExecutionError(f"Tool '{name}' failed: {exc}")
                 span.set_status(StatusCode.ERROR, str(wrapped))
                 span.record_exception(exc)
