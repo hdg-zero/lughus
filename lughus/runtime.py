@@ -1,0 +1,90 @@
+"""Explicit ownership of process-local execution resources."""
+from __future__ import annotations
+
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from functools import partial
+from typing import Any, AsyncIterator, Callable
+
+from .errors import ToolTimeoutError
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeConfig:
+    max_global_tools: int = 64
+    max_sync_workers: int = 32
+    queue_timeout: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.max_global_tools <= 0 or self.max_sync_workers <= 0:
+            raise ValueError("Runtime capacities must be positive")
+        if self.queue_timeout is not None and self.queue_timeout < 0:
+            raise ValueError("queue_timeout cannot be negative")
+
+
+class ExecutionRuntime:
+    """Own the bulkhead and thread pool shared deliberately by agent runs.
+
+    A runtime is bound to the first event loop that uses it. Applications requiring more
+    than one loop create one runtime per loop. ``close`` is explicit and idempotent.
+    """
+
+    def __init__(self, config: RuntimeConfig | None = None) -> None:
+        self.config = config or RuntimeConfig()
+        self._executor = ThreadPoolExecutor(
+            max_workers=self.config.max_sync_workers,
+            thread_name_prefix="lughus-tool",
+        )
+        self._semaphore = asyncio.Semaphore(self.config.max_global_tools)
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._closed = False
+
+    def _bind(self) -> asyncio.AbstractEventLoop:
+        if self._closed:
+            raise RuntimeError("ExecutionRuntime is closed")
+        loop = asyncio.get_running_loop()
+        if self._loop is None:
+            self._loop = loop
+        elif self._loop is not loop:
+            raise RuntimeError("ExecutionRuntime cannot be shared across event loops")
+        return loop
+
+    @asynccontextmanager
+    async def tool_slot(self, timeout: float | None = None) -> AsyncIterator[None]:
+        self._bind()
+        wait = self.config.queue_timeout if timeout is None else timeout
+        try:
+            if wait is None:
+                await self._semaphore.acquire()
+            elif wait == 0:
+                if self._semaphore.locked():
+                    raise ToolTimeoutError("No global tool slot is available")
+                await self._semaphore.acquire()
+            else:
+                await asyncio.wait_for(self._semaphore.acquire(), timeout=wait)
+        except asyncio.TimeoutError as exc:
+            raise ToolTimeoutError("Timed out waiting for a global tool slot") from exc
+        try:
+            yield
+        finally:
+            self._semaphore.release()
+
+    async def run_sync(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+        loop = self._bind()
+        context_call = partial(fn, *args, **kwargs)
+        return await loop.run_in_executor(self._executor, context_call)
+
+    async def close(self, *, wait: bool = True) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._executor.shutdown(wait=wait, cancel_futures=True)
+
+    async def __aenter__(self) -> "ExecutionRuntime":
+        self._bind()
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        await self.close()

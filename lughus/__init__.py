@@ -24,6 +24,10 @@ from .errors import (
     ToolValidationError,
 )
 from .events import Artifact, CompletionEvent, ProgressEvent
+from .domain import EventVisibility, Run, RunEvent, RunStatus, Usage
+from .event_stream import EventSink, InMemoryEventSink
+from .runner import AgentRunner
+from .runtime import ExecutionRuntime, RuntimeConfig
 from .gateway import BaseGateway
 from .loop import LoopResult, ToolExecutionConfig, agent_loop, agent_loop_stream
 from .server import BoundedInMemoryTaskStore, ProductionGuardMiddleware, build_app, serve
@@ -49,17 +53,26 @@ def __getattr__(name: str) -> Any:
 
 __all__ = [
     "LLM",
+    "AgentRunner",
     "Artifact",
     "BaseGateway",
     "BaseSettings",
     "BoundedInMemoryTaskStore",
     "CompletionEvent",
+    "EventSink",
+    "EventVisibility",
+    "ExecutionRuntime",
     "GenerateLLM",
+    "InMemoryEventSink",
     "LoopLimitError",
     "LoopResult",
     "LughusError",
     "ProductionGuardMiddleware",
     "ProgressEvent",
+    "Run",
+    "RunEvent",
+    "RunStatus",
+    "RuntimeConfig",
     "SafeToolError",
     "StreamingLLM",
     "ToolDef",
@@ -68,6 +81,7 @@ __all__ = [
     "ToolRegistry",
     "ToolTimeoutError",
     "ToolValidationError",
+    "Usage",
     "agent_loop",
     "agent_loop_stream",
     "build_app",

@@ -223,12 +223,15 @@ async def agent_loop_stream(
     state: Any = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     tool_config: ToolExecutionConfig | None = None,
+    streaming_mode: str = "buffered",
 ) -> AsyncGenerator[str | LoopResult, None]:
     """Streaming variant of :func:`agent_loop`.
 
     Yields text chunks as the LLM generates them. The **last** yielded value
     is always a :class:`LoopResult` (a ``str`` subclass with usage metadata).
     """
+    if streaming_mode not in {"buffered", "live"}:
+        raise ValueError("streaming_mode must be 'buffered' or 'live'")
     cfg = tool_config or ToolExecutionConfig()
     with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
         with retry_budget(getattr(llm, "retry_max_elapsed", None)):
@@ -257,6 +260,7 @@ async def agent_loop_stream(
                     content_parts.clear()
                     tc_map.clear()
                     try:
+                        emitted = False
                         with tracer.start_as_current_span("llm.generate") as llm_span:
                             llm_span.set_attribute("gen_ai.request.model", llm.model)
                             llm_span.set_attribute("lughus.iteration", iteration + 1)
@@ -284,6 +288,9 @@ async def agent_loop_stream(
 
                                 if delta.content:
                                     content_parts.append(delta.content)
+                                    if streaming_mode == "live":
+                                        emitted = True
+                                        yield delta.content
 
                                 if delta.tool_calls:
                                     for tc_delta in delta.tool_calls:
@@ -311,6 +318,8 @@ async def agent_loop_stream(
                                     cached_tokens += ca
                         break
                     except _RETRYABLE_ERRORS as exc:
+                        if streaming_mode == "live" and emitted:
+                            raise
                         if attempt >= max_retries:
                             raise
                         retry_after = _retry_after_seconds(exc)
@@ -341,8 +350,9 @@ async def agent_loop_stream(
                 full_content = "".join(content_parts)
 
                 if not tc_map:
-                    for content in content_parts:
-                        yield content
+                    if streaming_mode == "buffered":
+                        for content in content_parts:
+                            yield content
                     yield _finalize_loop(
                         loop_span,
                         full_content,

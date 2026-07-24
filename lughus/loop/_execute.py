@@ -310,17 +310,22 @@ async def _execute_tools(
                     validator=tool.validator,
                     max_tool_args_chars=cfg.max_tool_args_chars,
                 )
-                async with _acquire_global_tool_slot(
-                    cfg.max_global_tools,
-                    cfg.tool_queue_timeout,
-                ):
+                slot = (
+                    cfg.runtime.tool_slot(cfg.tool_queue_timeout)
+                    if cfg.runtime is not None
+                    else _acquire_global_tool_slot(cfg.max_global_tools, cfg.tool_queue_timeout)
+                )
+                async with slot:
                     if _is_async_callable(fn):
                         call: Any = fn(state=state, **args)
                     else:
-                        call = _run_sync_tool(
-                            lambda: fn(state=state, **args),
-                            max_workers=cfg.max_sync_thread_workers,
-                        )
+                        if cfg.runtime is not None:
+                            call = cfg.runtime.run_sync(lambda: fn(state=state, **args))
+                        else:
+                            call = _run_sync_tool(
+                                lambda: fn(state=state, **args),
+                                max_workers=cfg.max_sync_thread_workers,
+                            )
                     if timeout:
                         output = await asyncio.wait_for(call, timeout=timeout)
                     else:
