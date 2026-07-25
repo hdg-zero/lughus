@@ -249,7 +249,7 @@ flowchart TD
     class ExtAPI external;
 ```
 
-*Note : Le Workspace et son état associé sont éphémères et détruits immédiatement après l'envoi de la réponse.*
+*Note: The Workspace and its associated state are ephemeral and destroyed immediately after sending the response.*
 
 ### Request flow
 
@@ -629,7 +629,8 @@ Then open `http://localhost:8080/ui`. The UI sends an objective and optional fil
 traces tool calls with arguments, duration, status, and output, and exposes returned artifacts as downloads.
 
 > [!WARNING]
-> La console de test locale est **strictement conçue comme un outil de développement et de débogage rapide**. Elle ne doit en aucun cas être exposée en production ni être utilisée comme une interface utilisateur client finale. C'est pourquoi elle est désactivée par défaut et bloquée par validation stricte si `LUGHUS_ENV=production`.
+> The local test console is **strictly designed as a rapid development and debugging tool**. Under no circumstances should it be exposed in production or used as an end-user client interface. That is why it is disabled by default and strictly blocked by configuration validation when `LUGHUS_ENV=production`.
+
 
 #### Custom Task Store & OpenTelemetry Control
 
