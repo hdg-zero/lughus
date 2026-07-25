@@ -649,6 +649,106 @@ serve(
 )
 ```
 
+---
+
+## Governance, Security & Human-in-the-Loop (v0.3.0)
+
+Lughus 0.3.0 introduces fine-grained, deterministic tool governance and tamper-evident human-in-the-loop (HITL) approval workflows. Prompt instructions are never used as access controls.
+
+### Tool Def v2 Metadata
+
+Tools can declare execution metadata including risk levels, required security scopes, output validation schemas, and approval requirements:
+
+```python
+from lughus import ConcurrencyMode, ToolEffect, ToolRegistry, ToolRisk
+
+registry = ToolRegistry()
+
+
+@registry.tool(
+    name="deploy_service",
+    description="Deploy service to production environment.",
+    parameters={
+        "type": "object",
+        "properties": {"service": {"type": "string"}, "version": {"type": "string"}},
+        "required": ["service", "version"],
+    },
+    output_schema={
+        "type": "object",
+        "properties": {"status": {"type": "string"}, "deployment_id": {"type": "string"}},
+        "required": ["status", "deployment_id"],
+    },
+    effects=frozenset([ToolEffect.WRITE, ToolEffect.IRREVERSIBLE]),
+    risk=ToolRisk.CRITICAL,
+    required_scopes=frozenset(["deploy:prod"]),
+    requires_approval=True,
+    concurrency=ConcurrencyMode.EXCLUSIVE,
+)
+def deploy_service(*, service: str, version: str, state) -> dict:
+    return {"status": "deployed", "deployment_id": "dep_99"}
+```
+
+### Policy Engine
+
+The policy engine evaluates actions prior to tool execution. Built-in policies include `LeastPrivilegePolicy` and composable `CompositePolicy`:
+
+```python
+from lughus import (
+    CompositePolicy,
+    LeastPrivilegePolicy,
+    Principal,
+    ToolExecutionConfig,
+    agent_loop,
+)
+
+# 1. Define authenticated principal
+principal = Principal(
+    subject="developer_1",
+    tenant_id="org_prod",
+    scopes=frozenset(["deploy:prod"]),
+)
+
+# 2. Configure deterministic policy chain (DENY > REQUIRE_APPROVAL > ALLOW)
+policy = CompositePolicy([LeastPrivilegePolicy()])
+
+# 3. Pass policy & principal to execution config
+config = ToolExecutionConfig(
+    policy=policy,
+    principal=principal,
+)
+```
+
+### Human-in-the-Loop Approvals
+
+When a policy or tool declaration returns `REQUIRE_APPROVAL`, execution stops safely and emits a tamper-evident `ApprovalRequest` bound to the cryptographic hash (`proposal_digest`) of the requested tool name and arguments.
+
+```python
+from lughus import (
+    ApprovalStatus,
+    InMemoryApprovalStore,
+    ToolExecutionConfig,
+    agent_loop,
+)
+
+approval_store = InMemoryApprovalStore()
+config = ToolExecutionConfig(
+    policy=policy,
+    principal=principal,
+    approval_store=approval_store,
+)
+
+# When an action requires approval, agent_loop raises a SafeToolError("approval_required")
+# Human operators inspect and decide:
+request = await approval_store.get(request_id)
+if request and request.verify(arguments):
+    await approval_store.decide(
+        request_id=request.request_id,
+        status=ApprovalStatus.APPROVED,
+        subject="security_admin",
+    )
+```
+
+
 > **Note — production storage**: `serve()` uses a bounded in-process store by default
 > (`TASK_STORE_TTL_SECONDS`, `TASK_STORE_MAX_TASKS`). For multiple replicas or durable
 > status lookup, inject a persistent `TaskStore` such as Redis or SQL.
