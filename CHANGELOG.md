@@ -13,7 +13,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added human-in-the-loop approval management (`lughus.approval`): `ApprovalRequest`, `ApprovalStatus`, `InMemoryApprovalStore`, and cryptographic argument hashing (`proposal_digest`).
 - Added pre-dispatch policy evaluation and approval enforcement in core tool execution (`lughus.loop._execute`).
 - Added architecture contracts and ADR documentation: `docs/architecture/ADR-005-tool-policy.md` and `docs/contracts/tools-v2.md`.
+- Added API reference documentation: `docs/api/policy.md` and `docs/api/approval.md`, updated `docs/api/tools.md`, and enriched `README.md` with Governance & HITL approval section.
 - Added unit test suite for policy precedence, least-privilege scoping, and tamper-evident approvals (`tests/test_policy_approval_v3.py`).
+
 
 ---
 
