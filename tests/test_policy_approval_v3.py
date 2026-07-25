@@ -1,11 +1,18 @@
 import pytest
 
 from lughus.approval import (
-    ApprovalRequest, ApprovalStatus, InMemoryApprovalStore, proposal_digest,
+    ApprovalRequest,
+    ApprovalStatus,
+    InMemoryApprovalStore,
+    proposal_digest,
 )
 from lughus.policy import (
-    CompositePolicy, DecisionKind, LeastPrivilegePolicy, PolicyDecision,
-    Principal, ToolProposal,
+    CompositePolicy,
+    DecisionKind,
+    LeastPrivilegePolicy,
+    PolicyDecision,
+    Principal,
+    ToolProposal,
 )
 
 
@@ -17,9 +24,7 @@ async def test_least_privilege_requires_scopes_and_approval():
         ToolProposal("run", "write", {}, required_scopes=frozenset({"write"})), principal
     )
     assert denied.kind == DecisionKind.DENY
-    approval = await policy.evaluate(
-        ToolProposal("run", "delete", {}, risk="critical"), principal
-    )
+    approval = await policy.evaluate(ToolProposal("run", "delete", {}, risk="critical"), principal)
     assert approval.kind == DecisionKind.REQUIRE_APPROVAL
 
 

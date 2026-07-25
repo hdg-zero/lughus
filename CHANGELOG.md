@@ -4,6 +4,19 @@ All notable changes to `lughus` will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] — 2026-07-25
+
+### Added
+
+- Added `ToolDef` v2 metadata contracts: versioning, output schemas, output validation, explicit tool effects (`ToolEffect`), risk levels (`ToolRisk`), scopes, idempotency flags, and concurrency modes (`ConcurrencyMode`).
+- Added deterministic policy evaluation engine (`lughus.policy`): `Principal`, `ToolProposal`, `PolicyDecision`, `DecisionKind`, `ToolPolicy`, `LeastPrivilegePolicy`, and `CompositePolicy`.
+- Added human-in-the-loop approval management (`lughus.approval`): `ApprovalRequest`, `ApprovalStatus`, `InMemoryApprovalStore`, and cryptographic argument hashing (`proposal_digest`).
+- Added pre-dispatch policy evaluation and approval enforcement in core tool execution (`lughus.loop._execute`).
+- Added architecture contracts and ADR documentation: `docs/architecture/ADR-005-tool-policy.md` and `docs/contracts/tools-v2.md`.
+- Added unit test suite for policy precedence, least-privilege scoping, and tamper-evident approvals (`tests/test_policy_approval_v3.py`).
+
+---
+
 ## [0.2.0] — 2026-07-24
 
 ### Added

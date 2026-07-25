@@ -1,12 +1,14 @@
 """Tamper-evident human approval records."""
+
 from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any, Mapping, Protocol
+from typing import Any, Protocol
 
 from .domain import new_id
 
@@ -19,8 +21,12 @@ class ApprovalStatus(StrEnum):
 
 
 def proposal_digest(tool_name: str, arguments: Mapping[str, Any]) -> str:
-    canonical = json.dumps({"tool": tool_name, "arguments": arguments}, sort_keys=True,
-                           separators=(",", ":"), ensure_ascii=False)
+    canonical = json.dumps(
+        {"tool": tool_name, "arguments": arguments},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
@@ -43,7 +49,9 @@ class ApprovalRequest:
 class ApprovalStore(Protocol):
     async def create(self, request: ApprovalRequest) -> None: ...
     async def get(self, request_id: str) -> ApprovalRequest | None: ...
-    async def decide(self, request_id: str, status: ApprovalStatus, subject: str) -> ApprovalRequest: ...
+    async def decide(
+        self, request_id: str, status: ApprovalStatus, subject: str
+    ) -> ApprovalRequest: ...
 
 
 class InMemoryApprovalStore:
@@ -58,14 +66,24 @@ class InMemoryApprovalStore:
     async def get(self, request_id: str) -> ApprovalRequest | None:
         return self._items.get(request_id)
 
-    async def decide(self, request_id: str, status: ApprovalStatus, subject: str) -> ApprovalRequest:
+    async def decide(
+        self, request_id: str, status: ApprovalStatus, subject: str
+    ) -> ApprovalRequest:
         current = self._items[request_id]
         if current.status != ApprovalStatus.PENDING:
             raise ValueError("Approval request is already terminal")
         if status not in {ApprovalStatus.APPROVED, ApprovalStatus.REJECTED}:
             raise ValueError("Decision must approve or reject")
-        updated = ApprovalRequest(current.run_id, current.tool_name, current.proposal_hash,
-            current.risk, current.request_id, current.expires_at, status, subject,
-            datetime.now(timezone.utc).isoformat())
+        updated = ApprovalRequest(
+            current.run_id,
+            current.tool_name,
+            current.proposal_hash,
+            current.risk,
+            current.request_id,
+            current.expires_at,
+            status,
+            subject,
+            datetime.now(UTC).isoformat(),
+        )
         self._items[request_id] = updated
         return updated
