@@ -65,8 +65,9 @@ def serve(
 ## Test UI
 
 > [!WARNING]
-> La console de test locale est **strictement conçue comme un outil de développement et de débogage rapide en local**. Elle ne doit en aucun cas être exposée publiquement en production ou servir d'interface utilisateur finale.
-> Si `LUGHUS_ENV=production`, l'application lèvera une erreur de validation au démarrage si la console est activée.
+> The local test console is **strictly designed as a rapid local development and debugging tool**. Under no circumstances should it be publicly exposed in production or used as a final user interface.
+> If `LUGHUS_ENV=production`, the application will raise a startup validation error if the console is enabled.
+
 
 The test UI is disabled by default. Enable it only for local development or private test
 deployments:
