@@ -1,10 +1,12 @@
 """Persistence ports and bounded in-memory reference implementations."""
+
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
-from typing import Any, Mapping, Protocol
+from datetime import UTC, datetime
+from typing import Any, Protocol
 
 from .domain import Run, RunEvent, RunStatus
 
@@ -36,7 +38,7 @@ class Checkpoint:
 
     def __post_init__(self) -> None:
         if not self.created_at:
-            object.__setattr__(self, "created_at", datetime.now(timezone.utc).isoformat())
+            object.__setattr__(self, "created_at", datetime.now(UTC).isoformat())
         if self.version < 0 or self.sequence < 0:
             raise ValueError("Checkpoint versions cannot be negative")
 

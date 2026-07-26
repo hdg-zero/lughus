@@ -1,9 +1,11 @@
 """Context selection with explicit provenance and trust."""
+
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 
 class TrustLevel(StrEnum):
@@ -61,5 +63,6 @@ class ContextManager:
                 tail.append(item)
                 remaining -= item.size
         selected.extend(reversed(tail))
-        return ContextWindow(tuple(selected), len(items) - len(selected),
-                             sum(item.size for item in selected))
+        return ContextWindow(
+            tuple(selected), len(items) - len(selected), sum(item.size for item in selected)
+        )

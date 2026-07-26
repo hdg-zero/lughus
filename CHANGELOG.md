@@ -4,6 +4,19 @@ All notable changes to `lughus` will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] — 2026-07-27
+
+### Added
+
+- Added persistence ports and reference store (`lughus.persistence`): `RunStore`, `EventStore`, `CheckpointStore`, `Checkpoint`, `InMemoryDurableStore`, and `ConcurrentUpdateError`.
+- Added multi-dimensional run budget ledgers (`lughus.budget`): `BudgetLimit`, `BudgetAmount`, `BudgetLedger`, and `BudgetExceeded`.
+- Added context selection and provenance management (`lughus.context`): `ContextManager`, `ContextItem`, `ContextWindow`, and `TrustLevel`.
+- Added safe resume decision engine (`lughus.resume`): `decide_resume`, `ResumeAction`, and `ResumeDecision`.
+- Added architecture contracts and ADR documentation: `docs/architecture/ADR-006-persistence.md`, `docs/contracts/budgets.md`, and `docs/contracts/context.md`.
+- Added unit test suite for Wave 4 durability and budget features (`tests/test_durability_budget_v4.py`).
+
+---
+
 ## [0.3.0] — 2026-07-25
 
 ### Added

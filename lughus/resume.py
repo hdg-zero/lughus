@@ -1,4 +1,5 @@
 """Safe resume decisions at durable execution boundaries."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -20,12 +21,18 @@ class ResumeDecision:
     reason: str
 
 
-def decide_resume(checkpoint: Checkpoint, *, pending_action_idempotent: bool = False) -> ResumeDecision:
+def decide_resume(
+    checkpoint: Checkpoint, *, pending_action_idempotent: bool = False
+) -> ResumeDecision:
     if checkpoint.outcome_unknown:
         if pending_action_idempotent:
-            return ResumeDecision(ResumeAction.RETRY_SAFE_ACTION, "idempotent outcome may be retried")
-        return ResumeDecision(ResumeAction.REQUIRE_RECONCILIATION,
-                              "non-idempotent action has an unknown outcome")
+            return ResumeDecision(
+                ResumeAction.RETRY_SAFE_ACTION, "idempotent outcome may be retried"
+            )
+        return ResumeDecision(
+            ResumeAction.REQUIRE_RECONCILIATION,
+            "non-idempotent action has an unknown outcome",
+        )
     if checkpoint.pending_action:
         return ResumeDecision(ResumeAction.CONTINUE, "resume before pending action dispatch")
     return ResumeDecision(ResumeAction.CONTINUE, "resume from the latest safe boundary")

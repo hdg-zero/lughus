@@ -1,9 +1,10 @@
 """Atomic, multi-dimensional run budgets."""
+
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from dataclasses import dataclass, fields
-from typing import Mapping
 from uuid import uuid4
 
 
@@ -54,8 +55,12 @@ class BudgetLedger:
 
     async def reserve(self, amount: BudgetAmount) -> str:
         async with self._lock:
-            totals = {field: self._consumed[field] + sum(getattr(v, field) for v in self._reserved.values())
-                      + getattr(amount, field) for field in self._FIELDS}
+            totals = {
+                field: self._consumed[field]
+                + sum(getattr(v, field) for v in self._reserved.values())
+                + getattr(amount, field)
+                for field in self._FIELDS
+            }
             for field, total in totals.items():
                 if total > getattr(self.limit, field):
                     raise BudgetExceeded(field)

@@ -34,8 +34,11 @@ async def test_event_order_and_checkpoint_compare_and_swap():
 
 @pytest.mark.asyncio
 async def test_budget_reservation_is_atomic():
-    ledger = BudgetLedger(BudgetLimit(model_calls=1, tool_calls=1, tokens=10,
-                                      bytes=10, estimated_cost=1, delegation_depth=1))
+    ledger = BudgetLedger(
+        BudgetLimit(
+            model_calls=1, tool_calls=1, tokens=10, bytes=10, estimated_cost=1, delegation_depth=1
+        )
+    )
     reservation = await ledger.reserve(BudgetAmount(tokens=8))
     with pytest.raises(BudgetExceeded):
         await ledger.reserve(BudgetAmount(tokens=3))
@@ -59,4 +62,5 @@ def test_context_preserves_system_and_recent_items():
 def test_unknown_non_idempotent_outcome_requires_reconciliation():
     checkpoint = Checkpoint("run", 1, 2, {}, pending_action="charge", outcome_unknown=True)
     assert decide_resume(checkpoint).action == ResumeAction.REQUIRE_RECONCILIATION
-    assert decide_resume(checkpoint, pending_action_idempotent=True).action == ResumeAction.RETRY_SAFE_ACTION
+    res = decide_resume(checkpoint, pending_action_idempotent=True)
+    assert res.action == ResumeAction.RETRY_SAFE_ACTION
