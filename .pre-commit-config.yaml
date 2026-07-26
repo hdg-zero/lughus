@@ -16,3 +16,19 @@ repos:
         language: system
         types: [python]
         require_serial: true
+
+      # Run Mypy static type checker from local virtualenv
+      - id: mypy
+        name: mypy
+        entry: uv run mypy lughus
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      # Run Pytest suite from local virtualenv
+      - id: pytest
+        name: pytest
+        entry: uv run pytest tests/ -q --cov=lughus --cov-branch --cov-fail-under=85
+        language: system
+        pass_filenames: false
+
