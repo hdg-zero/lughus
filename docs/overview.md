@@ -71,3 +71,5 @@ flowchart TD
   - [ADR-001 — Compatibility and Release Policy](architecture/ADR-001-compatibility.md)
   - [ADR-002 — Streaming and Retries](architecture/ADR-002-streaming.md)
   - [ADR-003 — Runtime Resource Ownership](architecture/ADR-003-runtime.md)
+  - [ADR-005 — Tool Capabilities and Policy Engine](architecture/ADR-005-tool-policy.md)
+
