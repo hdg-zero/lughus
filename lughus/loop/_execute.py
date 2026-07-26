@@ -386,7 +386,7 @@ async def _execute_tools(
                 span.set_status(StatusCode.ERROR, str(exc))
                 _tool_errors.add(1, {"tool.name": name, "error.type": "validation"})
                 output, status, error_type = _error_payload(exc), "error", type(exc).__name__
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001 — boundary guard: tools execute arbitrary user code; the exception spectrum is unbounded by design
                 wrapped = (
                     exc
                     if isinstance(exc, (SafeToolError, ToolExecutionError))
