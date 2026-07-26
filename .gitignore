@@ -11,6 +11,7 @@
 
 # --- Lughus Specific ignores ---
 key.json
+local.properties
 scratch/
 
 # --- Lock files ---
