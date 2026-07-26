@@ -62,7 +62,7 @@ def _is_safe_otel_url(url: str) -> bool:
 
     try:
         ips = socket.getaddrinfo(hostname, None)
-    except Exception:  # noqa: BLE001
+    except socket.gaierror:
         return False
 
     for item in ips:
@@ -106,7 +106,7 @@ def _resolve_and_validate_otel_url(url: str) -> tuple[str, str]:
 
     try:
         ips = socket.getaddrinfo(hostname, None)
-    except Exception as exc:
+    except socket.gaierror as exc:
         raise ValueError(f"Failed to resolve host '{hostname}': {exc}") from exc
 
     resolved_ip = None
@@ -335,7 +335,7 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
     ) -> tuple[str, list[tuple[bytes, str, str]]] | JSONResponse:
         try:
             payload = await request.json()
-        except Exception:  # noqa: BLE001
+        except (json.JSONDecodeError, ValueError):
             return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
         if not isinstance(payload, dict):
             return JSONResponse({"error": "JSON body must be an object"}, status_code=400)
@@ -483,7 +483,7 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
     async def otel_traces(request: Request) -> JSONResponse:
         try:
             payload = await request.json()
-        except Exception:  # noqa: BLE001
+        except (json.JSONDecodeError, ValueError):
             return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
         if not isinstance(payload, dict):
             return JSONResponse({"error": "JSON body must be an object"}, status_code=400)
