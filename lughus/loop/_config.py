@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 DEFAULT_MAX_ITERATIONS = 50
 DEFAULT_MAX_PARALLEL_TOOLS = 8
@@ -28,6 +29,7 @@ class ToolExecutionConfig:
     max_message_history_chars: int = DEFAULT_MAX_MESSAGE_HISTORY_CHARS
     tool_queue_timeout: float | None = DEFAULT_TOOL_QUEUE_TIMEOUT
     compact_tool_schemas: bool = False
+    runtime: Any = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         positive = {

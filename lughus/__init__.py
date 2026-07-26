@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .llm import StreamingLLM as StreamingLLM
 
 from .config import BaseSettings
+from .domain import EventVisibility, Run, RunEvent, RunStatus, Usage
 from .errors import (
     LoopLimitError,
     LughusError,
@@ -23,9 +24,12 @@ from .errors import (
     ToolTimeoutError,
     ToolValidationError,
 )
+from .event_stream import EventSink, InMemoryEventSink
 from .events import Artifact, CompletionEvent, ProgressEvent
 from .gateway import BaseGateway
 from .loop import LoopResult, ToolExecutionConfig, agent_loop, agent_loop_stream
+from .runner import AgentRunner
+from .runtime import ExecutionRuntime, RuntimeConfig
 from .server import BoundedInMemoryTaskStore, ProductionGuardMiddleware, build_app, serve
 from .telemetry import setup_telemetry
 from .tools import ToolDef, ToolRegistry
@@ -49,17 +53,26 @@ def __getattr__(name: str) -> Any:
 
 __all__ = [
     "LLM",
+    "AgentRunner",
     "Artifact",
     "BaseGateway",
     "BaseSettings",
     "BoundedInMemoryTaskStore",
     "CompletionEvent",
+    "EventSink",
+    "EventVisibility",
+    "ExecutionRuntime",
     "GenerateLLM",
+    "InMemoryEventSink",
     "LoopLimitError",
     "LoopResult",
     "LughusError",
     "ProductionGuardMiddleware",
     "ProgressEvent",
+    "Run",
+    "RunEvent",
+    "RunStatus",
+    "RuntimeConfig",
     "SafeToolError",
     "StreamingLLM",
     "ToolDef",
@@ -68,6 +81,7 @@ __all__ = [
     "ToolRegistry",
     "ToolTimeoutError",
     "ToolValidationError",
+    "Usage",
     "agent_loop",
     "agent_loop_stream",
     "build_app",
