@@ -172,7 +172,9 @@ def _fetch_otel_url(url: str) -> dict[str, Any]:
     )
 
     class _NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, req, fp, code, msg, headers, newurl):
+        def redirect_request(
+            self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str
+        ) -> Any:
             return None
 
     try:

@@ -165,7 +165,7 @@ def _make_streaming_text_response(text: str) -> AsyncIterator[MagicMock]:
     words = text.split() or [text]
     usage = _make_streaming_usage()
 
-    async def _aiter():
+    async def _aiter() -> AsyncIterator[MagicMock]:
         for i, word in enumerate(words):
             sep = "" if i == 0 else " "
             yield _make_streaming_chunk(content=sep + word)
@@ -181,7 +181,7 @@ def _make_streaming_text_response(text: str) -> AsyncIterator[MagicMock]:
 def _make_streaming_tool_response(tool_calls: list[dict]) -> AsyncIterator[MagicMock]:
     """Build a fake async streaming response for a tool call."""
 
-    async def _aiter():
+    async def _aiter() -> AsyncIterator[MagicMock]:
         # Single chunk carrying all tool call deltas
         yield _make_streaming_chunk(tool_calls=tool_calls, finish_reason="tool_calls")
         # Final usage chunk

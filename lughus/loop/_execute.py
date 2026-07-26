@@ -76,7 +76,7 @@ def _extract_usage(usage: Any) -> tuple[int, int, int]:
     return prompt, completion, cached
 
 
-def _record_llm_usage(span, usage: Any, model: str) -> tuple[int, int, int]:
+def _record_llm_usage(span: Any, usage: Any, model: str) -> tuple[int, int, int]:
     """Extract usage from an LLM response and record on span + metrics."""
     p, c, ca = _extract_usage(usage)
     span.set_attribute("gen_ai.usage.prompt_tokens", p)
@@ -242,7 +242,7 @@ def _is_async_callable(fn: Callable[..., Any]) -> bool:
     return bool(call and inspect.iscoroutinefunction(_unwrap_async_target(call)))
 
 
-async def _run_sync_tool(call, *, max_workers: int) -> Any:
+async def _run_sync_tool(call: Callable[[], Any], *, max_workers: int) -> Any:
     """Run a synchronous tool using the optimized process-wide thread pool."""
     return await run_sync_in_thread(call, max_workers=max_workers)
 
