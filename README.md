@@ -8,6 +8,10 @@
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
 </p>
 
+> [!WARNING]
+> **DEVELOPMENT STATUS — BETA RELEASE**  
+> `lughus` is currently in active **BETA** development. Core APIs, contracts, and runtime architecture are undergoing rapid evolution over the coming weeks. Breaking changes and major capability enhancements may occur frequently until `1.0.0` specification stabilization. Please consult [CHANGELOG.md](CHANGELOG.md) before upgrading version releases.
+
 # lughus
 
 Micro-framework for building [A2A](https://google.github.io/A2A/) agents with [LiteLLM](https://github.com/BerriAI/litellm). No magic — a small, explicit codebase that replaces the orchestration framework layer.
@@ -738,7 +742,7 @@ config = ToolExecutionConfig(
     approval_store=approval_store,
 )
 
-# When an action requires approval, agent_loop raises a SafeToolError("approval_required")
+# When an action requires approval, agent_loop raises a SafeToolError("approval_required", "Human approval is required")
 # Human operators inspect and decide:
 request = await approval_store.get(request_id)
 if request and request.verify(arguments):
@@ -950,19 +954,29 @@ No code change needed — LiteLLM routes automatically. See [LiteLLM providers](
 ```
 lughus/
     __init__.py      # Public API re-exports + __version__
+    approval.py      # Human approval requests & stores (ApprovalRequest, InMemoryApprovalStore)
+    cli.py           # CLI scaffolding entrypoint (lughus new)
     config.py        # BaseSettings dataclass
-    llm.py           # LLM — litellm.acompletion() wrapper
-    loop/            # Modular agent loop sub-package
-    tools.py         # ToolRegistry + ToolDef
-    gateway.py       # BaseGateway(AgentExecutor)
+    domain.py        # Domain records (Run, RunEvent, RunStatus, EventVisibility, Usage)
+    errors.py        # Exception hierarchy (LughusError, SafeToolError, ToolValidationError)
+    event_stream.py  # Event streaming protocol & sinks (EventSink, InMemoryEventSink)
     events.py        # ProgressEvent, CompletionEvent, Artifact
+    gateway.py       # BaseGateway(AgentExecutor)
+    llm.py           # LLM — litellm.acompletion() wrapper
+    loop/            # Modular agent loop sub-package (agent_loop, agent_loop_stream)
+    policy.py        # Deterministic authorization policies (LeastPrivilegePolicy, CompositePolicy)
+    retry.py         # Exponential backoff LLM retry handler
+    runner.py        # AgentRunner execution orchestrator
+    runtime.py       # Process-local resource manager (ExecutionRuntime, RuntimeConfig)
     server.py        # build_app() + serve() — A2A + uvicorn
-    ui_server.py     # Test UI routes template handler
     telemetry.py     # OpenTelemetry setup (traces + metrics)
+    testing.py       # Test mocks (MockLLM, MockStreamingLLM)
+    tools.py         # ToolRegistry + ToolDef v2 metadata
+    ui_server.py     # Local browser test UI routes
+    _threading.py    # Sync threadpool execution helper
     py.typed         # PEP 561 marker
 ```
 
-14 source files, ~1000 lines total. You can read the entire framework in 15 minutes.
 
 ---
 
