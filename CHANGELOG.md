@@ -16,6 +16,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added API reference documentation: `docs/api/policy.md` and `docs/api/approval.md`, updated `docs/api/tools.md`, and enriched `README.md` with Governance & HITL approval section.
 - Added unit test suite for policy precedence, least-privilege scoping, and tamper-evident approvals (`tests/test_policy_approval_v3.py`).
 
+### Fixed
+
+- Fixed `__all__` export ordering in `lughus/__init__.py` to comply with RUF022 (sorted alphabetically).
+- Replaced 5 broad `except Exception` catches with targeted exception types (`socket.gaierror`, `binascii.Error`, `json.JSONDecodeError`) in `gateway.py` and `ui_server.py`.
+- Added structured justification comments for 6 remaining boundary-guard `except Exception` catches required by HTTP/A2A handler security contracts.
+- Added `local.properties` to `.gitignore` for AGENTS.md compliance.
+
 
 ---
 
