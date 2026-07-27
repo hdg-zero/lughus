@@ -512,7 +512,7 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
             content = _read_ui_asset(safe_filename)
             media_type = "text/css" if safe_filename.endswith(".css") else "application/javascript"
             return Response(content, media_type=media_type)
-        except Exception:
+        except (FileNotFoundError, IsADirectoryError, OSError, UnicodeError):
             return Response("Asset not found", status_code=404)
 
     return [

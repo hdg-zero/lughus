@@ -74,6 +74,7 @@ async def test_llm_retries_empty_choices(monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_llm_empty_choices_exhausts_retries(monkeypatch) -> None:
     """A persistent malformed provider response surfaces as a clear framework error."""
+
     async def mock_acompletion(*args, **kwargs):
         response = MagicMock()
         response.choices = []

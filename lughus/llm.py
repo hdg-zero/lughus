@@ -7,7 +7,7 @@ import logging
 import random
 import time
 from collections.abc import AsyncIterator, Callable
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import litellm
 
@@ -205,7 +205,7 @@ class LLM:
             }
             if tools:
                 kwargs["tools"] = tools
-            response = await litellm.acompletion(**kwargs)
+            response = cast(litellm.ModelResponse, await litellm.acompletion(**kwargs))
             if not getattr(response, "choices", None):
                 raise LLMResponseError("LLM provider returned a completion without choices")
             return response
