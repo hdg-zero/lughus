@@ -4,6 +4,28 @@ All notable changes to `lughus` will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] — 2026-07-25
+
+### Added
+
+- Added `ToolDef` v2 metadata contracts: versioning, output schemas, output validation, explicit tool effects (`ToolEffect`), risk levels (`ToolRisk`), scopes, idempotency flags, and concurrency modes (`ConcurrencyMode`).
+- Added deterministic policy evaluation engine (`lughus.policy`): `Principal`, `ToolProposal`, `PolicyDecision`, `DecisionKind`, `ToolPolicy`, `LeastPrivilegePolicy`, and `CompositePolicy`.
+- Added human-in-the-loop approval management (`lughus.approval`): `ApprovalRequest`, `ApprovalStatus`, `InMemoryApprovalStore`, and cryptographic argument hashing (`proposal_digest`).
+- Added pre-dispatch policy evaluation and approval enforcement in core tool execution (`lughus.loop._execute`).
+- Added architecture contracts and ADR documentation: `docs/architecture/ADR-005-tool-policy.md` and `docs/contracts/tools-v2.md`.
+- Added API reference documentation: `docs/api/policy.md` and `docs/api/approval.md`, updated `docs/api/tools.md`, and enriched `README.md` with Governance & HITL approval section.
+- Added unit test suite for policy precedence, least-privilege scoping, and tamper-evident approvals (`tests/test_policy_approval_v3.py`).
+
+### Fixed
+
+- Fixed `__all__` export ordering in `lughus/__init__.py` to comply with RUF022 (sorted alphabetically).
+- Replaced 5 broad `except Exception` catches with targeted exception types (`socket.gaierror`, `binascii.Error`, `json.JSONDecodeError`) in `gateway.py` and `ui_server.py`.
+- Added structured justification comments for 6 remaining boundary-guard `except Exception` catches required by HTTP/A2A handler security contracts.
+- Added `local.properties` to `.gitignore` for AGENTS.md compliance.
+
+
+---
+
 ## [0.2.0] — 2026-07-24
 
 ### Added

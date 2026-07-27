@@ -76,7 +76,7 @@ async def _run_tool_calls(
 
 
 def _finalize_loop(
-    span,
+    span: Any,
     text: str,
     iteration: int,
     t0: float,

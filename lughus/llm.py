@@ -6,7 +6,7 @@ import asyncio
 import logging
 import random
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any, Protocol
 
 import litellm
@@ -137,7 +137,7 @@ class LLM:
             retry_max_elapsed=settings.retry_max_elapsed,
         )
 
-    async def _with_retry(self, coro_factory, label: str) -> Any:
+    async def _with_retry(self, coro_factory: Callable[[], Any], label: str) -> Any:
         """Execute ``coro_factory()`` with exponential backoff on transient errors.
 
         Retries up to ``self.max_retries`` times on :data:`_RETRYABLE_ERRORS`.
@@ -195,7 +195,7 @@ class LLM:
     ) -> litellm.ModelResponse:
         """Send messages (and optional tool declarations) to the LLM."""
 
-        def _make():
+        def _make() -> Any:
             kwargs: dict = {
                 "model": self.model,
                 "messages": messages,
@@ -205,7 +205,8 @@ class LLM:
                 kwargs["tools"] = tools
             return litellm.acompletion(**kwargs)
 
-        return await self._with_retry(_make, label="LLM.generate")
+        res: litellm.ModelResponse = await self._with_retry(_make, label="LLM.generate")
+        return res
 
     async def astream(
         self,
@@ -215,7 +216,7 @@ class LLM:
     ) -> Any:
         """Streaming variant — returns an async iterable of response chunks."""
 
-        def _make(include_usage: bool = True):
+        def _make(include_usage: bool = True) -> Any:
             kwargs: dict = {
                 "model": self.model,
                 "messages": messages,

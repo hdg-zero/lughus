@@ -6,7 +6,8 @@ import copy
 import inspect
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any
 
 from jsonschema import Draft202012Validator, SchemaError  # type: ignore[import-untyped]
@@ -77,7 +78,28 @@ def _validate_tool_callable(name: str, fn: Callable[..., Any], parameters_schema
     )
 
 
-@dataclass
+class ToolEffect(StrEnum):
+    READ = "read"
+    WRITE = "write"
+    EXTERNAL = "external"
+    IRREVERSIBLE = "irreversible"
+
+
+class ToolRisk(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+    UNKNOWN = "unknown"
+
+
+class ConcurrencyMode(StrEnum):
+    PARALLEL_SAFE = "parallel_safe"
+    EXCLUSIVE = "exclusive"
+    SERIAL_PER_RESOURCE = "serial_per_resource"
+
+
+@dataclass(frozen=True)
 class ToolDef:
     """A tool definition: name, description, callable, and JSON Schema."""
 
@@ -86,6 +108,15 @@ class ToolDef:
     fn: Callable[..., Any]
     parameters_schema: dict
     validator: Draft202012Validator
+    output_schema: dict | None = None
+    output_validator: Draft202012Validator | None = None
+    version: str = "1"
+    effects: frozenset[ToolEffect] = field(default_factory=frozenset)
+    risk: ToolRisk = ToolRisk.UNKNOWN
+    required_scopes: frozenset[str] = field(default_factory=frozenset)
+    idempotent: bool = False
+    requires_approval: bool = False
+    concurrency: ConcurrencyMode = ConcurrencyMode.EXCLUSIVE
 
 
 class ToolRegistry:
@@ -99,6 +130,15 @@ class ToolRegistry:
         name: str,
         description: str,
         parameters: dict,
+        *,
+        output_schema: dict | None = None,
+        version: str = "1",
+        effects: frozenset[ToolEffect] | None = None,
+        risk: ToolRisk = ToolRisk.UNKNOWN,
+        required_scopes: frozenset[str] | None = None,
+        idempotent: bool = False,
+        requires_approval: bool = False,
+        concurrency: ConcurrencyMode = ConcurrencyMode.EXCLUSIVE,
     ) -> Callable:
         """Decorator to register a tool function (sync or async)."""
         if name in self._tools:
@@ -106,6 +146,9 @@ class ToolRegistry:
         try:
             Draft202012Validator.check_schema(parameters)
             validator = Draft202012Validator(parameters)
+            if output_schema is not None:
+                Draft202012Validator.check_schema(output_schema)
+            output_validator = Draft202012Validator(output_schema) if output_schema else None
         except SchemaError as exc:
             raise ToolValidationError(f"Invalid schema for tool '{name}': {exc.message}") from exc
 
@@ -117,6 +160,15 @@ class ToolRegistry:
                 fn=fn,
                 parameters_schema=parameters,
                 validator=validator,
+                output_schema=copy.deepcopy(output_schema),
+                output_validator=output_validator,
+                version=version,
+                effects=effects or frozenset(),
+                risk=risk,
+                required_scopes=required_scopes or frozenset(),
+                idempotent=idempotent,
+                requires_approval=requires_approval,
+                concurrency=concurrency,
             )
             return fn
 

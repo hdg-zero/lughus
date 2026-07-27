@@ -17,6 +17,7 @@ from jsonschema import Draft202012Validator, ValidationError  # type: ignore[imp
 from opentelemetry.trace import StatusCode
 
 from .._threading import run_sync_in_thread
+from ..approval import ApprovalRequest, proposal_digest
 from ..errors import (
     LoopLimitError,
     SafeToolError,
@@ -24,6 +25,7 @@ from ..errors import (
     ToolTimeoutError,
     ToolValidationError,
 )
+from ..policy import DecisionKind, ToolProposal
 from ..telemetry import meter, tracer
 from ..tools import ToolRegistry
 from ._config import ToolExecutionConfig
@@ -74,7 +76,7 @@ def _extract_usage(usage: Any) -> tuple[int, int, int]:
     return prompt, completion, cached
 
 
-def _record_llm_usage(span, usage: Any, model: str) -> tuple[int, int, int]:
+def _record_llm_usage(span: Any, usage: Any, model: str) -> tuple[int, int, int]:
     """Extract usage from an LLM response and record on span + metrics."""
     p, c, ca = _extract_usage(usage)
     span.set_attribute("gen_ai.usage.prompt_tokens", p)
@@ -240,7 +242,7 @@ def _is_async_callable(fn: Callable[..., Any]) -> bool:
     return bool(call and inspect.iscoroutinefunction(_unwrap_async_target(call)))
 
 
-async def _run_sync_tool(call, *, max_workers: int) -> Any:
+async def _run_sync_tool(call: Callable[[], Any], *, max_workers: int) -> Any:
     """Run a synchronous tool using the optimized process-wide thread pool."""
     return await run_sync_in_thread(call, max_workers=max_workers)
 
@@ -274,12 +276,7 @@ async def _execute_tools(
     async def _run_unbounded(tc_id: str, name: str, raw_args: str) -> tuple[str, str]:
         started_at = time.perf_counter()
         _emit_tool_event(
-            {
-                "type": "tool_start",
-                "tool_call_id": tc_id,
-                "tool_name": name,
-                "arguments": raw_args,
-            }
+            {"type": "tool_start", "tool_call_id": tc_id, "tool_name": name, "arguments": raw_args}
         )
         tool = registry.get_tool(name)
         if tool is None:
@@ -297,12 +294,12 @@ async def _execute_tools(
                 }
             )
             return tc_id, output
+
         fn = tool.fn
         with tracer.start_as_current_span(f"tool.{name}") as span:
             span.set_attribute("tool.name", name)
             span.set_attribute("tool.timeout_s", timeout or 0)
-            status = "ok"
-            error_type: str | None = None
+            status, error_type = "ok", None
             try:
                 args = _validate_tool_args(
                     name=name,
@@ -310,6 +307,37 @@ async def _execute_tools(
                     validator=tool.validator,
                     max_tool_args_chars=cfg.max_tool_args_chars,
                 )
+                if cfg.policy is not None:
+                    if cfg.principal is None:
+                        raise ToolExecutionError(
+                            "A principal is required when tool policy is enabled"
+                        )
+                    proposal = ToolProposal(
+                        run_id=cfg.run_id,
+                        tool_name=name,
+                        arguments=args,
+                        effects=frozenset(effect.value for effect in tool.effects),
+                        risk=tool.risk.value,
+                        required_scopes=tool.required_scopes,
+                    )
+                    decision = await cfg.policy.evaluate(proposal, cfg.principal)
+                    if decision.kind == DecisionKind.DENY:
+                        raise ToolExecutionError(f"Tool policy denied action: {decision.code}")
+                    if decision.kind == DecisionKind.REQUIRE_APPROVAL or tool.requires_approval:
+                        if cfg.approval_store is None:
+                            raise SafeToolError("approval_required", "Human approval is required")
+                        request = ApprovalRequest(
+                            run_id=cfg.run_id,
+                            tool_name=name,
+                            proposal_hash=proposal_digest(name, args),
+                            risk=tool.risk.value,
+                        )
+                        await cfg.approval_store.create(request)
+                        raise SafeToolError(
+                            "approval_required",
+                            f"Human approval is required (request_id={request.request_id})",
+                        )
+
                 slot = (
                     cfg.runtime.tool_slot(cfg.tool_queue_timeout)
                     if cfg.runtime is not None
@@ -318,51 +346,60 @@ async def _execute_tools(
                 async with slot:
                     if _is_async_callable(fn):
                         call: Any = fn(state=state, **args)
+                    elif cfg.runtime is not None:
+                        call = cfg.runtime.run_sync(lambda: fn(state=state, **args))
                     else:
-                        if cfg.runtime is not None:
-                            call = cfg.runtime.run_sync(lambda: fn(state=state, **args))
-                        else:
-                            call = _run_sync_tool(
-                                lambda: fn(state=state, **args),
-                                max_workers=cfg.max_sync_thread_workers,
-                            )
-                    if timeout:
-                        output = await asyncio.wait_for(call, timeout=timeout)
-                    else:
-                        output = await call
+                        call = _run_sync_tool(
+                            lambda: fn(state=state, **args), max_workers=cfg.max_sync_thread_workers
+                        )
+                    output = (
+                        await asyncio.wait_for(call, timeout=timeout) if timeout else await call
+                    )
+                if tool.output_validator is not None:
+                    validation_errors = sorted(
+                        tool.output_validator.iter_errors(output),
+                        key=lambda error: list(error.path),
+                    )
+                    if validation_errors:
+                        raise ToolValidationError(
+                            f"Tool '{name}' returned an invalid result: "
+                            f"{validation_errors[0].message}"
+                        )
                 output = _validate_tool_output(
-                    name=name,
-                    output=output,
-                    max_tool_output_chars=cfg.max_tool_output_chars,
+                    name=name, output=output, max_tool_output_chars=cfg.max_tool_output_chars
                 )
                 span.set_status(StatusCode.OK)
             except ToolTimeoutError as exc:
                 span.set_status(StatusCode.ERROR, str(exc))
                 _tool_errors.add(1, {"tool.name": name, "error.type": "timeout"})
-                output = _error_payload(exc)
-                status = "error"
-                error_type = type(exc).__name__
+                output, status, error_type = _error_payload(exc), "error", type(exc).__name__
             except TimeoutError:
                 timeout_exc = ToolTimeoutError(f"Tool '{name}' timed out after {timeout}s")
                 span.set_status(StatusCode.ERROR, str(timeout_exc))
                 _tool_errors.add(1, {"tool.name": name, "error.type": "timeout"})
-                output = _error_payload(timeout_exc)
-                status = "error"
-                error_type = type(timeout_exc).__name__
+                output, status, error_type = (
+                    _error_payload(timeout_exc),
+                    "error",
+                    type(timeout_exc).__name__,
+                )
             except ToolValidationError as exc:
                 span.set_status(StatusCode.ERROR, str(exc))
                 _tool_errors.add(1, {"tool.name": name, "error.type": "validation"})
-                output = _error_payload(exc)
-                status = "error"
-                error_type = type(exc).__name__
-            except Exception as exc:  # noqa: BLE001
-                wrapped = ToolExecutionError(f"Tool '{name}' failed: {exc}")
+                output, status, error_type = _error_payload(exc), "error", type(exc).__name__
+            except Exception as exc:  # noqa: BLE001 — boundary guard: tools execute arbitrary user code; the exception spectrum is unbounded by design
+                wrapped = (
+                    exc
+                    if isinstance(exc, (SafeToolError, ToolExecutionError))
+                    else ToolExecutionError(f"Tool '{name}' failed")
+                )
                 span.set_status(StatusCode.ERROR, str(wrapped))
                 span.record_exception(exc)
                 _tool_errors.add(1, {"tool.name": name, "error.type": "exception"})
-                output = _error_payload(wrapped)
-                status = "error"
-                error_type = type(wrapped).__name__
+                output, status, error_type = (
+                    _error_payload(wrapped),
+                    "error",
+                    type(wrapped).__name__,
+                )
         event: dict[str, Any] = {
             "type": "tool_result",
             "tool_call_id": tc_id,

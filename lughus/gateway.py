@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import contextlib
 import logging
 import os
@@ -178,7 +179,7 @@ class BaseGateway(AgentExecutor):
                 span.set_status(StatusCode.ERROR, "agent cancelled")
                 span.set_attribute("lughus.status", "cancelled")
 
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001 — boundary guard: last-resort catch at A2A execute() to prevent internal error disclosure via TaskUpdater
                 span.set_status(StatusCode.ERROR, str(exc))
                 span.record_exception(exc)
                 span.set_attribute("lughus.status", "failed")
@@ -328,7 +329,7 @@ class BaseGateway(AgentExecutor):
                     _decode_b64,
                     max_workers=self.settings.max_sync_thread_workers,
                 )
-            except Exception as exc:  # noqa: BLE001
+            except (binascii.Error, OSError) as exc:
                 _logger.warning(
                     "Skipping file '%s': base64 decode failed — %s",
                     task["name"],
@@ -357,7 +358,7 @@ class BaseGateway(AgentExecutor):
         for task in file_tasks:
             try:
                 raw = base64.b64decode(task["bytes"], validate=True)
-            except Exception as exc:  # noqa: BLE001
+            except binascii.Error as exc:
                 _logger.warning(
                     "Skipping file '%s': base64 decode failed — %s",
                     task["name"],

@@ -7,7 +7,7 @@ import hmac
 import logging
 import time
 from collections import OrderedDict
-from typing import Any
+from typing import Any, cast
 
 import uvicorn
 from a2a.server.apps.jsonrpc.starlette_app import A2AStarletteApplication
@@ -76,7 +76,7 @@ class ProductionGuardMiddleware:
     async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
         if scope.get("type") == "lifespan":
 
-            async def lifespan_receive() -> dict:
+            async def lifespan_receive() -> dict[str, Any]:
                 msg = await receive()
                 if (
                     msg.get("type") == "lifespan.shutdown"
@@ -84,7 +84,7 @@ class ProductionGuardMiddleware:
                     and hasattr(self.gateway, "shutdown")
                 ):
                     await self.gateway.shutdown()
-                return msg
+                return cast(dict[str, Any], msg)
 
             await self.app(scope, lifespan_receive, send)
             return
@@ -139,7 +139,7 @@ class ProductionGuardMiddleware:
                 response_started = True
             await send(message)
 
-        async def guarded_receive() -> dict:
+        async def guarded_receive() -> dict[str, Any]:
             nonlocal body_bytes_seen
             message = await receive()
             if self.max_body_bytes is not None and message.get("type") == "http.request":
@@ -147,7 +147,7 @@ class ProductionGuardMiddleware:
                 body_bytes_seen += len(body)
                 if body_bytes_seen > self.max_body_bytes:
                     raise RequestBodyTooLarge
-            return message
+            return cast(dict[str, Any], message)
 
         if self._semaphore is None:
             try:

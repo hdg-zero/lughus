@@ -8,6 +8,10 @@
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
 </p>
 
+> [!WARNING]
+> **DEVELOPMENT STATUS — BETA RELEASE**  
+> `lughus` is currently in active **BETA** development. Core APIs, contracts, and runtime architecture are undergoing rapid evolution over the coming weeks. Breaking changes and major capability enhancements may occur frequently until `1.0.0` specification stabilization. Please consult [CHANGELOG.md](CHANGELOG.md) before upgrading version releases.
+
 # lughus
 
 Micro-framework for building [A2A](https://google.github.io/A2A/) agents with [LiteLLM](https://github.com/BerriAI/litellm). No magic — a small, explicit codebase that replaces the orchestration framework layer.
@@ -249,7 +253,7 @@ flowchart TD
     class ExtAPI external;
 ```
 
-*Note : Le Workspace et son état associé sont éphémères et détruits immédiatement après l'envoi de la réponse.*
+*Note: The Workspace and its associated state are ephemeral and destroyed immediately after sending the response.*
 
 ### Request flow
 
@@ -629,7 +633,8 @@ Then open `http://localhost:8080/ui`. The UI sends an objective and optional fil
 traces tool calls with arguments, duration, status, and output, and exposes returned artifacts as downloads.
 
 > [!WARNING]
-> La console de test locale est **strictement conçue comme un outil de développement et de débogage rapide**. Elle ne doit en aucun cas être exposée en production ni être utilisée comme une interface utilisateur client finale. C'est pourquoi elle est désactivée par défaut et bloquée par validation stricte si `LUGHUS_ENV=production`.
+> The local test console is **strictly designed as a rapid development and debugging tool**. Under no circumstances should it be exposed in production or used as an end-user client interface. That is why it is disabled by default and strictly blocked by configuration validation when `LUGHUS_ENV=production`.
+
 
 #### Custom Task Store & OpenTelemetry Control
 
@@ -648,6 +653,106 @@ serve(
     enable_test_ui=False,  # Keep the browser test UI disabled in production
 )
 ```
+
+---
+
+## Governance, Security & Human-in-the-Loop (v0.3.0)
+
+Lughus 0.3.0 introduces fine-grained, deterministic tool governance and tamper-evident human-in-the-loop (HITL) approval workflows. Prompt instructions are never used as access controls.
+
+### Tool Def v2 Metadata
+
+Tools can declare execution metadata including risk levels, required security scopes, output validation schemas, and approval requirements:
+
+```python
+from lughus import ConcurrencyMode, ToolEffect, ToolRegistry, ToolRisk
+
+registry = ToolRegistry()
+
+
+@registry.tool(
+    name="deploy_service",
+    description="Deploy service to production environment.",
+    parameters={
+        "type": "object",
+        "properties": {"service": {"type": "string"}, "version": {"type": "string"}},
+        "required": ["service", "version"],
+    },
+    output_schema={
+        "type": "object",
+        "properties": {"status": {"type": "string"}, "deployment_id": {"type": "string"}},
+        "required": ["status", "deployment_id"],
+    },
+    effects=frozenset([ToolEffect.WRITE, ToolEffect.IRREVERSIBLE]),
+    risk=ToolRisk.CRITICAL,
+    required_scopes=frozenset(["deploy:prod"]),
+    requires_approval=True,
+    concurrency=ConcurrencyMode.EXCLUSIVE,
+)
+def deploy_service(*, service: str, version: str, state) -> dict:
+    return {"status": "deployed", "deployment_id": "dep_99"}
+```
+
+### Policy Engine
+
+The policy engine evaluates actions prior to tool execution. Built-in policies include `LeastPrivilegePolicy` and composable `CompositePolicy`:
+
+```python
+from lughus import (
+    CompositePolicy,
+    LeastPrivilegePolicy,
+    Principal,
+    ToolExecutionConfig,
+    agent_loop,
+)
+
+# 1. Define authenticated principal
+principal = Principal(
+    subject="developer_1",
+    tenant_id="org_prod",
+    scopes=frozenset(["deploy:prod"]),
+)
+
+# 2. Configure deterministic policy chain (DENY > REQUIRE_APPROVAL > ALLOW)
+policy = CompositePolicy([LeastPrivilegePolicy()])
+
+# 3. Pass policy & principal to execution config
+config = ToolExecutionConfig(
+    policy=policy,
+    principal=principal,
+)
+```
+
+### Human-in-the-Loop Approvals
+
+When a policy or tool declaration returns `REQUIRE_APPROVAL`, execution stops safely and emits a tamper-evident `ApprovalRequest` bound to the cryptographic hash (`proposal_digest`) of the requested tool name and arguments.
+
+```python
+from lughus import (
+    ApprovalStatus,
+    InMemoryApprovalStore,
+    ToolExecutionConfig,
+    agent_loop,
+)
+
+approval_store = InMemoryApprovalStore()
+config = ToolExecutionConfig(
+    policy=policy,
+    principal=principal,
+    approval_store=approval_store,
+)
+
+# When an action requires approval, agent_loop raises a SafeToolError("approval_required", "Human approval is required")
+# Human operators inspect and decide:
+request = await approval_store.get(request_id)
+if request and request.verify(arguments):
+    await approval_store.decide(
+        request_id=request.request_id,
+        status=ApprovalStatus.APPROVED,
+        subject="security_admin",
+    )
+```
+
 
 > **Note — production storage**: `serve()` uses a bounded in-process store by default
 > (`TASK_STORE_TTL_SECONDS`, `TASK_STORE_MAX_TASKS`). For multiple replicas or durable
@@ -849,19 +954,29 @@ No code change needed — LiteLLM routes automatically. See [LiteLLM providers](
 ```
 lughus/
     __init__.py      # Public API re-exports + __version__
+    approval.py      # Human approval requests & stores (ApprovalRequest, InMemoryApprovalStore)
+    cli.py           # CLI scaffolding entrypoint (lughus new)
     config.py        # BaseSettings dataclass
-    llm.py           # LLM — litellm.acompletion() wrapper
-    loop/            # Modular agent loop sub-package
-    tools.py         # ToolRegistry + ToolDef
-    gateway.py       # BaseGateway(AgentExecutor)
+    domain.py        # Domain records (Run, RunEvent, RunStatus, EventVisibility, Usage)
+    errors.py        # Exception hierarchy (LughusError, SafeToolError, ToolValidationError)
+    event_stream.py  # Event streaming protocol & sinks (EventSink, InMemoryEventSink)
     events.py        # ProgressEvent, CompletionEvent, Artifact
+    gateway.py       # BaseGateway(AgentExecutor)
+    llm.py           # LLM — litellm.acompletion() wrapper
+    loop/            # Modular agent loop sub-package (agent_loop, agent_loop_stream)
+    policy.py        # Deterministic authorization policies (LeastPrivilegePolicy, CompositePolicy)
+    retry.py         # Exponential backoff LLM retry handler
+    runner.py        # AgentRunner execution orchestrator
+    runtime.py       # Process-local resource manager (ExecutionRuntime, RuntimeConfig)
     server.py        # build_app() + serve() — A2A + uvicorn
-    ui_server.py     # Test UI routes template handler
     telemetry.py     # OpenTelemetry setup (traces + metrics)
+    testing.py       # Test mocks (MockLLM, MockStreamingLLM)
+    tools.py         # ToolRegistry + ToolDef v2 metadata
+    ui_server.py     # Local browser test UI routes
+    _threading.py    # Sync threadpool execution helper
     py.typed         # PEP 561 marker
 ```
 
-14 source files, ~1000 lines total. You can read the entire framework in 15 minutes.
 
 ---
 

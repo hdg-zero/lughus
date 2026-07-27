@@ -1,5 +1,12 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..approval import ApprovalStore
+    from ..policy import Principal, ToolPolicy
+    from ..runtime import ExecutionRuntime
 
 DEFAULT_MAX_ITERATIONS = 50
 DEFAULT_MAX_PARALLEL_TOOLS = 8
@@ -29,7 +36,11 @@ class ToolExecutionConfig:
     max_message_history_chars: int = DEFAULT_MAX_MESSAGE_HISTORY_CHARS
     tool_queue_timeout: float | None = DEFAULT_TOOL_QUEUE_TIMEOUT
     compact_tool_schemas: bool = False
-    runtime: Any = field(default=None, repr=False, compare=False)
+    runtime: ExecutionRuntime | None = field(default=None, repr=False, compare=False)
+    policy: ToolPolicy | None = field(default=None, repr=False, compare=False)
+    principal: Principal | None = field(default=None, repr=False, compare=False)
+    approval_store: ApprovalStore | None = field(default=None, repr=False, compare=False)
+    run_id: str = "untracked"
 
     def __post_init__(self) -> None:
         positive = {

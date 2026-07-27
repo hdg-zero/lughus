@@ -142,6 +142,12 @@ class ToolExecutionConfig:
     max_tool_args_chars: int = 20_000
     max_tool_output_chars: int = 20_000
     max_message_history_chars: int = 200_000
+    compact_tool_schemas: bool = False
+    runtime: ExecutionRuntime | None = None
+    policy: ToolPolicy | None = None
+    principal: Principal | None = None
+    approval_store: ApprovalStore | None = None
+    run_id: str = "untracked"
 ```
 
 *   `max_parallel_tools`: Maximum tool calls executed concurrently within one loop iteration.
@@ -152,5 +158,12 @@ class ToolExecutionConfig:
 *   `max_tool_args_chars`: Maximum raw JSON argument characters accepted for one tool call.
 *   `max_tool_output_chars`: Maximum characters accepted in one tool response.
 *   `max_message_history_chars`: Maximum serialized LLM message history characters before the loop raises `LoopLimitError`. Use `0` to disable.
+*   `compact_tool_schemas`: Strip `description` metadata from tool parameters schema sent to provider LLM calls to reduce prompt token consumption.
+*   `runtime`: Optional `ExecutionRuntime` instance managing thread pools and bulkhead semaphores.
+*   `policy`: Optional `ToolPolicy` evaluator enforcing pre-dispatch authorization rules.
+*   `principal`: Optional `Principal` caller context required when `policy` is set.
+*   `approval_store`: Optional `ApprovalStore` instance managing human-in-the-loop approval records.
+*   `run_id`: Unique run identifier tracking execution context.
 
 Tool errors are returned as structured JSON containing `error` and `error_type`. Loop iteration exhaustion raises `LoopLimitError`, which is both a `LughusError` and a `RuntimeError`.
+
