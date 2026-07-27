@@ -9,6 +9,7 @@ import litellm
 import pytest
 
 from lughus.config import BaseSettings
+from lughus.errors import LLMResponseError
 from lughus.llm import LLM, retry_budget
 
 
@@ -45,6 +46,45 @@ async def test_llm_retry_on_rate_limit(monkeypatch) -> None:
 
     assert result.choices[0].message.content == "Success after retry"
     assert call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_llm_retries_empty_choices(monkeypatch) -> None:
+    """Provider responses without choices are retried before reaching the agent loop."""
+    call_count = 0
+
+    async def mock_acompletion(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            response = MagicMock()
+            response.choices = []
+            return response
+        return _make_text_response("Recovered completion")
+
+    monkeypatch.setattr(litellm, "acompletion", mock_acompletion)
+
+    llm = LLM("test/model", max_retries=1, retry_base_delay=0.0)
+    result = await llm.generate(messages=[{"role": "user", "content": "hi"}])
+
+    assert result.choices[0].message.content == "Recovered completion"
+    assert call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_llm_empty_choices_exhausts_retries(monkeypatch) -> None:
+    """A persistent malformed provider response surfaces as a clear framework error."""
+    async def mock_acompletion(*args, **kwargs):
+        response = MagicMock()
+        response.choices = []
+        return response
+
+    monkeypatch.setattr(litellm, "acompletion", mock_acompletion)
+
+    llm = LLM("test/model", max_retries=0, retry_base_delay=0.0)
+
+    with pytest.raises(LLMResponseError, match="without choices"):
+        await llm.generate(messages=[{"role": "user", "content": "hi"}])
 
 
 @pytest.mark.asyncio

@@ -23,6 +23,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Retried empty LiteLLM completion responses and now raise `LLMResponseError` instead of leaking an `IndexError` from the agent loop.
 - Fixed strict grid layout containment for `.events-container` with `min-width: 0` to prevent UI overlaps.
 
 ### Changed
