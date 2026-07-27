@@ -4,16 +4,26 @@ All notable changes to `lughus` will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.4.0] — 2026-07-27
+## [0.4.0] — 2026-07-28
 
 ### Added
 
+- Added frameless, responsive 100dvh full-screen Developer Test UI layout with sleek dark aesthetic and split-pane workspace.
+- Added modular JavaScript frontend component architecture in `lughus/ui/`: `ui_state.js`, `ui_events.js`, `ui_history.js`, `ui_otel.js`, and `test_ui.js`.
+- Added generic asset router `/ui/assets/{filename:path}` in `lughus/ui_server.py` for modular CSS/JS asset resolution.
+- Added live text search input (`#event-search`) and category filtering (`All`, `Progress`, `Tools`, `Telemetry`, `Errors`) in event logs stream.
+- Added auto-scroll behavior for incoming live agent event streams.
+- Added optional Markdown rendering toggle for `completion` event blocks.
 - Added persistence ports and reference store (`lughus.persistence`): `RunStore`, `EventStore`, `CheckpointStore`, `Checkpoint`, `InMemoryDurableStore`, and `ConcurrentUpdateError`.
 - Added multi-dimensional run budget ledgers (`lughus.budget`): `BudgetLimit`, `BudgetAmount`, `BudgetLedger`, and `BudgetExceeded`.
 - Added context selection and provenance management (`lughus.context`): `ContextManager`, `ContextItem`, `ContextWindow`, and `TrustLevel`.
 - Added safe resume decision engine (`lughus.resume`): `decide_resume`, `ResumeAction`, and `ResumeDecision`.
 - Added architecture contracts and ADR documentation: `docs/architecture/ADR-006-persistence.md`, `docs/contracts/budgets.md`, and `docs/contracts/context.md`.
 - Added unit test suite for Wave 4 durability and budget features (`tests/test_durability_budget_v4.py`).
+
+### Fixed
+
+- Fixed strict grid layout containment for `.events-container` with `min-width: 0` to prevent UI overlaps.
 
 ### Changed
 
