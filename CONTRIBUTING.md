@@ -24,15 +24,13 @@ uv sync --all-extras --dev
 
 ```bash
 # Full test suite
-pytest tests/ -v
+uv run pytest tests/ -v
 
 # Single file
-pytest tests/test_tools.py -v
+uv run pytest tests/test_tools.py -v
 
-# With coverage report
-pytest tests/ --cov=lughus --cov-report=term-missing
-
-# Target: ≥ 85% coverage
+# With coverage report (branch coverage >= 85%)
+uv run pytest tests/ --cov=lughus --cov-branch --cov-report=term-missing --cov-fail-under=85
 ```
 
 ---
@@ -40,7 +38,7 @@ pytest tests/ --cov=lughus --cov-report=term-missing
 ## Type checking
 
 ```bash
-mypy lughus/
+uv run mypy lughus/
 ```
 
 The package ships with a `py.typed` marker (PEP 561). All public APIs must be

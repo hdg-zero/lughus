@@ -15,6 +15,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added architecture contracts and ADR documentation: `docs/architecture/ADR-006-persistence.md`, `docs/contracts/budgets.md`, and `docs/contracts/context.md`.
 - Added unit test suite for Wave 4 durability and budget features (`tests/test_durability_budget_v4.py`).
 
+### Changed
+
+- Updated `CONTRIBUTING.md` commands to use `uv run` consistently and specified `--cov-branch --cov-fail-under=85` coverage gate requirements.
+
 ---
 
 ## [0.3.0] — 2026-07-25
