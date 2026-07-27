@@ -15,15 +15,35 @@
     <header class="app-header">
       <div class="brand">
         <div class="logo-container">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <svg class="lughus-mark" viewBox="0 0 100 100" aria-label="Lughus logo" role="img">
+            <defs>
+              <linearGradient id="lughus-logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#0f172a"/><stop offset="50%" stop-color="#1e3a8a"/><stop offset="100%" stop-color="#475569"/>
+              </linearGradient>
+              <mask id="lughus-logo-cutout"><rect width="100" height="100" fill="white"/><circle cx="50" cy="14.5" r="6" fill="black"/><circle cx="80.74" cy="67.75" r="6" fill="black"/><circle cx="19.26" cy="67.75" r="6" fill="black"/></mask>
+              <g id="lughus-logo-triangle"><path d="M 50 18 L 74 60 L 26 60 Z" fill="none" stroke="url(#lughus-logo-gradient)" stroke-width="3.2" stroke-linejoin="round"/></g>
+            </defs>
+            <g mask="url(#lughus-logo-cutout)">
+              <use href="#lughus-logo-triangle" transform="translate(0, -3.5)"/>
+              <use href="#lughus-logo-triangle" transform="rotate(120, 50, 50) translate(0, -3.5)"/>
+              <use href="#lughus-logo-triangle" transform="rotate(240, 50, 50) translate(0, -3.5)"/>
+            </g>
+            <circle cx="50" cy="14.5" r="3.8" fill="url(#lughus-logo-gradient)"/>
+            <circle cx="80.74" cy="67.75" r="3.8" fill="url(#lughus-logo-gradient)"/>
+            <circle cx="19.26" cy="67.75" r="3.8" fill="url(#lughus-logo-gradient)"/>
+          </svg>
         </div>
         <div class="brand-info">
-          <h1>__AGENT_NAME__</h1>
+          <div class="brand-title-row"><h1>__AGENT_NAME__</h1><span class="lughus-signature">LUGHUS</span></div>
           <span class="agent-desc">__AGENT_DESCRIPTION__</span>
         </div>
       </div>
 
       <div class="header-right">
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to light theme">
+          <span class="theme-icon" aria-hidden="true">☀</span>
+          <span class="theme-label">Light</span>
+        </button>
         <div class="status-badge">
           <span id="status-indicator" class="status-dot"></span>
           <span id="status" class="status-text">idle</span>
@@ -101,6 +121,14 @@
             <button class="filter-btn" data-filter="error">Errors</button>
           </div>
         </div>
+
+        <section class="agent-flow" aria-labelledby="agent-flow-title">
+          <div class="agent-flow-heading">
+            <h2 id="agent-flow-title">Agent Path</h2>
+            <span id="agent-flow-detail" class="agent-flow-detail">Waiting for a run</span>
+          </div>
+          <div id="agent-flow-steps" class="agent-flow-steps" role="list"></div>
+        </section>
 
         <div class="events-stream" id="events">
           <div class="empty">Execute the agent to see real-time logs and output artifacts here</div>

@@ -3,6 +3,7 @@
  */
 
 import { state, saveRuns, updateStatus } from "/ui/assets/ui_state.js";
+import { renderAgentFlow } from "/ui/assets/ui_agent_flow.js";
 import { appendEvent, renderEmpty } from "/ui/assets/ui_events.js";
 
 export function renderHistory() {
@@ -50,11 +51,13 @@ export function selectRun(runId) {
   if (container) container.innerHTML = "";
   
   if (!run || run.events.length === 0) {
+    renderAgentFlow();
     renderEmpty("No events recorded for this run");
     return;
   }
   
-  run.events.forEach(e => appendEvent(e));
+  run.events.forEach((event, eventIndex) => appendEvent(event, undefined, eventIndex));
+  renderAgentFlow(run.events);
   if (run.status === "running") {
     updateStatus("streaming");
   } else {
@@ -73,6 +76,7 @@ export function addRunToHistory(objectiveText) {
   };
   state.runs.unshift(newRun);
   state.activeRunId = id;
+  renderAgentFlow();
   saveRuns();
   renderHistory();
   return newRun;
@@ -94,6 +98,7 @@ export function appendEventToActiveRun(event) {
     event.timestamp = Date.now();
     run.events.push(event);
     saveRuns();
-    appendEvent(event);
+    appendEvent(event, undefined, run.events.length - 1);
+    renderAgentFlow(run.events);
   }
 }

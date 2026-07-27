@@ -87,7 +87,10 @@ The UI sends an objective and optional files directly to `gateway.handle()`, the
 The browser consumes `/ui/stream` as newline-delimited JSON so progress and tool events appear live;
 `/ui/run` remains available as a buffered JSON endpoint.
 Tool call entries include the tool name, raw JSON arguments, duration, status, output, and error
-type when applicable. It uses the same timeout, objective, file-size, and artifact limits from `BaseSettings`.
+type when applicable. The Agent Path renders every streamed progress, tool call, tool result,
+completion, and error as a clickable step that reveals the corresponding log entry. Tool payloads are
+collapsible, and the light/dark theme choice is retained in browser local storage. It uses the same
+timeout, objective, file-size, and artifact limits from `BaseSettings`.
 
 ## `ProductionGuardMiddleware`
 

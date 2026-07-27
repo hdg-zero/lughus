@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added an interactive Agent Path to the Developer Test UI, creating a clickable step for each streamed progress, tool, result, completion, and error event.
+- Added a persistent light theme toggle to the Developer Test UI.
+- Added the Lughus mark and refined log typography, spacing, and visual hierarchy in the Developer Test UI.
+- Added collapsible tool arguments and results to the Developer Test UI, with timeline navigation opening the selected detail.
 - Added frameless, responsive 100dvh full-screen Developer Test UI layout with sleek dark aesthetic and split-pane workspace.
 - Added modular JavaScript frontend component architecture in `lughus/ui/`: `ui_state.js`, `ui_events.js`, `ui_history.js`, `ui_otel.js`, and `test_ui.js`.
 - Added generic asset router `/ui/assets/{filename:path}` in `lughus/ui_server.py` for modular CSS/JS asset resolution.

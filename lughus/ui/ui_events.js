@@ -124,11 +124,16 @@ export function applyFilterToAllLogs() {
   allEvents.forEach(el => applyFilterToEvent(el, state.currentFilter, state.searchQuery));
 }
 
-export function appendEvent(event, listContainer = document.querySelector("#events")) {
+export function appendEvent(
+  event,
+  listContainer = document.querySelector("#events"),
+  eventIndex = null,
+) {
   if (!listContainer) return;
 
   const item = document.createElement("article");
   item.className = `event ${event.type}`;
+  if (eventIndex !== null) item.dataset.eventIndex = String(eventIndex);
   
   if (event.type === "tool_start" || event.type === "tool_result") {
     item.classList.add("tool");
@@ -193,7 +198,24 @@ export function appendEvent(event, listContainer = document.querySelector("#even
     body.innerHTML = escapeHtml(event.text || "");
   }
 
-  item.append(meta, body);
+  if (event.type === "tool_start" || event.type === "tool_result") {
+    const details = document.createElement("details");
+    details.className = "event-details";
+    details.open = event.status === "error";
+
+    const summary = document.createElement("summary");
+    if (event.type === "tool_start") {
+      summary.textContent = "Show tool arguments";
+    } else if (event.status === "error") {
+      summary.textContent = "Show tool error details";
+    } else {
+      summary.textContent = "Show tool result";
+    }
+    details.append(summary, body);
+    item.append(meta, details);
+  } else {
+    item.append(meta, body);
+  }
 
   if (event.artifacts && event.artifacts.length) {
     const artSection = document.createElement("div");

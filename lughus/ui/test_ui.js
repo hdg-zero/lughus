@@ -16,6 +16,8 @@ import {
   appendEventToActiveRun,
 } from "/ui/assets/ui_history.js";
 import { initOtelForm } from "/ui/assets/ui_otel.js";
+import { renderAgentFlow } from "/ui/assets/ui_agent_flow.js";
+import { initTheme } from "/ui/assets/ui_theme.js";
 
 function readFile(file) {
   return new Promise((resolve, reject) => {
@@ -230,12 +232,14 @@ document.addEventListener("DOMContentLoaded", () => {
       state.activeRunId = null;
       localStorage.removeItem("lughus_runs");
       renderHistory();
+      renderAgentFlow();
       renderEmpty("Execute the agent to see logs here");
       updateStatus("idle");
     });
   }
 
   initOtelForm();
+  initTheme();
 
   // Initial Render
   renderHistory();
