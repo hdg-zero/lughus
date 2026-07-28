@@ -631,6 +631,10 @@ python -m my_agent
 Then open `http://localhost:8080/ui`. The UI sends an objective and optional files to
 `gateway.handle()`, streams progress/tool/completion events live over `/ui/stream`,
 traces tool calls with arguments, duration, status, and output, and exposes returned artifacts as downloads.
+The Developer Test UI includes a persistent light/dark theme selector and an interactive Agent Path:
+every progress, tool call, tool result, completion, and error becomes a clickable timeline step that
+opens its corresponding log detail. Tool arguments and outputs are collapsed by default to keep long
+runs readable.
 
 > [!WARNING]
 > The local test console is **strictly designed as a rapid development and debugging tool**. Under no circumstances should it be exposed in production or used as an end-user client interface. That is why it is disabled by default and strictly blocked by configuration validation when `LUGHUS_ENV=production`.

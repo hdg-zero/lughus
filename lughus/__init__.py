@@ -15,7 +15,9 @@ if TYPE_CHECKING:
     from .llm import StreamingLLM as StreamingLLM
 
 from .approval import ApprovalRequest, ApprovalStatus, InMemoryApprovalStore
+from .budget import BudgetAmount, BudgetExceeded, BudgetLedger, BudgetLimit
 from .config import BaseSettings
+from .context import ContextItem, ContextManager, ContextWindow, TrustLevel
 from .domain import EventVisibility, Run, RunEvent, RunStatus, Usage
 from .errors import (
     LoopLimitError,
@@ -29,6 +31,14 @@ from .event_stream import EventSink, InMemoryEventSink
 from .events import Artifact, CompletionEvent, ProgressEvent
 from .gateway import BaseGateway
 from .loop import LoopResult, ToolExecutionConfig, agent_loop, agent_loop_stream
+from .persistence import (
+    Checkpoint,
+    CheckpointStore,
+    ConcurrentUpdateError,
+    EventStore,
+    InMemoryDurableStore,
+    RunStore,
+)
 from .policy import (
     CompositePolicy,
     DecisionKind,
@@ -38,6 +48,7 @@ from .policy import (
     ToolPolicy,
     ToolProposal,
 )
+from .resume import ResumeAction, ResumeDecision, decide_resume
 from .runner import AgentRunner
 from .runtime import ExecutionRuntime, RuntimeConfig
 from .server import BoundedInMemoryTaskStore, ProductionGuardMiddleware, build_app, serve
@@ -70,15 +81,27 @@ __all__ = [
     "BaseGateway",
     "BaseSettings",
     "BoundedInMemoryTaskStore",
+    "BudgetAmount",
+    "BudgetExceeded",
+    "BudgetLedger",
+    "BudgetLimit",
+    "Checkpoint",
+    "CheckpointStore",
     "CompletionEvent",
     "CompositePolicy",
     "ConcurrencyMode",
+    "ConcurrentUpdateError",
+    "ContextItem",
+    "ContextManager",
+    "ContextWindow",
     "DecisionKind",
     "EventSink",
+    "EventStore",
     "EventVisibility",
     "ExecutionRuntime",
     "GenerateLLM",
     "InMemoryApprovalStore",
+    "InMemoryDurableStore",
     "InMemoryEventSink",
     "LeastPrivilegePolicy",
     "LoopLimitError",
@@ -88,9 +111,12 @@ __all__ = [
     "Principal",
     "ProductionGuardMiddleware",
     "ProgressEvent",
+    "ResumeAction",
+    "ResumeDecision",
     "Run",
     "RunEvent",
     "RunStatus",
+    "RunStore",
     "RuntimeConfig",
     "SafeToolError",
     "StreamingLLM",
@@ -104,10 +130,12 @@ __all__ = [
     "ToolRisk",
     "ToolTimeoutError",
     "ToolValidationError",
+    "TrustLevel",
     "Usage",
     "agent_loop",
     "agent_loop_stream",
     "build_app",
+    "decide_resume",
     "serve",
     "setup_telemetry",
 ]

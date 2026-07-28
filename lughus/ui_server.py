@@ -17,6 +17,7 @@ import urllib.parse
 import urllib.request
 from collections.abc import AsyncIterator
 from importlib import resources
+from pathlib import Path
 from typing import Any
 
 from a2a.types import AgentCard
@@ -504,6 +505,16 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
             return JSONResponse({"error": "internal_error"}, status_code=500)
         return JSONResponse(result)
 
+    async def serve_asset(request: Request) -> Response:
+        filename = request.path_params.get("filename", "")
+        safe_filename = Path(filename).name
+        try:
+            content = _read_ui_asset(safe_filename)
+            media_type = "text/css" if safe_filename.endswith(".css") else "application/javascript"
+            return Response(content, media_type=media_type)
+        except (FileNotFoundError, IsADirectoryError, OSError, UnicodeError):
+            return Response("Asset not found", status_code=404)
+
     return [
         Route("/ui", page, methods=["GET"]),
         Route("/ui/run", run, methods=["POST"]),
@@ -511,6 +522,7 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
         Route("/ui/stream", stream, methods=["POST"]),
         Route("/ui/assets/test_ui.css", css, methods=["GET"]),
         Route("/ui/assets/test_ui.js", js, methods=["GET"]),
+        Route("/ui/assets/{filename:path}", serve_asset, methods=["GET"]),
     ]
 
 

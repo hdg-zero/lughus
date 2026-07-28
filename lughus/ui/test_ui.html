@@ -3,57 +3,86 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>__AGENT_NAME__ Debug Console</title>
+  <title>__AGENT_NAME__ — Lughus Debug Console</title>
   <link rel="stylesheet" href="/ui/assets/test_ui.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-  <main>
-    <header>
+  <div class="app-viewport">
+    <!-- Top Status Bar -->
+    <header class="app-header">
       <div class="brand">
         <div class="logo-container">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <svg class="lughus-mark" viewBox="0 0 100 100" aria-label="Lughus logo" role="img">
+            <defs>
+              <linearGradient id="lughus-logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#0f172a"/><stop offset="50%" stop-color="#1e3a8a"/><stop offset="100%" stop-color="#475569"/>
+              </linearGradient>
+              <mask id="lughus-logo-cutout"><rect width="100" height="100" fill="white"/><circle cx="50" cy="14.5" r="6" fill="black"/><circle cx="80.74" cy="67.75" r="6" fill="black"/><circle cx="19.26" cy="67.75" r="6" fill="black"/></mask>
+              <g id="lughus-logo-triangle"><path d="M 50 18 L 74 60 L 26 60 Z" fill="none" stroke="url(#lughus-logo-gradient)" stroke-width="3.2" stroke-linejoin="round"/></g>
+            </defs>
+            <g mask="url(#lughus-logo-cutout)">
+              <use href="#lughus-logo-triangle" transform="translate(0, -3.5)"/>
+              <use href="#lughus-logo-triangle" transform="rotate(120, 50, 50) translate(0, -3.5)"/>
+              <use href="#lughus-logo-triangle" transform="rotate(240, 50, 50) translate(0, -3.5)"/>
+            </g>
+            <circle cx="50" cy="14.5" r="3.8" fill="url(#lughus-logo-gradient)"/>
+            <circle cx="80.74" cy="67.75" r="3.8" fill="url(#lughus-logo-gradient)"/>
+            <circle cx="19.26" cy="67.75" r="3.8" fill="url(#lughus-logo-gradient)"/>
+          </svg>
         </div>
-        <div>
-          <h1>__AGENT_NAME__</h1>
-          <p>__AGENT_DESCRIPTION__</p>
+        <div class="brand-info">
+          <div class="brand-title-row"><h1>__AGENT_NAME__</h1><span class="lughus-signature">LUGHUS</span></div>
+          <span class="agent-desc">__AGENT_DESCRIPTION__</span>
         </div>
       </div>
-      <div class="status-container">
-        <span id="status-indicator" class="status-dot"></span>
-        <div id="status" class="status">idle</div>
+
+      <div class="header-right">
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to light theme">
+          <span class="theme-icon" aria-hidden="true">☀</span>
+          <span class="theme-label">Light</span>
+        </button>
+        <div class="status-badge">
+          <span id="status-indicator" class="status-dot"></span>
+          <span id="status" class="status-text">idle</span>
+        </div>
       </div>
     </header>
 
+    <!-- Main Viewport Split -->
     <div class="workspace">
-      <!-- Left sidebar: Configuration & History -->
-      <aside class="side">
-        <!-- Section 1: Objective & Input -->
-        <section class="card">
+      <!-- Left Sidebar: Controls & History -->
+      <aside class="sidebar">
+        <!-- Objective & Files Form -->
+        <section class="sidebar-section form-section">
           <form id="form">
-            <label for="objective">Objective</label>
-            <textarea id="objective" name="objective" autofocus placeholder="Explain what the agent should accomplish...">Greet Ada</textarea>
+            <div class="field-group">
+              <label for="objective">Objective</label>
+              <textarea id="objective" name="objective" autofocus placeholder="Explain what the agent should accomplish...">Analyze the provided dataset, compute statistics, generate charts, and produce the report.</textarea>
+            </div>
             
-            <label for="files" style="margin-top: 16px;">Files</label>
-            <div class="file-dropzone">
-              <input id="files" name="files" type="file" multiple>
-              <div class="dropzone-text">Click to choose or drag files here</div>
+            <div class="field-group margin-top">
+              <label for="files">Attached Files</label>
+              <div class="file-dropzone">
+                <input id="files" name="files" type="file" multiple>
+                <div class="dropzone-text">Click or drag dataset files (.csv, .xlsx)</div>
+              </div>
+              <div class="file-meta">
+                <span id="file-count" class="meta">0 files attached</span>
+              </div>
             </div>
             
             <div class="actions">
               <button id="run" type="submit" class="btn-primary">Run Agent</button>
               <button id="cancel" type="button" class="btn-danger" disabled>Cancel</button>
             </div>
-            <div class="file-meta">
-              <span id="file-count" class="meta">0 files attached</span>
-            </div>
           </form>
         </section>
 
-        <!-- Section 2: Run History -->
-        <section class="card history-card">
+        <!-- Execution History -->
+        <section class="sidebar-section history-section">
           <div class="section-header">
             <h3>Execution History</h3>
             <button id="clear-history" class="btn-text" title="Clear History">Clear</button>
@@ -63,28 +92,27 @@
           </div>
         </section>
 
-        <!-- Section 3: OpenTelemetry -->
-        <section class="card otel-panel">
-          <form id="otel-form">
-            <label for="otel-url">OpenTelemetry traces</label>
+        <!-- OpenTelemetry Accordion -->
+        <details class="sidebar-section otel-section">
+          <summary class="otel-summary">OpenTelemetry Traces</summary>
+          <form id="otel-form" class="otel-form">
             <div class="otel-input-group">
-              <input
-                id="otel-url"
-                name="otel-url"
-                type="url"
-                placeholder="http://localhost:16686/api/traces/{trace_id}"
-              >
+              <input id="otel-url" name="otel-url" type="url" placeholder="http://localhost:16686/api/traces/{trace_id}">
               <button id="load-otel" type="submit" class="btn-secondary">Load</button>
             </div>
+            <pre id="otel-output">No trace query yet</pre>
           </form>
-          <pre id="otel-output">No trace query yet</pre>
-        </section>
+        </details>
       </aside>
 
-      <!-- Right content: Event Logs & Details -->
-      <section class="events-container">
-        <div class="logs-header">
-          <h3>Event Logs</h3>
+      <!-- Right Main Workspace: Events & Outputs -->
+      <main class="console-viewport">
+        <div class="console-header">
+          <div class="console-title">
+            <h2>Event Stream</h2>
+            <input id="event-search" type="search" placeholder="Search logs..." class="search-input">
+            <button id="toggle-markdown" class="md-toggle-btn" title="Toggle Markdown rendering">Markdown: Off</button>
+          </div>
           <div id="event-filters" class="event-filters">
             <button class="filter-btn active" data-filter="all">All</button>
             <button class="filter-btn" data-filter="progress">Progress</button>
@@ -93,12 +121,22 @@
             <button class="filter-btn" data-filter="error">Errors</button>
           </div>
         </div>
-        <div class="events" id="events">
-          <div class="empty">Execute the agent to see logs here</div>
+
+        <section class="agent-flow" aria-labelledby="agent-flow-title">
+          <div class="agent-flow-heading">
+            <h2 id="agent-flow-title">Agent Path</h2>
+            <span id="agent-flow-detail" class="agent-flow-detail">Waiting for a run</span>
+          </div>
+          <div id="agent-flow-steps" class="agent-flow-steps" role="list"></div>
+        </section>
+
+        <div class="events-stream" id="events">
+          <div class="empty">Execute the agent to see real-time logs and output artifacts here</div>
         </div>
-      </section>
+      </main>
     </div>
-  </main>
-  <script src="/ui/assets/test_ui.js"></script>
+  </div>
+
+  <script type="module" src="/ui/assets/test_ui.js"></script>
 </body>
 </html>

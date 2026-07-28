@@ -23,6 +23,10 @@ class LoopLimitError(LughusError, RuntimeError):
     """The agent loop exceeded its configured iteration limit."""
 
 
+class LLMResponseError(LughusError):
+    """An LLM provider returned a response without a usable completion choice."""
+
+
 class SafeToolError(ToolExecutionError):
     """Business error whose message may be shown to the model.
 

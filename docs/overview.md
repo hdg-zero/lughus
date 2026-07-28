@@ -72,4 +72,5 @@ flowchart TD
   - [ADR-002 — Streaming and Retries](architecture/ADR-002-streaming.md)
   - [ADR-003 — Runtime Resource Ownership](architecture/ADR-003-runtime.md)
   - [ADR-005 — Tool Capabilities and Policy Engine](architecture/ADR-005-tool-policy.md)
+  - [ADR-006 — Persistence and Safe Resumption](architecture/ADR-006-persistence.md)
 
