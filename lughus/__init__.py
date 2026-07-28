@@ -38,7 +38,14 @@ from .evaluation import EvaluationResult, Scenario, evaluate_scenario
 from .event_stream import EventSink, InMemoryEventSink
 from .events import Artifact, CompletionEvent, ProgressEvent
 from .gateway import BaseGateway
-from .loop import LoopResult, ToolExecutionConfig, agent_loop, agent_loop_stream
+from .idempotency import (
+    AttemptStatus,
+    ExecutionAttempt,
+    IdempotencyKey,
+    IdempotencyStore,
+    InMemoryIdempotencyStore,
+)
+from .loop import LoopResult, StreamingMode, ToolExecutionConfig, agent_loop, agent_loop_stream
 from .mcp import MCPAdapter, MCPClient, MCPServerConfig, MCPToolDescriptor
 from .persistence import (
     Checkpoint,
@@ -89,6 +96,7 @@ __all__ = [
     "ApprovalRequest",
     "ApprovalStatus",
     "Artifact",
+    "AttemptStatus",
     "BaseGateway",
     "BaseSettings",
     "BoundedInMemoryTaskStore",
@@ -114,11 +122,15 @@ __all__ = [
     "EventSink",
     "EventStore",
     "EventVisibility",
+    "ExecutionAttempt",
     "ExecutionRuntime",
     "GenerateLLM",
+    "IdempotencyKey",
+    "IdempotencyStore",
     "InMemoryApprovalStore",
     "InMemoryDurableStore",
     "InMemoryEventSink",
+    "InMemoryIdempotencyStore",
     "LeastPrivilegePolicy",
     "LoopLimitError",
     "LoopResult",
@@ -144,6 +156,7 @@ __all__ = [
     "SafeToolError",
     "Scenario",
     "StreamingLLM",
+    "StreamingMode",
     "ToolDef",
     "ToolEffect",
     "ToolExecutionConfig",
