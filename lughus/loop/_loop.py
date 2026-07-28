@@ -14,7 +14,7 @@ from ..llm import _RETRYABLE_ERRORS, _retry_after_seconds
 from ..retry import _retry_budget_var, _retry_used_var, retry_budget
 from ..telemetry import tracer
 from ..tools import ToolRegistry
-from ._config import DEFAULT_MAX_ITERATIONS, ToolExecutionConfig
+from ._config import DEFAULT_MAX_ITERATIONS, StreamingMode, ToolExecutionConfig
 from ._execute import (
     _assistant_tool_message,
     _check_message_history_size,
@@ -223,15 +223,19 @@ async def agent_loop_stream(
     state: Any = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     tool_config: ToolExecutionConfig | None = None,
-    streaming_mode: str = "buffered",
+    streaming_mode: str | StreamingMode = StreamingMode.BUFFERED,
 ) -> AsyncGenerator[str | LoopResult, None]:
     """Streaming variant of :func:`agent_loop`.
 
     Yields text chunks as the LLM generates them. The **last** yielded value
     is always a :class:`LoopResult` (a ``str`` subclass with usage metadata).
     """
-    if streaming_mode not in {"buffered", "live"}:
+    mode_str = str(streaming_mode)
+    if mode_str == "live_at_most_once":
+        mode_str = "live"
+    if mode_str not in {"buffered", "live"}:
         raise ValueError("streaming_mode must be 'buffered' or 'live'")
+    streaming_mode_normalized = mode_str
     cfg = tool_config or ToolExecutionConfig()
     with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
         with retry_budget(getattr(llm, "retry_max_elapsed", None)):
@@ -288,7 +292,7 @@ async def agent_loop_stream(
 
                                 if delta.content:
                                     content_parts.append(delta.content)
-                                    if streaming_mode == "live":
+                                    if streaming_mode_normalized == "live":
                                         emitted = True
                                         yield delta.content
 
@@ -318,7 +322,7 @@ async def agent_loop_stream(
                                     cached_tokens += ca
                         break
                     except _RETRYABLE_ERRORS as exc:
-                        if streaming_mode == "live" and emitted:
+                        if streaming_mode_normalized == "live" and emitted:
                             raise
                         if attempt >= max_retries:
                             raise
@@ -350,7 +354,7 @@ async def agent_loop_stream(
                 full_content = "".join(content_parts)
 
                 if not tc_map:
-                    if streaming_mode == "buffered":
+                    if streaming_mode_normalized == "buffered":
                         for content in content_parts:
                             yield content
                     yield _finalize_loop(
