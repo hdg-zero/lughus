@@ -4,6 +4,14 @@ All notable changes to `lughus` will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- Started development for `v0.5.0`.
+
+---
+
 ## [0.4.0] — 2026-07-28
 
 ### Added
