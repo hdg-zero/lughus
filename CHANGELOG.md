@@ -8,7 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- Started development for `v0.5.0`.
+- Added deterministic replay bundle serialization and integrity verification (`lughus.replay`): `ReplayBundle`, `RecordedCall`, and `REPLAY_SCHEMA_VERSION`.
+- Added scenario evaluation harness for agent benchmark assertions (`lughus.evaluation`): `Scenario`, `EvaluationResult`, and `evaluate_scenario`.
+- Added policy-ready Model Context Protocol client adapter (`lughus.mcp`): `MCPAdapter`, `MCPClient`, `MCPServerConfig`, and `MCPToolDescriptor`.
+- Added governed remote-agent delegation primitives (`lughus.delegation`): `Delegator`, `DelegationRequest`, `DelegationResult`, `RemoteAgentClient`, and `DelegationCycleError`.
+- Added architecture & integration documentation: `docs/guides/evaluations.md`, `docs/integrations/mcp.md`, and `docs/integrations/a2a-delegation.md`.
+- Added unit test suite for Wave 5 ecosystem features (`tests/test_ecosystem_v5.py`).
 
 ---
 
