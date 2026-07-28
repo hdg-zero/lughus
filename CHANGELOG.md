@@ -6,14 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.5.0] — 2026-07-29
+
 ### Added
 
+- Added idempotency protocol for governed tool execution receipts (`lughus.idempotency`): `IdempotencyKey`, `ExecutionAttempt`, `AttemptStatus`, `IdempotencyStore`, and `InMemoryIdempotencyStore`.
+- Added explicit streaming mode selection (`StreamingMode.BUFFERED`, `StreamingMode.LIVE` / `live_at_most_once`) to `agent_loop_stream()`.
 - Added deterministic replay bundle serialization and integrity verification (`lughus.replay`): `ReplayBundle`, `RecordedCall`, and `REPLAY_SCHEMA_VERSION`.
 - Added scenario evaluation harness for agent benchmark assertions (`lughus.evaluation`): `Scenario`, `EvaluationResult`, and `evaluate_scenario`.
 - Added policy-ready Model Context Protocol client adapter (`lughus.mcp`): `MCPAdapter`, `MCPClient`, `MCPServerConfig`, and `MCPToolDescriptor`.
 - Added governed remote-agent delegation primitives (`lughus.delegation`): `Delegator`, `DelegationRequest`, `DelegationResult`, `RemoteAgentClient`, and `DelegationCycleError`.
-- Added architecture & integration documentation: `docs/guides/evaluations.md`, `docs/integrations/mcp.md`, and `docs/integrations/a2a-delegation.md`.
-- Added unit test suite for Wave 5 ecosystem features (`tests/test_ecosystem_v5.py`).
+- Added architecture & integration documentation: `docs/architecture/ADR-004-run-event.md`, `docs/architecture/ADR-007-error-disclosure.md`, `docs/architecture/ADR-008-telemetry.md`, `docs/guides/evaluations.md`, `docs/integrations/mcp.md`, `docs/integrations/a2a-delegation.md`, `docs/security/data-handling.md`, `docs/operations/recovery.md`, and `docs/operations/scaling.md`.
+- Added unit & compliance test suites: `tests/test_idempotency.py`, `tests/test_adversarial_scenarios.py`, `tests/test_store_compliance.py`, and `tests/test_streaming_live.py`.
 
 ---
 

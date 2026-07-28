@@ -1,7 +1,54 @@
-# MCP integration
+# MCP Integration Guide
 
-Only HTTPS origins and explicitly allowlisted tools are discovered. Definitions are snapshotted for
-a run; a changed definition requires a new policy decision and approval. Remote tools default to
-external, unknown-risk, non-idempotent and approval-required. Invocation must still pass through the
-same ToolPolicy and budget path as a local tool. Client credentials are never forwarded to another
-origin and redirects must be disabled or revalidated by the concrete transport.
+The Model Context Protocol (MCP) allows Lughus agents to dynamically interact with external, standardized tool servers. Our integration is designed to be policy-ready and secure by default.
+
+## Architecture
+The integration uses an adapter pattern (`lughus.mcp`) to prevent Lughus from tightly coupling to any specific underlying SDK.
+- The `MCPClient` is a protocol defining tool discovery and invocation.
+- `MCPAdapter` wraps the client, applying runtime constraints and bridging MCP tool definitions into Lughus's native `ToolPolicy` and execution layers.
+
+## Server Configuration
+When connecting to a remote MCP server, you must provide an `MCPServerConfig`.
+- **HTTPS Only:** For security, the server origin must be an HTTPS URL with no credentials, path, query, or fragments.
+- **Allowlists:** You must explicitly define an `allowed_tools` set. Tools advertised by the server that are not in this list are ignored.
+- **Limits:** Hard limits on the maximum number of tools and maximum output characters are enforced to prevent memory exhaustion.
+
+## Conservative Metadata
+Because remote tools run outside of Lughus's control, `MCPAdapter.conservative_metadata()` assigns strict defaults:
+- **Effect:** Treated as `EXTERNAL`.
+- **Risk:** Marked as `UNKNOWN`.
+- **Approval:** Requires human approval (`requires_approval=True`) by default.
+- **Concurrency:** Enforced as `EXCLUSIVE` to prevent unexpected race conditions on the remote end.
+
+## Security Considerations
+- Lughus takes a snapshot of the permitted tool definitions during discovery. If the remote server alters a tool signature mid-run, it will be rejected.
+- Avoid passing sensitive Lughus tokens to the MCP layer. Treat all data returned from an MCP invocation as untrusted.
+- Server-Side Request Forgery (SSRF) and malicious redirects must be mitigated by the underlying `MCPClient` implementation.
+
+## Limitations
+Currently, Lughus only supports unary RPC-style MCP interactions.
+- Native standard I/O (stdio) transports are not yet supported.
+- Server-Sent Events (SSE) for push notifications and streaming tool outputs are not integrated into the Alpha release.
+
+```python
+from lughus.mcp import MCPServerConfig, MCPAdapter
+
+
+# Mock client for demonstration
+class MockClient:
+    async def list_tools(self):
+        return []
+
+    async def call_tool(self, name, args):
+        return {}
+
+
+config = MCPServerConfig(
+    origin="https://api.internal.service",
+    allowed_tools=frozenset({"fetch_data", "analyze_metrics"}),
+)
+
+adapter = MCPAdapter(MockClient(), config)
+# In application startup, you would refresh the adapter:
+# await adapter.refresh()
+```
