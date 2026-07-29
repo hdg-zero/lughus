@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from .idempotency import AttemptStatus, IdempotencyKey, IdempotencyStore
 from .persistence import Checkpoint
 
 
@@ -21,10 +22,31 @@ class ResumeDecision:
     reason: str
 
 
-def decide_resume(
-    checkpoint: Checkpoint, *, pending_action_idempotent: bool = False
+async def decide_resume(
+    checkpoint: Checkpoint,
+    *,
+    pending_action_idempotent: bool = False,
+    idempotency_store: IdempotencyStore | None = None,
+    run_id: str | None = None,
 ) -> ResumeDecision:
+    """Determine the safest action when resuming from a checkpoint.
+
+    When an ``idempotency_store`` is provided, the function checks whether a
+    completed receipt already exists for the pending action.  If so, the run
+    can safely continue without re-executing the tool.
+    """
     if checkpoint.outcome_unknown:
+        if idempotency_store is not None and checkpoint.pending_action and run_id:
+            key = IdempotencyKey(
+                run_id=run_id,
+                tool_name=checkpoint.pending_action,
+                arguments_hash="",  # hash unavailable at checkpoint level
+            )
+            attempt = await idempotency_store.get(key)
+            if attempt is not None and attempt.status == AttemptStatus.COMPLETED:
+                return ResumeDecision(
+                    ResumeAction.CONTINUE, "idempotency receipt proves completion"
+                )
         if pending_action_idempotent:
             return ResumeDecision(
                 ResumeAction.RETRY_SAFE_ACTION, "idempotent outcome may be retried"

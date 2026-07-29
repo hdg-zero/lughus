@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..approval import ApprovalStore
+    from ..idempotency import IdempotencyStore
     from ..policy import Principal, ToolPolicy
     from ..runtime import ExecutionRuntime
+
+
+class StreamingMode(StrEnum):
+    BUFFERED = "buffered"
+    LIVE = "live"
+    LIVE_AT_MOST_ONCE = "live_at_most_once"
+
 
 DEFAULT_MAX_ITERATIONS = 50
 DEFAULT_MAX_PARALLEL_TOOLS = 8
@@ -40,6 +49,7 @@ class ToolExecutionConfig:
     policy: ToolPolicy | None = field(default=None, repr=False, compare=False)
     principal: Principal | None = field(default=None, repr=False, compare=False)
     approval_store: ApprovalStore | None = field(default=None, repr=False, compare=False)
+    idempotency_store: IdempotencyStore | None = field(default=None, repr=False, compare=False)
     run_id: str = "untracked"
 
     def __post_init__(self) -> None:

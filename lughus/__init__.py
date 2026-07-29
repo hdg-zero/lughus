@@ -18,6 +18,13 @@ from .approval import ApprovalRequest, ApprovalStatus, InMemoryApprovalStore
 from .budget import BudgetAmount, BudgetExceeded, BudgetLedger, BudgetLimit
 from .config import BaseSettings
 from .context import ContextItem, ContextManager, ContextWindow, TrustLevel
+from .delegation import (
+    DelegationCycleError,
+    DelegationRequest,
+    DelegationResult,
+    Delegator,
+    RemoteAgentClient,
+)
 from .domain import EventVisibility, Run, RunEvent, RunStatus, Usage
 from .errors import (
     LoopLimitError,
@@ -27,10 +34,19 @@ from .errors import (
     ToolTimeoutError,
     ToolValidationError,
 )
+from .evaluation import EvaluationResult, Scenario, evaluate_scenario
 from .event_stream import EventSink, InMemoryEventSink
 from .events import Artifact, CompletionEvent, ProgressEvent
 from .gateway import BaseGateway
-from .loop import LoopResult, ToolExecutionConfig, agent_loop, agent_loop_stream
+from .idempotency import (
+    AttemptStatus,
+    ExecutionAttempt,
+    IdempotencyKey,
+    IdempotencyStore,
+    InMemoryIdempotencyStore,
+)
+from .loop import LoopResult, StreamingMode, ToolExecutionConfig, agent_loop, agent_loop_stream
+from .mcp import MCPAdapter, MCPClient, MCPServerConfig, MCPToolDescriptor
 from .persistence import (
     Checkpoint,
     CheckpointStore,
@@ -48,6 +64,7 @@ from .policy import (
     ToolPolicy,
     ToolProposal,
 )
+from .replay import REPLAY_SCHEMA_VERSION, RecordedCall, ReplayBundle
 from .resume import ResumeAction, ResumeDecision, decide_resume
 from .runner import AgentRunner
 from .runtime import ExecutionRuntime, RuntimeConfig
@@ -74,10 +91,12 @@ def __getattr__(name: str) -> Any:
 
 __all__ = [
     "LLM",
+    "REPLAY_SCHEMA_VERSION",
     "AgentRunner",
     "ApprovalRequest",
     "ApprovalStatus",
     "Artifact",
+    "AttemptStatus",
     "BaseGateway",
     "BaseSettings",
     "BoundedInMemoryTaskStore",
@@ -95,22 +114,38 @@ __all__ = [
     "ContextManager",
     "ContextWindow",
     "DecisionKind",
+    "DelegationCycleError",
+    "DelegationRequest",
+    "DelegationResult",
+    "Delegator",
+    "EvaluationResult",
     "EventSink",
     "EventStore",
     "EventVisibility",
+    "ExecutionAttempt",
     "ExecutionRuntime",
     "GenerateLLM",
+    "IdempotencyKey",
+    "IdempotencyStore",
     "InMemoryApprovalStore",
     "InMemoryDurableStore",
     "InMemoryEventSink",
+    "InMemoryIdempotencyStore",
     "LeastPrivilegePolicy",
     "LoopLimitError",
     "LoopResult",
     "LughusError",
+    "MCPAdapter",
+    "MCPClient",
+    "MCPServerConfig",
+    "MCPToolDescriptor",
     "PolicyDecision",
     "Principal",
     "ProductionGuardMiddleware",
     "ProgressEvent",
+    "RecordedCall",
+    "RemoteAgentClient",
+    "ReplayBundle",
     "ResumeAction",
     "ResumeDecision",
     "Run",
@@ -119,7 +154,9 @@ __all__ = [
     "RunStore",
     "RuntimeConfig",
     "SafeToolError",
+    "Scenario",
     "StreamingLLM",
+    "StreamingMode",
     "ToolDef",
     "ToolEffect",
     "ToolExecutionConfig",
@@ -136,6 +173,7 @@ __all__ = [
     "agent_loop_stream",
     "build_app",
     "decide_resume",
+    "evaluate_scenario",
     "serve",
     "setup_telemetry",
 ]

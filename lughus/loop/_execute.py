@@ -25,6 +25,7 @@ from ..errors import (
     ToolTimeoutError,
     ToolValidationError,
 )
+from ..idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey
 from ..policy import DecisionKind, ToolProposal
 from ..telemetry import meter, tracer
 from ..tools import ToolRegistry
@@ -300,6 +301,7 @@ async def _execute_tools(
             span.set_attribute("tool.name", name)
             span.set_attribute("tool.timeout_s", timeout or 0)
             status, error_type = "ok", None
+            idem_key: IdempotencyKey | None = None
             try:
                 args = _validate_tool_args(
                     name=name,
@@ -338,6 +340,30 @@ async def _execute_tools(
                             f"Human approval is required (request_id={request.request_id})",
                         )
 
+                if cfg.idempotency_store is not None and tool.idempotent:
+                    idem_key = IdempotencyKey.from_args(cfg.run_id, name, args)
+                    existing = await cfg.idempotency_store.get(idem_key)
+                    if existing is not None and existing.status == AttemptStatus.COMPLETED:
+                        output = existing.result or ""
+                        span.set_attribute("tool.idempotent_hit", True)
+                        span.set_status(StatusCode.OK)
+                        _emit_tool_event(
+                            {
+                                "type": "tool_result",
+                                "tool_call_id": tc_id,
+                                "tool_name": name,
+                                "status": "ok",
+                                "output": output,
+                                "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
+                                "idempotent_hit": True,
+                            }
+                        )
+                        return tc_id, output
+                    if idem_key is not None:
+                        await cfg.idempotency_store.save(
+                            ExecutionAttempt(key=idem_key, status=AttemptStatus.PENDING)
+                        )
+
                 slot = (
                     cfg.runtime.tool_slot(cfg.tool_queue_timeout)
                     if cfg.runtime is not None
@@ -368,6 +394,12 @@ async def _execute_tools(
                 output = _validate_tool_output(
                     name=name, output=output, max_tool_output_chars=cfg.max_tool_output_chars
                 )
+                if idem_key is not None and cfg.idempotency_store is not None:
+                    await cfg.idempotency_store.save(
+                        ExecutionAttempt(
+                            key=idem_key, status=AttemptStatus.COMPLETED, result=output
+                        )
+                    )
                 span.set_status(StatusCode.OK)
             except ToolTimeoutError as exc:
                 span.set_status(StatusCode.ERROR, str(exc))
@@ -376,6 +408,7 @@ async def _execute_tools(
             except TimeoutError:
                 timeout_exc = ToolTimeoutError(f"Tool '{name}' timed out after {timeout}s")
                 span.set_status(StatusCode.ERROR, str(timeout_exc))
+                # Timeout = outcome unknown: leave PENDING for reconciliation
                 _tool_errors.add(1, {"tool.name": name, "error.type": "timeout"})
                 output, status, error_type = (
                     _error_payload(timeout_exc),
@@ -385,6 +418,10 @@ async def _execute_tools(
             except ToolValidationError as exc:
                 span.set_status(StatusCode.ERROR, str(exc))
                 _tool_errors.add(1, {"tool.name": name, "error.type": "validation"})
+                if idem_key is not None and cfg.idempotency_store is not None:
+                    await cfg.idempotency_store.save(
+                        ExecutionAttempt(key=idem_key, status=AttemptStatus.FAILED)
+                    )
                 output, status, error_type = _error_payload(exc), "error", type(exc).__name__
             except Exception as exc:  # noqa: BLE001 — boundary guard: tools execute arbitrary user code; the exception spectrum is unbounded by design
                 wrapped = (
@@ -395,6 +432,10 @@ async def _execute_tools(
                 span.set_status(StatusCode.ERROR, str(wrapped))
                 span.record_exception(exc)
                 _tool_errors.add(1, {"tool.name": name, "error.type": "exception"})
+                if idem_key is not None and cfg.idempotency_store is not None:
+                    await cfg.idempotency_store.save(
+                        ExecutionAttempt(key=idem_key, status=AttemptStatus.FAILED)
+                    )
                 output, status, error_type = (
                     _error_payload(wrapped),
                     "error",
