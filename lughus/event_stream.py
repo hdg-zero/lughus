@@ -53,7 +53,8 @@ class InMemoryEventSink:
 
                 await self._condition.wait_for(_has_new_events)
                 pending = tuple(
-                    e for e in self._events
+                    e
+                    for e in self._events
                     if e.sequence > cursor and (run_id is None or e.run_id == run_id)
                 )
             for event in pending:

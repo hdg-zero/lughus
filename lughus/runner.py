@@ -51,9 +51,7 @@ class AgentRunner:
         await self.events.append(event)
         yield event
         try:
-            async for item in agent_loop_stream(
-                llm, streaming_mode=streaming_mode, **kwargs
-            ):
+            async for item in agent_loop_stream(llm, streaming_mode=streaming_mode, **kwargs):
                 sequence += 1
                 if isinstance(item, LoopResult):
                     event = RunEvent(

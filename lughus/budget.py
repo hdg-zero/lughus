@@ -55,10 +55,15 @@ class BudgetLedger:
 
     async def reserve(self, amount: BudgetAmount) -> str:
         async with self._lock:
+            reserved_depth = max((v.delegation_depth for v in self._reserved.values()), default=0)
             totals = {
-                field: self._consumed[field]
-                + sum(getattr(v, field) for v in self._reserved.values())
-                + getattr(amount, field)
+                field: (
+                    max(self._consumed[field], reserved_depth, amount.delegation_depth)
+                    if field == "delegation_depth"
+                    else self._consumed[field]
+                    + sum(getattr(v, field) for v in self._reserved.values())
+                    + getattr(amount, field)
+                )
                 for field in self._FIELDS
             }
             for field, total in totals.items():
@@ -72,12 +77,16 @@ class BudgetLedger:
         async with self._lock:
             self._reserved.pop(reservation_id)
             for field in self._FIELDS:
-                self._consumed[field] += getattr(actual, field)
+                if field == "delegation_depth":
+                    self._consumed[field] = max(self._consumed[field], actual.delegation_depth)
+                else:
+                    self._consumed[field] += getattr(actual, field)
 
     async def would_exceed(self) -> tuple[str, ...]:
         async with self._lock:
             return tuple(
-                field for field in self._FIELDS
+                field
+                for field in self._FIELDS
                 if self._consumed[field] > getattr(self.limit, field)
             )
 

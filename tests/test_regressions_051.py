@@ -1,11 +1,18 @@
 import pytest
+
 from lughus.budget import BudgetAmount, BudgetLedger, BudgetLimit
 from lughus.delegation import DelegationRequest, DelegationResult, Delegator
 from lughus.domain import RunEvent
 from lughus.event_stream import InMemoryEventSink
-from lughus.idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey, InMemoryIdempotencyStore
+from lughus.idempotency import (
+    AttemptStatus,
+    ExecutionAttempt,
+    IdempotencyKey,
+    InMemoryIdempotencyStore,
+)
 from lughus.persistence import Checkpoint
 from lughus.resume import ResumeAction, decide_resume
+
 
 @pytest.mark.asyncio
 async def test_event_sequences_are_scoped_per_run():
@@ -13,6 +20,7 @@ async def test_event_sequences_are_scoped_per_run():
     await sink.append(RunEvent("done", "run-a", 2))
     await sink.append(RunEvent("start", "run-b", 0))
     assert len(sink.snapshot()) == 2
+
 
 @pytest.mark.asyncio
 async def test_budget_records_observed_overage():
@@ -24,17 +32,28 @@ async def test_budget_records_observed_overage():
     assert (await ledger.snapshot())["tokens"] == 11
     assert await ledger.would_exceed() == ("tokens",)
 
+
 @pytest.mark.asyncio
 async def test_resume_uses_persisted_arguments_hash():
     store = InMemoryIdempotencyStore()
     key = IdempotencyKey.from_args("run", "charge", {"amount": 1})
     await store.save(ExecutionAttempt(key, AttemptStatus.COMPLETED, result="ok"))
-    cp = Checkpoint("run", 1, 1, {}, pending_action="charge", outcome_unknown=True,
-                    pending_arguments_hash=key.arguments_hash)
+    cp = Checkpoint(
+        "run",
+        1,
+        1,
+        {},
+        pending_action="charge",
+        outcome_unknown=True,
+        pending_arguments_hash=key.arguments_hash,
+    )
     assert (await decide_resume(cp, idempotency_store=store)).action == ResumeAction.COMPLETE
 
+
 class _Remote:
-    async def delegate(self, request): return DelegationResult("task", "completed")
+    async def delegate(self, request):
+        return DelegationResult("task", "completed")
+
 
 @pytest.mark.asyncio
 async def test_sequential_delegations_do_not_accumulate_depth():
