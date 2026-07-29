@@ -84,9 +84,13 @@ class Run:
     context_id: str | None = None
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     usage: Usage = field(default_factory=Usage)
+    tenant_id: str = "default"
+    principal_id: str = "anonymous"
 
     def __post_init__(self) -> None:
         if not self.objective:
             raise ValueError("Run objective is required")
         if self.version < 0:
             raise ValueError("Run version cannot be negative")
+        if not self.tenant_id or not self.principal_id:
+            raise ValueError("Run tenant and principal are required")

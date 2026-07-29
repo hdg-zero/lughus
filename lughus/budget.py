@@ -55,15 +55,10 @@ class BudgetLedger:
 
     async def reserve(self, amount: BudgetAmount) -> str:
         async with self._lock:
-            reserved_depth = max((v.delegation_depth for v in self._reserved.values()), default=0)
             totals = {
-                field: (
-                    max(self._consumed[field], reserved_depth, amount.delegation_depth)
-                    if field == "delegation_depth"
-                    else self._consumed[field]
-                    + sum(getattr(v, field) for v in self._reserved.values())
-                    + getattr(amount, field)
-                )
+                field: self._consumed[field]
+                + sum(getattr(v, field) for v in self._reserved.values())
+                + getattr(amount, field)
                 for field in self._FIELDS
             }
             for field, total in totals.items():

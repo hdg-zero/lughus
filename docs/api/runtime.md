@@ -97,3 +97,42 @@ class InMemoryEventSink:
 ```
 
 Pub/sub event stream interface and reference in-memory implementation enforcing monotonic per-run sequence numbering and supporting multi-run global cursor subscriptions via an incremental global offset.
+
+---
+
+### `RunCoordinator` & `RunUnitOfWork`
+
+```python
+class RunCoordinator:
+    def __init__(
+        self,
+        run_store: RunStore,
+        checkpoint_store: CheckpointStore,
+        event_sink: EventSink | None = None,
+    ) -> None: ...
+    async def transition(
+        self,
+        run_id: str,
+        target_status: RunStatus,
+        *,
+        state: Mapping[str, Any] | None = None,
+        error: str | None = None,
+    ) -> Run: ...
+
+
+class RunUnitOfWork:
+    def __init__(
+        self,
+        run_store: RunStore,
+        checkpoint_store: CheckpointStore,
+        event_sink: EventSink | None = None,
+    ) -> None: ...
+    async def commit(
+        self,
+        run: Run,
+        checkpoint: Checkpoint | None = None,
+        events: Sequence[RunEvent] = (),
+    ) -> None: ...
+```
+
+Transactional state machine coordinator enforcing valid status transitions (`CREATED`, `RUNNING`, `PAUSED`, `COMPLETED`, `FAILED`, `CANCELLED`) and atomic Unit of Work persistence across run records, checkpoints, and event streams.
