@@ -70,14 +70,16 @@ class BudgetLedger:
 
     async def settle(self, reservation_id: str, actual: BudgetAmount) -> None:
         async with self._lock:
-            reserved = self._reserved.pop(reservation_id)
-            for field in self._FIELDS:
-                candidate = self._consumed[field] + getattr(actual, field)
-                if candidate > getattr(self.limit, field):
-                    self._reserved[reservation_id] = reserved
-                    raise BudgetExceeded(field)
+            self._reserved.pop(reservation_id)
             for field in self._FIELDS:
                 self._consumed[field] += getattr(actual, field)
+
+    async def would_exceed(self) -> tuple[str, ...]:
+        async with self._lock:
+            return tuple(
+                field for field in self._FIELDS
+                if self._consumed[field] > getattr(self.limit, field)
+            )
 
     async def release(self, reservation_id: str) -> None:
         async with self._lock:

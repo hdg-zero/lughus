@@ -48,10 +48,13 @@ class Delegator:
         self.client, self.budget = client, budget
 
     async def delegate(self, request: DelegationRequest) -> DelegationResult:
-        reservation = await self.budget.reserve(BudgetAmount(delegation_depth=1))
+        depth = len(request.causal_chain) + 1
+        if depth > self.budget.limit.delegation_depth:
+            raise DelegationCycleError("Delegation depth exceeds the runtime budget")
+        reservation = await self.budget.reserve(BudgetAmount())
         try:
             result = await self.client.delegate(request)
-            await self.budget.settle(reservation, BudgetAmount(delegation_depth=1))
+            await self.budget.settle(reservation, BudgetAmount())
             return result
         except BaseException:
             await self.budget.release(reservation)
