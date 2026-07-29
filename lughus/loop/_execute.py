@@ -248,18 +248,23 @@ async def _run_sync_tool(call: Callable[[], Any], *, max_workers: int) -> Any:
     return await run_sync_in_thread(call, max_workers=max_workers)
 
 
-
 async def _invoke_tool_callable(
-    fn: Any, state: dict, args: dict, cfg: ToolExecutionConfig, timeout: float | None,
+    fn: Any,
+    state: dict,
+    args: dict,
+    cfg: ToolExecutionConfig,
+    timeout: float | None,
 ) -> Any:
     if _is_async_callable(fn):
         call: Any = fn(state=state, **args)
     elif cfg.runtime is not None:
         call = cfg.runtime.run_sync(lambda: fn(state=state, **args))
     else:
-        call = _run_sync_tool(lambda: fn(state=state, **args),
-                              max_workers=cfg.max_sync_thread_workers)
+        call = _run_sync_tool(
+            lambda: fn(state=state, **args), max_workers=cfg.max_sync_thread_workers
+        )
     return await asyncio.wait_for(call, timeout=timeout) if timeout else await call
+
 
 async def _execute_tools(
     tool_calls: list[tuple[str, str, str]],
@@ -350,8 +355,10 @@ async def _execute_tools(
                         else:
                             if request is None:
                                 request = ApprovalRequest(
-                                    run_id=cfg.run_id, tool_name=name,
-                                    proposal_hash=digest, risk=tool.risk.value,
+                                    run_id=cfg.run_id,
+                                    tool_name=name,
+                                    proposal_hash=digest,
+                                    risk=tool.risk.value,
                                 )
                                 await cfg.approval_store.create(request)
                             raise SafeToolError(
@@ -394,13 +401,9 @@ async def _execute_tools(
                         resource_key = f"{name}:{tool.resource_key(args)}"
                     if cfg.runtime is not None and tool.concurrency.value != "parallel_safe":
                         async with cfg.runtime.resource_slot(resource_key):
-                            output = await _invoke_tool_callable(
-                                fn, state, args, cfg, timeout
-                            )
+                            output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
                     else:
-                        output = await _invoke_tool_callable(
-                            fn, state, args, cfg, timeout
-                        )
+                        output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
                 if tool.output_validator is not None:
                     validation_errors = sorted(
                         tool.output_validator.iter_errors(output),
@@ -440,7 +443,11 @@ async def _execute_tools(
                 _tool_errors.add(1, {"tool.name": name, "error.type": "validation"})
                 if idem_key is not None and cfg.idempotency_store is not None:
                     await cfg.idempotency_store.save(
-                        ExecutionAttempt(key=idem_key, status=AttemptStatus.OUTCOME_UNKNOWN, error="reconciliation required")
+                        ExecutionAttempt(
+                            key=idem_key,
+                            status=AttemptStatus.OUTCOME_UNKNOWN,
+                            error="reconciliation required",
+                        )
                     )
                 output, status, error_type = _error_payload(exc), "error", type(exc).__name__
             except Exception as exc:  # noqa: BLE001 — boundary guard: tools execute arbitrary user code; the exception spectrum is unbounded by design
@@ -454,7 +461,11 @@ async def _execute_tools(
                 _tool_errors.add(1, {"tool.name": name, "error.type": "exception"})
                 if idem_key is not None and cfg.idempotency_store is not None:
                     await cfg.idempotency_store.save(
-                        ExecutionAttempt(key=idem_key, status=AttemptStatus.OUTCOME_UNKNOWN, error="reconciliation required")
+                        ExecutionAttempt(
+                            key=idem_key,
+                            status=AttemptStatus.OUTCOME_UNKNOWN,
+                            error="reconciliation required",
+                        )
                     )
                 output, status, error_type = (
                     _error_payload(wrapped),

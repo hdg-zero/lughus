@@ -91,7 +91,8 @@ class InMemoryApprovalStore:
 
     async def find(self, run_id: str, proposal_hash: str) -> ApprovalRequest | None:
         matches = [
-            item for item in self._items.values()
+            item
+            for item in self._items.values()
             if item.run_id == run_id and item.proposal_hash == proposal_hash
         ]
         return matches[-1] if matches else None

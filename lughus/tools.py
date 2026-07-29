@@ -5,10 +5,10 @@ from __future__ import annotations
 import copy
 import inspect
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Mapping
+from typing import Any
 
 from jsonschema import Draft202012Validator, SchemaError  # type: ignore[import-untyped]
 
