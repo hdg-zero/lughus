@@ -19,6 +19,8 @@ class MCPToolDescriptor:
 
 
 class MCPClient(Protocol):
+    origin: str
+
     async def list_tools(self) -> Sequence[MCPToolDescriptor]: ...
     async def call_tool(self, name: str, arguments: Mapping[str, Any]) -> Any: ...
 
@@ -45,6 +47,8 @@ class MCPAdapter:
 
     def __init__(self, client: MCPClient, config: MCPServerConfig) -> None:
         self.client, self.config = client, config
+        if client.origin.rstrip("/") != config.origin.rstrip("/"):
+            raise ValueError("MCP client origin does not match the validated configuration")
         self._snapshot: dict[str, MCPToolDescriptor] = {}
 
     async def refresh(self) -> tuple[MCPToolDescriptor, ...]:
@@ -64,6 +68,34 @@ class MCPAdapter:
         if len(str(result)) > self.config.max_output_characters:
             raise ValueError("MCP tool result exceeds configured limit")
         return result
+
+    async def register_tools(self, registry: Any) -> tuple[str, ...]:
+        """Register the approved snapshot so calls use the normal ToolRuntime pipeline."""
+        if not self._snapshot:
+            await self.refresh()
+        registered: list[str] = []
+        metadata = self.conservative_metadata()
+        for descriptor in self._snapshot.values():
+
+            def build_remote_tool(target_name: str) -> Any:
+                async def remote_tool_fn(*, state: dict, **kwargs: Any) -> Any:
+                    del state
+                    return await self.invoke(target_name, kwargs)
+
+                return remote_tool_fn
+
+            tool_fn = build_remote_tool(descriptor.name)
+            registry.tool(
+                descriptor.name,
+                descriptor.description,
+                dict(descriptor.input_schema),
+                output_schema=(
+                    dict(descriptor.output_schema) if descriptor.output_schema is not None else None
+                ),
+                **metadata,
+            )(tool_fn)
+            registered.append(descriptor.name)
+        return tuple(registered)
 
     @staticmethod
     def conservative_metadata() -> dict[str, Any]:
