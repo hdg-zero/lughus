@@ -27,6 +27,7 @@ class AttemptStatus(StrEnum):
     PENDING = "pending"
     COMPLETED = "completed"
     FAILED = "failed"
+    OUTCOME_UNKNOWN = "outcome_unknown"
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +59,7 @@ class IdempotencyStore(Protocol):
     async def save(self, attempt: ExecutionAttempt) -> None: ...
     async def get(self, key: IdempotencyKey) -> ExecutionAttempt | None: ...
     async def expire(self, key: IdempotencyKey) -> None: ...
+    async def claim(self, attempt: ExecutionAttempt) -> ExecutionAttempt | None: ...
 
 
 class InMemoryIdempotencyStore:
@@ -105,6 +107,22 @@ class InMemoryIdempotencyStore:
                 del self._store[key]
                 return None
             return attempt
+
+    async def claim(self, attempt: ExecutionAttempt) -> ExecutionAttempt | None:
+        if attempt.status != AttemptStatus.PENDING:
+            raise ValueError("An idempotency claim must start as PENDING")
+        async with self._lock:
+            existing = self._store.get(attempt.key)
+            if existing is not None and not self._is_expired(existing):
+                return existing
+            if existing is not None:
+                del self._store[attempt.key]
+            if len(self._store) >= self._max_entries:
+                self._evict_expired()
+                if len(self._store) >= self._max_entries:
+                    raise RuntimeError("Idempotency store capacity reached")
+            self._store[attempt.key] = attempt
+            return None
 
     async def expire(self, key: IdempotencyKey) -> None:
         async with self._lock:

@@ -69,6 +69,8 @@ class ApprovalStore(Protocol):
         """Record an approval or rejection decision for a pending request."""
         ...
 
+    async def find(self, run_id: str, proposal_hash: str) -> ApprovalRequest | None: ...
+
 
 class InMemoryApprovalStore:
     """In-memory reference implementation of ApprovalStore."""
@@ -86,6 +88,13 @@ class InMemoryApprovalStore:
     async def get(self, request_id: str) -> ApprovalRequest | None:
         """Retrieve an approval request from memory by request_id."""
         return self._items.get(request_id)
+
+    async def find(self, run_id: str, proposal_hash: str) -> ApprovalRequest | None:
+        matches = [
+            item for item in self._items.values()
+            if item.run_id == run_id and item.proposal_hash == proposal_hash
+        ]
+        return matches[-1] if matches else None
 
     async def decide(
         self, request_id: str, status: ApprovalStatus, subject: str

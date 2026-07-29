@@ -40,6 +40,7 @@ class ExecutionRuntime:
             thread_name_prefix="lughus-tool",
         )
         self._semaphore = asyncio.Semaphore(self.config.max_global_tools)
+        self._resource_locks: dict[str, asyncio.Lock] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
         self._closed = False
 
@@ -78,11 +79,18 @@ class ExecutionRuntime:
         context_call = partial(fn, *args, **kwargs)
         return await loop.run_in_executor(self._executor, context_call)
 
+    @asynccontextmanager
+    async def resource_slot(self, key: str) -> AsyncIterator[None]:
+        self._bind()
+        lock = self._resource_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            yield
+
     async def close(self, *, wait: bool = True) -> None:
         if self._closed:
             return
         self._closed = True
-        self._executor.shutdown(wait=wait, cancel_futures=True)
+        self._executor.shutdown(wait=False, cancel_futures=True)
 
     async def __aenter__(self) -> ExecutionRuntime:
         self._bind()

@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .llm import StreamingLLM as StreamingLLM
 
 from .approval import ApprovalRequest, ApprovalStatus, InMemoryApprovalStore
+from .application import AgentRuntime
 from .budget import BudgetAmount, BudgetExceeded, BudgetLedger, BudgetLimit
 from .config import BaseSettings
 from .context import ContextItem, ContextManager, ContextWindow, TrustLevel
@@ -94,6 +95,7 @@ __all__ = [
     "REPLAY_SCHEMA_VERSION",
     "AgentRunner",
     "ApprovalRequest",
+    "AgentRuntime",
     "ApprovalStatus",
     "Artifact",
     "AttemptStatus",

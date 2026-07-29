@@ -8,7 +8,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, Mapping
 
 from jsonschema import Draft202012Validator, SchemaError  # type: ignore[import-untyped]
 
@@ -117,6 +117,7 @@ class ToolDef:
     idempotent: bool = False
     requires_approval: bool = False
     concurrency: ConcurrencyMode = ConcurrencyMode.EXCLUSIVE
+    resource_key: Callable[[Mapping[str, Any]], str] | None = None
 
 
 class ToolRegistry:
@@ -139,6 +140,7 @@ class ToolRegistry:
         idempotent: bool = False,
         requires_approval: bool = False,
         concurrency: ConcurrencyMode = ConcurrencyMode.EXCLUSIVE,
+        resource_key: Callable[[Mapping[str, Any]], str] | None = None,
     ) -> Callable:
         """Decorator to register a tool function (sync or async)."""
         if name in self._tools:
@@ -169,6 +171,7 @@ class ToolRegistry:
                 idempotent=idempotent,
                 requires_approval=requires_approval,
                 concurrency=concurrency,
+                resource_key=resource_key,
             )
             return fn
 
