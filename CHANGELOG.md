@@ -6,7 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.5.1] — 2026-07-30
+
 ### Fixed
+
+- Fixed event sequence numbers to be scoped per run ID instead of globally across runs in `InMemoryEventSink`.
+- Fixed live mode propagation in `agent_loop_stream` and `AgentRunner` when `streaming_mode` is set to `StreamingMode.LIVE`.
+- Fixed resume decision engine (`decide_resume`) to compute and compare cryptographic arguments hash (`pending_arguments_hash`) for idempotent resumption.
+- Fixed budget ledger accounting to record observed overage in snapshots.
 - Fixed delegation depth budget accounting in `Delegator` and `BudgetLedger`: delegation depth is tracked as maximum nested stack level rather than additive call count.
 
 ---
