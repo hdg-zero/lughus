@@ -34,6 +34,7 @@ class Checkpoint:
     state: Mapping[str, Any]
     pending_action: str | None = None
     outcome_unknown: bool = False
+    pending_arguments_hash: str | None = None
     created_at: str = ""
 
     def __post_init__(self) -> None:
@@ -49,7 +50,7 @@ class CheckpointStore(Protocol):
 
 
 class InMemoryDurableStore:
-    """Atomic reference store for tests; explicitly not process durable."""
+    """Atomic in-memory reference store; explicitly not process durable."""
 
     durable = False
     shared_across_replicas = False

@@ -1,6 +1,6 @@
 [project]
 name = "lughus"
-version = "0.5.0"
+version = "0.5.1"
 description = "Micro-framework for building A2A agents with LiteLLM — agent loop, tool registry, A2A gateway."
 readme = "README.md"
 license = "MIT"
@@ -81,7 +81,7 @@ show_missing = true
 skip_covered = true
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 check_untyped_defs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
