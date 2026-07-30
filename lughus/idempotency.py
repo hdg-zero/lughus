@@ -50,6 +50,7 @@ class ExecutionAttempt:
     key: IdempotencyKey
     status: AttemptStatus
     result: str | None = None
+    error: str | None = None
     created_at: float = field(default_factory=time.monotonic)
 
 
