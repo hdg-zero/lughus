@@ -20,6 +20,7 @@ class ApprovalStatus(StrEnum):
     APPROVED = "approved"
     REJECTED = "rejected"
     EXPIRED = "expired"
+    CONSUMED = "consumed"
 
 
 def proposal_digest(tool_name: str, arguments: Mapping[str, Any]) -> str:
@@ -69,6 +70,10 @@ class ApprovalStore(Protocol):
         """Record an approval or rejection decision for a pending request."""
         ...
 
+    async def consume(self, request_id: str) -> ApprovalRequest:
+        """Mark an approved request as consumed once executed."""
+        ...
+
     async def find(self, run_id: str, proposal_hash: str) -> ApprovalRequest | None: ...
 
 
@@ -116,6 +121,25 @@ class InMemoryApprovalStore:
             status,
             subject,
             datetime.now(UTC).isoformat(),
+        )
+        self._items[request_id] = updated
+        return updated
+
+    async def consume(self, request_id: str) -> ApprovalRequest:
+        """Transition an APPROVED request to CONSUMED state."""
+        current = self._items[request_id]
+        if current.status != ApprovalStatus.APPROVED:
+            raise ValueError("Only approved requests can be consumed")
+        updated = ApprovalRequest(
+            current.run_id,
+            current.tool_name,
+            current.proposal_hash,
+            current.risk,
+            current.request_id,
+            current.expires_at,
+            ApprovalStatus.CONSUMED,
+            current.decided_by,
+            current.decided_at,
         )
         self._items[request_id] = updated
         return updated

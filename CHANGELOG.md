@@ -8,6 +8,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.0] — 2026-07-31
+
+### Added
+
+- Added `AgentRuntime` composition root (`lughus.application`) unifying process execution, policies, approval stores, idempotency, durability stores, telemetry events, budgets, and context managers.
+- Added atomic receipt reservation and status tracking (`claim()`, `AttemptStatus.OUTCOME_UNKNOWN`) to `InMemoryIdempotencyStore` for governed tool execution.
+- Added single-use approval consumption (`ApprovalStatus.CONSUMED`, `ApprovalStore.consume()`) to prevent indefinite reuse of approved proposal decisions.
+- Added process-local resource slot serialization (`ExecutionRuntime.resource_slot()`) enforcing `concurrency` modes and `resource_key` scoping on tools.
+- Added end-to-end Gate 0.6.0 High-Risk verification scenario (`tests/test_governed_runtime_060.py`).
+
+### Fixed
+
+- Fixed multi-run global stream subscriptions in `InMemoryEventSink` by tracking an incremental global event offset alongside per-run sequence numbers.
+
+---
+
 ## [0.5.1] — 2026-07-30
 
 ### Fixed
