@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..approval import ApprovalStore
@@ -50,6 +50,7 @@ class ToolExecutionConfig:
     principal: Principal | None = field(default=None, repr=False, compare=False)
     approval_store: ApprovalStore | None = field(default=None, repr=False, compare=False)
     idempotency_store: IdempotencyStore | None = field(default=None, repr=False, compare=False)
+    budget: Any = field(default=None, repr=False, compare=False)
     run_id: str = "untracked"
 
     def __post_init__(self) -> None:

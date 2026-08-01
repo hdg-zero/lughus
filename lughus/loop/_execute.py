@@ -18,6 +18,7 @@ from opentelemetry.trace import StatusCode
 
 from .._threading import run_sync_in_thread
 from ..approval import ApprovalRequest, proposal_digest
+from ..budget import BudgetAmount
 from ..errors import (
     LoopLimitError,
     SafeToolError,
@@ -320,6 +321,7 @@ async def _execute_tools(
             span.set_attribute("tool.timeout_s", timeout or 0)
             status, error_type = "ok", None
             idem_key: IdempotencyKey | None = None
+            budget_reservation: str | None = None
             try:
                 args = _validate_tool_args(
                     name=name,
@@ -426,6 +428,8 @@ async def _execute_tools(
                     if cfg.runtime is not None
                     else _acquire_global_tool_slot(cfg.max_global_tools, cfg.tool_queue_timeout)
                 )
+                if cfg.budget is not None:
+                    budget_reservation = await cfg.budget.reserve(BudgetAmount(tool_calls=1))
                 async with slot:
                     resource_key = name
                     if tool.resource_key is not None:
@@ -503,6 +507,9 @@ async def _execute_tools(
                     "error",
                     type(wrapped).__name__,
                 )
+            finally:
+                if budget_reservation is not None and cfg.budget is not None:
+                    await cfg.budget.settle(budget_reservation, BudgetAmount(tool_calls=1))
         event: dict[str, Any] = {
             "type": "tool_result",
             "tool_call_id": tc_id,

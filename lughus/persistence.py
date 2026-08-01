@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from .domain import Run, RunEvent, RunStatus
 
@@ -15,12 +15,14 @@ class ConcurrentUpdateError(RuntimeError):
     pass
 
 
+@runtime_checkable
 class RunStore(Protocol):
     async def create(self, run: Run) -> None: ...
     async def get(self, run_id: str) -> Run | None: ...
     async def update_status(self, run_id: str, expected_version: int, status: RunStatus) -> Run: ...
 
 
+@runtime_checkable
 class EventStore(Protocol):
     async def append(self, event: RunEvent) -> None: ...
     async def read(self, run_id: str, after_sequence: int = -1) -> tuple[RunEvent, ...]: ...
@@ -44,11 +46,13 @@ class Checkpoint:
             raise ValueError("Checkpoint versions cannot be negative")
 
 
+@runtime_checkable
 class CheckpointStore(Protocol):
     async def save(self, checkpoint: Checkpoint, expected_version: int | None) -> None: ...
     async def latest(self, run_id: str) -> Checkpoint | None: ...
 
 
+@runtime_checkable
 class RunUnitOfWork(Protocol):
     async def create_transition(
         self, run: Run, event: RunEvent, checkpoint: Checkpoint
