@@ -248,6 +248,24 @@ async def _run_sync_tool(call: Callable[[], Any], *, max_workers: int) -> Any:
     return await run_sync_in_thread(call, max_workers=max_workers)
 
 
+async def _invoke_tool_callable(
+    fn: Any,
+    state: dict,
+    args: dict,
+    cfg: ToolExecutionConfig,
+    timeout: float | None,
+) -> Any:
+    if _is_async_callable(fn):
+        call: Any = fn(state=state, **args)
+    elif cfg.runtime is not None:
+        call = cfg.runtime.run_sync(lambda: fn(state=state, **args))
+    else:
+        call = _run_sync_tool(
+            lambda: fn(state=state, **args), max_workers=cfg.max_sync_thread_workers
+        )
+    return await asyncio.wait_for(call, timeout=timeout) if timeout else await call
+
+
 async def _execute_tools(
     tool_calls: list[tuple[str, str, str]],
     registry: ToolRegistry,
@@ -309,40 +327,81 @@ async def _execute_tools(
                     validator=tool.validator,
                     max_tool_args_chars=cfg.max_tool_args_chars,
                 )
-                if cfg.policy is not None:
-                    if cfg.principal is None:
-                        raise ToolExecutionError(
-                            "A principal is required when tool policy is enabled"
+                if cfg.idempotency_store is not None and tool.idempotent:
+                    check_key = IdempotencyKey.from_args(cfg.run_id, name, args)
+                    existing_completed = await cfg.idempotency_store.get(check_key)
+                    if (
+                        existing_completed is not None
+                        and existing_completed.status == AttemptStatus.COMPLETED
+                    ):
+                        output = existing_completed.result or ""
+                        span.set_attribute("tool.idempotent_hit", True)
+                        span.set_status(StatusCode.OK)
+                        _emit_tool_event(
+                            {
+                                "type": "tool_result",
+                                "tool_call_id": tc_id,
+                                "tool_name": name,
+                                "status": "ok",
+                                "output": output,
+                                "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
+                                "idempotent_hit": True,
+                            }
                         )
-                    proposal = ToolProposal(
-                        run_id=cfg.run_id,
-                        tool_name=name,
-                        arguments=args,
-                        effects=frozenset(effect.value for effect in tool.effects),
-                        risk=tool.risk.value,
-                        required_scopes=tool.required_scopes,
-                    )
-                    decision = await cfg.policy.evaluate(proposal, cfg.principal)
-                    if decision.kind == DecisionKind.DENY:
-                        raise ToolExecutionError(f"Tool policy denied action: {decision.code}")
-                    if decision.kind == DecisionKind.REQUIRE_APPROVAL or tool.requires_approval:
-                        if cfg.approval_store is None:
-                            raise SafeToolError("approval_required", "Human approval is required")
-                        request = ApprovalRequest(
+                        return tc_id, output
+
+                if (
+                    cfg.policy is not None
+                    or tool.requires_approval
+                    or cfg.approval_store is not None
+                ):
+                    decision = None
+                    if cfg.policy is not None:
+                        if cfg.principal is None:
+                            raise ToolExecutionError(
+                                "A principal is required when tool policy is enabled"
+                            )
+                        proposal = ToolProposal(
                             run_id=cfg.run_id,
                             tool_name=name,
-                            proposal_hash=proposal_digest(name, args),
+                            arguments=args,
+                            effects=frozenset(effect.value for effect in tool.effects),
                             risk=tool.risk.value,
+                            required_scopes=tool.required_scopes,
                         )
-                        await cfg.approval_store.create(request)
-                        raise SafeToolError(
-                            "approval_required",
-                            f"Human approval is required (request_id={request.request_id})",
-                        )
+                        decision = await cfg.policy.evaluate(proposal, cfg.principal)
+                        if decision.kind == DecisionKind.DENY:
+                            raise ToolExecutionError(f"Tool policy denied action: {decision.code}")
+                    if (
+                        decision is not None and decision.kind == DecisionKind.REQUIRE_APPROVAL
+                    ) or tool.requires_approval:
+                        if cfg.approval_store is None:
+                            raise SafeToolError("approval_required", "Human approval is required")
+                        digest = proposal_digest(name, args)
+                        request = await cfg.approval_store.find(cfg.run_id, digest)
+                        if request is not None and request.status.value == "approved":
+                            await cfg.approval_store.consume(request.request_id)
+                        elif request is not None and request.status.value == "rejected":
+                            raise ToolExecutionError("Human approval was rejected")
+                        else:
+                            if request is None:
+                                request = ApprovalRequest(
+                                    run_id=cfg.run_id,
+                                    tool_name=name,
+                                    proposal_hash=digest,
+                                    risk=tool.risk.value,
+                                )
+                                await cfg.approval_store.create(request)
+                            raise SafeToolError(
+                                "approval_required",
+                                f"Human approval is required (request_id={request.request_id})",
+                            )
 
                 if cfg.idempotency_store is not None and tool.idempotent:
                     idem_key = IdempotencyKey.from_args(cfg.run_id, name, args)
-                    existing = await cfg.idempotency_store.get(idem_key)
+                    existing = await cfg.idempotency_store.claim(
+                        ExecutionAttempt(key=idem_key, status=AttemptStatus.PENDING)
+                    )
                     if existing is not None and existing.status == AttemptStatus.COMPLETED:
                         output = existing.result or ""
                         span.set_attribute("tool.idempotent_hit", True)
@@ -359,10 +418,8 @@ async def _execute_tools(
                             }
                         )
                         return tc_id, output
-                    if idem_key is not None:
-                        await cfg.idempotency_store.save(
-                            ExecutionAttempt(key=idem_key, status=AttemptStatus.PENDING)
-                        )
+                    if existing is not None:
+                        raise ToolExecutionError("An idempotent execution is already in progress")
 
                 slot = (
                     cfg.runtime.tool_slot(cfg.tool_queue_timeout)
@@ -370,17 +427,14 @@ async def _execute_tools(
                     else _acquire_global_tool_slot(cfg.max_global_tools, cfg.tool_queue_timeout)
                 )
                 async with slot:
-                    if _is_async_callable(fn):
-                        call: Any = fn(state=state, **args)
-                    elif cfg.runtime is not None:
-                        call = cfg.runtime.run_sync(lambda: fn(state=state, **args))
+                    resource_key = name
+                    if tool.resource_key is not None:
+                        resource_key = f"{name}:{tool.resource_key(args)}"
+                    if cfg.runtime is not None and tool.concurrency.value != "parallel_safe":
+                        async with cfg.runtime.resource_slot(resource_key):
+                            output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
                     else:
-                        call = _run_sync_tool(
-                            lambda: fn(state=state, **args), max_workers=cfg.max_sync_thread_workers
-                        )
-                    output = (
-                        await asyncio.wait_for(call, timeout=timeout) if timeout else await call
-                    )
+                        output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
                 if tool.output_validator is not None:
                     validation_errors = sorted(
                         tool.output_validator.iter_errors(output),
@@ -420,7 +474,11 @@ async def _execute_tools(
                 _tool_errors.add(1, {"tool.name": name, "error.type": "validation"})
                 if idem_key is not None and cfg.idempotency_store is not None:
                     await cfg.idempotency_store.save(
-                        ExecutionAttempt(key=idem_key, status=AttemptStatus.FAILED)
+                        ExecutionAttempt(
+                            key=idem_key,
+                            status=AttemptStatus.OUTCOME_UNKNOWN,
+                            error="reconciliation required",
+                        )
                     )
                 output, status, error_type = _error_payload(exc), "error", type(exc).__name__
             except Exception as exc:  # noqa: BLE001 — boundary guard: tools execute arbitrary user code; the exception spectrum is unbounded by design
@@ -434,7 +492,11 @@ async def _execute_tools(
                 _tool_errors.add(1, {"tool.name": name, "error.type": "exception"})
                 if idem_key is not None and cfg.idempotency_store is not None:
                     await cfg.idempotency_store.save(
-                        ExecutionAttempt(key=idem_key, status=AttemptStatus.FAILED)
+                        ExecutionAttempt(
+                            key=idem_key,
+                            status=AttemptStatus.OUTCOME_UNKNOWN,
+                            error="reconciliation required",
+                        )
                     )
                 output, status, error_type = (
                     _error_payload(wrapped),

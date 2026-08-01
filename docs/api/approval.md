@@ -33,6 +33,7 @@ Enum representing request statuses:
 * `APPROVED = "approved"` — Approved by human operator.
 * `REJECTED = "rejected"` — Rejected by human operator.
 * `EXPIRED = "expired"` — Request expired before a decision was rendered.
+* `CONSUMED = "consumed"` — Approved request consumed upon tool execution (single-use).
 
 ---
 
@@ -68,10 +69,14 @@ class InMemoryApprovalStore:
     async def decide(
         self, request_id: str, status: ApprovalStatus, subject: str
     ) -> ApprovalRequest: ...
+    async def consume(self, request_id: str) -> ApprovalRequest: ...
+    async def find(self, run_id: str, proposal_hash: str) -> ApprovalRequest | None: ...
 ```
 
 In-memory implementation of `ApprovalStore` protocol.
 * `decide`: Atomically transitions a `PENDING` approval to `APPROVED` or `REJECTED`. Raises `ValueError` if the request is already terminal.
+* `consume`: Transitions an `APPROVED` request to `CONSUMED` state upon tool execution, enforcing single-use approval semantics.
+* `find`: Finds the latest approval request matching a `run_id` and `proposal_hash`.
 
 ---
 
