@@ -49,6 +49,22 @@ class CheckpointStore(Protocol):
     async def latest(self, run_id: str) -> Checkpoint | None: ...
 
 
+class RunUnitOfWork(Protocol):
+    async def create_transition(
+        self, run: Run, event: RunEvent, checkpoint: Checkpoint
+    ) -> None: ...
+
+    async def commit_transition(
+        self,
+        *,
+        run_id: str,
+        expected_version: int,
+        status: RunStatus,
+        event: RunEvent,
+        checkpoint: Checkpoint,
+    ) -> Run: ...
+
+
 class InMemoryDurableStore:
     """Atomic in-memory reference store; explicitly not process durable."""
 
@@ -114,3 +130,40 @@ class InMemoryDurableStore:
     async def latest(self, run_id: str) -> Checkpoint | None:
         async with self._lock:
             return self._checkpoints.get(run_id)
+
+    async def create_transition(self, run: Run, event: RunEvent, checkpoint: Checkpoint) -> None:
+        async with self._lock:
+            if run.run_id in self._runs:
+                raise ConcurrentUpdateError("Run already exists")
+            if event.run_id != run.run_id or checkpoint.run_id != run.run_id:
+                raise ValueError("Transition records must belong to the same run")
+            self._runs[run.run_id] = run
+            self._events[run.run_id] = [event]
+            self._checkpoints[run.run_id] = checkpoint
+
+    async def commit_transition(
+        self,
+        *,
+        run_id: str,
+        expected_version: int,
+        status: RunStatus,
+        event: RunEvent,
+        checkpoint: Checkpoint,
+    ) -> Run:
+        async with self._lock:
+            current = self._runs[run_id]
+            if current.version != expected_version:
+                raise ConcurrentUpdateError("Run version changed")
+            if current.status.terminal:
+                raise ConcurrentUpdateError("Terminal runs are immutable")
+            stream = self._events.setdefault(run_id, [])
+            previous_sequence = stream[-1].sequence if stream else -1
+            if event.run_id != run_id or event.sequence <= previous_sequence:
+                raise ConcurrentUpdateError("Event sequence is not monotonic")
+            if checkpoint.run_id != run_id or checkpoint.sequence != event.sequence:
+                raise ValueError("Checkpoint must describe the committed event")
+            updated = replace(current, status=status, version=current.version + 1)
+            self._runs[run_id] = updated
+            stream.append(event)
+            self._checkpoints[run_id] = checkpoint
+            return updated

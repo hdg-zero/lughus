@@ -8,6 +8,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.7.0] — 2026-07-31
+
+### Added
+
+- Added transactional `RunCoordinator` (`lughus.coordinator`) for state machine transition validation (`CREATED`, `RUNNING`, `PAUSED`, `COMPLETED`, `FAILED`, `CANCELLED`).
+- Added atomic `RunUnitOfWork` context manager in `lughus.persistence` for transactional persistence across run state, checkpoint, and event stream outputs.
+- Added qualification gate test suite (`tests/test_coordinator_070.py`).
+
+---
+
 ## [0.6.0] — 2026-07-31
 
 ### Added

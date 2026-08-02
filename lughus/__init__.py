@@ -19,6 +19,7 @@ from .approval import ApprovalRequest, ApprovalStatus, InMemoryApprovalStore
 from .budget import BudgetAmount, BudgetExceeded, BudgetLedger, BudgetLimit
 from .config import BaseSettings
 from .context import ContextItem, ContextManager, ContextWindow, TrustLevel
+from .coordinator import RunCoordinator
 from .delegation import (
     DelegationCycleError,
     DelegationRequest,
@@ -55,6 +56,7 @@ from .persistence import (
     EventStore,
     InMemoryDurableStore,
     RunStore,
+    RunUnitOfWork,
 )
 from .policy import (
     CompositePolicy,
@@ -151,9 +153,11 @@ __all__ = [
     "ResumeAction",
     "ResumeDecision",
     "Run",
+    "RunCoordinator",
     "RunEvent",
     "RunStatus",
     "RunStore",
+    "RunUnitOfWork",
     "RuntimeConfig",
     "SafeToolError",
     "Scenario",

@@ -60,6 +60,8 @@ flowchart TD
 - **[BaseGateway](api/gateway.md)**: Acts as the entrypoint for A2A requests. It decodes uploaded files, tracks task states (working, completed, failed), and sends progress updates and artifacts back to the caller.
 - **[agent_loop / agent_loop_stream](api/loop.md)**: The core orchestration engine that runs the LLM call, processes requested tool calls with bounded parallelism, accumulates usage metrics, and returns the final answer.
 - **[ToolRegistry](api/tools.md)**: Handles registration of synchronous and asynchronous tool functions, generates JSON schema declarations for the LLM, and executes functions safely.
+- **[AgentRuntime](api/runtime.md)**: Composition root unifying process execution, policies, approval stores, idempotency, durability stores, event streams, budget ledgers, and context managers.
+- **[RunCoordinator & RunUnitOfWork](api/runtime.md)**: Transactional state machine coordinator enforcing valid status transitions (`CREATED`, `RUNNING`, `PAUSED`, `COMPLETED`, `FAILED`, `CANCELLED`) and atomic Unit of Work persistence across run records, checkpoints, and event streams.
 - **[LLM](api/llm.md)**: A thin wrapper around LiteLLM that supports per-call timeouts and automatic retries with exponential backoff on transient provider errors.
 - **[CLI](api/cli.md)**: Generates a ready-to-run agent architecture so new projects start with settings, gateway, tools, task store hook, ASGI entrypoint, and offline tests.
 
