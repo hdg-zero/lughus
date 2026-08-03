@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.10.0] — 2026-08-03
+
+### Added
+
+- Added qualification gate test suite (`tests/test_milestone_0100.py`) certifying contract stabilization, replay security, and CI quality gates for v0.10.0.
+
+---
+
 ## [0.9.0] — 2026-08-02
 
 ### Added
