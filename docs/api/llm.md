@@ -69,3 +69,21 @@ async def astream(
     tools: list[dict] | None = None,
 ) -> AsyncIterator[litellm.ModelResponse]:
 ```
+
+
+---
+
+## Budgeted LLM Client (`BudgetedLLM`)
+
+```python
+class BudgetedLLM:
+    def __init__(self, inner: GenerateLLM, budget: BudgetLedger) -> None: ...
+    async def generate(
+        self,
+        *,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+    ) -> litellm.ModelResponse: ...
+```
+
+Wrapper around any `GenerateLLM` implementation that reserves and settles model call counts and token usage against a `BudgetLedger`.

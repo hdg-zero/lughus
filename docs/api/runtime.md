@@ -63,7 +63,7 @@ Composition root bundling process execution, policies, approval stores, idempote
 
 ---
 
-### `AgentRunner`
+### `AgentRunner` & `GovernedAgentRunner`
 
 ```python
 class AgentRunner:
@@ -74,9 +74,25 @@ class AgentRunner:
         runtime: ExecutionRuntime | None = None,
         event_sink: EventSink | None = None,
     ) -> None: ...
+
+
+class GovernedAgentRunner:
+    def __init__(self, runtime: AgentRuntime) -> None: ...
+    async def run(
+        self,
+        llm: Any,
+        *,
+        objective: str,
+        principal: Principal,
+        registry: ToolRegistry,
+        state: Any = None,
+        context_items: Sequence[ContextItem] = (),
+        max_iterations: int = 20,
+        system: str = "You are a helpful assistant.",
+    ) -> LoopResult: ...
 ```
 
-Orchestrator wrapping agent loop execution and emitting structured domain events (`run.started`, `text.delta`, `run.completed`, `run.failed`).
+`AgentRunner` provides event-streamed execution orchestration. `GovernedAgentRunner` unifies context selection, budget reservations, tool policy evaluation, and transactional state transitions via `RunCoordinator`.
 
 ---
 

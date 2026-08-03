@@ -8,6 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.8.0] — 2026-08-01
+
+### Added
+
+- Added `BudgetedLLM` wrapper (`lughus.budgeted_llm`) enforcing model call count and token usage reservations and settlement against `BudgetLedger`.
+- Added `GovernedAgentRunner` (`lughus.application`) for governed end-to-end execution combining context window selection, budget accounting, tool policy enforcement, and transactional state transitions via `RunCoordinator`.
+- Integrated `budget` accounting into `ToolExecutionConfig` and `_execute_tools` execution loop.
+- Added qualification gate test suite (`tests/test_integrated_runtime_080.py`).
+
+---
+
 ## [0.7.0] — 2026-07-31
 
 ### Added

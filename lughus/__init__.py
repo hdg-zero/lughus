@@ -14,9 +14,10 @@ if TYPE_CHECKING:
     from .llm import GenerateLLM as GenerateLLM
     from .llm import StreamingLLM as StreamingLLM
 
-from .application import AgentRuntime
+from .application import AgentRuntime, GovernedAgentRunner
 from .approval import ApprovalRequest, ApprovalStatus, InMemoryApprovalStore
 from .budget import BudgetAmount, BudgetExceeded, BudgetLedger, BudgetLimit
+from .budgeted_llm import BudgetedLLM
 from .config import BaseSettings
 from .context import ContextItem, ContextManager, ContextWindow, TrustLevel
 from .coordinator import RunCoordinator
@@ -108,6 +109,7 @@ __all__ = [
     "BudgetExceeded",
     "BudgetLedger",
     "BudgetLimit",
+    "BudgetedLLM",
     "Checkpoint",
     "CheckpointStore",
     "CompletionEvent",
@@ -129,6 +131,7 @@ __all__ = [
     "ExecutionAttempt",
     "ExecutionRuntime",
     "GenerateLLM",
+    "GovernedAgentRunner",
     "IdempotencyKey",
     "IdempotencyStore",
     "InMemoryApprovalStore",
