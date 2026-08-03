@@ -8,6 +8,12 @@ import pytest
 
 from lughus.config import BaseSettings, _env_bool, _env_float, _env_int
 from lughus.loop._config import ToolExecutionConfig
+from lughus.runtime import ExecutionRuntime, RuntimeConfig
+
+
+def _test_runtime() -> ExecutionRuntime:
+    return ExecutionRuntime(RuntimeConfig(max_sync_workers=4))
+
 
 # ── _env_int ──────────────────────────────────────────────────────────────────
 
@@ -334,9 +340,14 @@ def test_settings_reads_cors_allow_credentials(monkeypatch) -> None:
 
 def test_tool_config_rejects_zero() -> None:
     with pytest.raises(ValueError, match="must be positive"):
-        ToolExecutionConfig(max_parallel_tools=0)
+        ToolExecutionConfig(max_parallel_tools=0, runtime=_test_runtime())
 
 
 def test_tool_config_rejects_negative() -> None:
     with pytest.raises(ValueError, match="must be positive"):
-        ToolExecutionConfig(max_global_tools=-1)
+        ToolExecutionConfig(max_global_tools=-1, runtime=_test_runtime())
+
+
+def test_tool_execution_config_requires_runtime():
+    cfg = ToolExecutionConfig()
+    assert cfg.runtime is not None

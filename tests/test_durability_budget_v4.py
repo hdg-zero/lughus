@@ -3,13 +3,13 @@ import pytest
 from lughus.budget import BudgetAmount, BudgetExceeded, BudgetLedger, BudgetLimit
 from lughus.context import ContextItem, ContextManager, TrustLevel
 from lughus.domain import Run, RunEvent, RunStatus
-from lughus.persistence import Checkpoint, ConcurrentUpdateError, InMemoryDurableStore
+from lughus.persistence import Checkpoint, ConcurrentUpdateError, InMemoryRunStore
 from lughus.resume import ResumeAction, decide_resume
 
 
 @pytest.mark.asyncio
 async def test_optimistic_run_updates_and_terminal_immutability():
-    store = InMemoryDurableStore()
+    store = InMemoryRunStore()
     run = Run("objective")
     await store.create(run)
     updated = await store.update_status(run.run_id, 0, RunStatus.RUNNING)
@@ -22,7 +22,7 @@ async def test_optimistic_run_updates_and_terminal_immutability():
 
 @pytest.mark.asyncio
 async def test_event_order_and_checkpoint_compare_and_swap():
-    store = InMemoryDurableStore()
+    store = InMemoryRunStore()
     await store.append(RunEvent("started", "run", 0))
     with pytest.raises(ConcurrentUpdateError, match="monotonic"):
         await store.append(RunEvent("duplicate", "run", 0))

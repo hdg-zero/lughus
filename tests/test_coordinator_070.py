@@ -2,12 +2,12 @@ import pytest
 
 from lughus.coordinator import RunCoordinator
 from lughus.domain import RunStatus
-from lughus.persistence import ConcurrentUpdateError, InMemoryDurableStore
+from lughus.persistence import ConcurrentUpdateError, InMemoryRunStore
 
 
 @pytest.mark.asyncio
 async def test_transition_commits_run_event_and_checkpoint_atomically():
-    store = InMemoryDurableStore()
+    store = InMemoryRunStore()
     coordinator = RunCoordinator(store)
     run = await coordinator.start("objective", tenant_id="tenant", principal_id="alice")
     running = await coordinator.transition(run, RunStatus.RUNNING, "run.started")
@@ -18,7 +18,7 @@ async def test_transition_commits_run_event_and_checkpoint_atomically():
 
 @pytest.mark.asyncio
 async def test_stale_transition_cannot_append_event():
-    store = InMemoryDurableStore()
+    store = InMemoryRunStore()
     coordinator = RunCoordinator(store)
     run = await coordinator.start("objective", tenant_id="tenant", principal_id="alice")
     await coordinator.transition(run, RunStatus.RUNNING, "run.started")

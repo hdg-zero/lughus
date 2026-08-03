@@ -3,12 +3,12 @@
 import pytest
 
 from lughus.domain import Run, RunEvent, RunStatus
-from lughus.persistence import Checkpoint, ConcurrentUpdateError, InMemoryDurableStore
+from lughus.persistence import Checkpoint, ConcurrentUpdateError, InMemoryRunStore
 
 
 @pytest.fixture
 def store():
-    return InMemoryDurableStore(max_runs=100, max_events=1000)
+    return InMemoryRunStore(max_runs=100, max_events=1000)
 
 
 @pytest.mark.asyncio

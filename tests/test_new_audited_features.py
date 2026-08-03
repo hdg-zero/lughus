@@ -112,33 +112,16 @@ def test_ensure_dotenv_loads_file(tmp_path, monkeypatch) -> None:
         monkeypatch.delenv("CUSTOM_ENV_VAR", raising=False)
 
 
-def test_event_loop_weakref_no_leak() -> None:
-    import gc
+@pytest.mark.asyncio
+async def test_execution_runtime_loop_binding() -> None:
+    from lughus.runtime import ExecutionRuntime
 
-    from lughus._threading import _SYNC_SEMAPHORES, _get_sync_semaphore
-
-    class FakeLoop:
-        pass
-
-    loop = FakeLoop()
-    sem = _get_sync_semaphore(loop, 10)
-    assert sem is not None
-
-    # Check that it exists in semaphores
-    keys = list(_SYNC_SEMAPHORES.keys())
-    assert any(k[0]() is loop for k in keys)
-
-    # Delete loop and collect
-    del loop
-    gc.collect()
-
-    # Access with another loop to trigger cleanup
-    loop2 = FakeLoop()
-    _get_sync_semaphore(loop2, 5)
-
-    # Check that the first loop was cleaned up
-    keys2 = list(_SYNC_SEMAPHORES.keys())
-    assert not any(k[0]() is None for k in keys2)
+    runtime = ExecutionRuntime()
+    assert runtime._loop is None
+    # Access runtime inside active loop
+    async with runtime.tool_slot():
+        assert runtime._loop is not None
+    await runtime.close()
 
 
 def test_resolve_and_validate_otel_url(monkeypatch) -> None:
