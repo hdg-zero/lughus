@@ -39,6 +39,8 @@ async def test_scenario_evaluation_is_deterministic():
 
 
 class _MCP:
+    origin = "https://mcp.example"
+
     async def list_tools(self):
         return [
             MCPToolDescriptor("allowed", "safe", {"type": "object"}),

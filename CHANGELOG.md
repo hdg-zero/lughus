@@ -8,6 +8,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.9.0] — 2026-08-02
+
+### Added
+
+- Added `MCPAdapter.register_tools()` (`lughus.mcp`) routing remote MCP tools through `ToolRegistry` with conservative policy metadata (`ToolEffect.EXTERNAL`, `ToolRisk.UNKNOWN`, `requires_approval=True`).
+- Added `Delegator.as_tool()` (`lughus.delegation`) exposing remote-agent delegation requests as governed tools in `ToolRegistry` (`ToolEffect.EXTERNAL`, `ToolRisk.HIGH`, `requires_approval=True`).
+- Added qualification gate test suite (`tests/test_governed_integrations_090.py`).
+
+---
+
 ## [0.8.0] — 2026-08-01
 
 ### Added
