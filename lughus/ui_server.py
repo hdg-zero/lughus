@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import binascii
 import contextlib
 import html
 import json
@@ -16,6 +15,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import AsyncIterator
+from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -27,13 +27,24 @@ from starlette.routing import Route
 
 from ._threading import run_sync_in_thread
 from .events import CompletionEvent, ProgressEvent
-from .gateway import BaseGateway, _safe_filename, _validate_artifacts, _validate_objective
+from .files import decode_files_payload
+from .gateway import BaseGateway, _validate_artifacts, _validate_objective
 from .loop import collect_tool_events
 from .telemetry import tracer
 
+__all__ = [
+    "shutdown_ui_server",
+]
+
 _logger = logging.getLogger(__name__)
+_executor = ThreadPoolExecutor(thread_name_prefix="lughus-ui")
 _OTEL_MAX_BYTES = 1_000_000
 _OTEL_TIMEOUT_SECONDS = 5.0
+
+
+def shutdown_ui_server() -> None:
+    """Shutdown background threadpool worker resources allocated for the test UI."""
+    _executor.shutdown(wait=False, cancel_futures=True)
 
 
 def _read_ui_asset(name: str) -> str:
@@ -281,46 +292,7 @@ async def _decode_files(
     raw_files: Any,
     gateway: BaseGateway,
 ) -> list[tuple[bytes, str, str]]:
-    if raw_files is None:
-        return []
-    if not isinstance(raw_files, list):
-        raise ValueError("files must be a list")
-    if len(raw_files) > gateway.settings.max_files:
-        raise ValueError(f"Too many files: max {gateway.settings.max_files}")
-
-    files: list[tuple[bytes, str, str]] = []
-    total_bytes = 0
-    for index, item in enumerate(raw_files):
-        if not isinstance(item, dict):
-            raise ValueError(f"files[{index}] must be an object")
-        name = _safe_filename(str(item.get("name") or "file"))
-        mime_type = str(item.get("mime_type") or "application/octet-stream")
-        encoded = item.get("content_base64")
-        if not isinstance(encoded, str):
-            raise ValueError(f"files[{index}].content_base64 must be a string")
-        try:
-            enc_str = encoded
-
-            def _decode_enc(s: str = enc_str) -> bytes:
-                return base64.b64decode(s, validate=True)
-
-            data = await run_sync_in_thread(
-                _decode_enc,
-                max_workers=gateway.settings.max_sync_thread_workers,
-            )
-        except binascii.Error as exc:
-            raise ValueError(f"files[{index}] is not valid base64") from exc
-        if len(data) > gateway.settings.max_file_bytes:
-            raise ValueError(
-                f"File '{name}' exceeds max size {gateway.settings.max_file_bytes} bytes"
-            )
-        total_bytes += len(data)
-        if total_bytes > gateway.settings.max_request_bytes:
-            raise ValueError(
-                f"Files exceed max request size {gateway.settings.max_request_bytes} bytes"
-            )
-        files.append((data, mime_type, name))
-    return files
+    return await decode_files_payload(raw_files, gateway.settings, executor=_executor)
 
 
 def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
@@ -496,6 +468,7 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
         try:
             result = await run_sync_in_thread(
                 lambda: _fetch_otel_url(url),
+                executor=_executor,
                 max_workers=gateway.settings.max_sync_thread_workers,
             )
         except ValueError as exc:
@@ -524,11 +497,3 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
         Route("/ui/assets/test_ui.js", js, methods=["GET"]),
         Route("/ui/assets/{filename:path}", serve_asset, methods=["GET"]),
     ]
-
-
-# Backward-compatible aliases for private tests/users that imported these names
-# from lughus.server before the UI module was split out.
-_test_ui_html = _render_test_ui_html
-_decode_test_ui_files = _decode_files
-_fetch_test_ui_otel_url = _fetch_otel_url
-_test_ui_telemetry_event = _telemetry_event

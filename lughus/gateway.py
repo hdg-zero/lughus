@@ -7,8 +7,6 @@ import base64
 import binascii
 import contextlib
 import logging
-import os
-import re
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
@@ -27,23 +25,20 @@ from opentelemetry.trace import StatusCode
 
 from ._threading import run_sync_in_thread
 from .config import BaseSettings
+from .errors import LughusError, SafeToolError
 from .events import Artifact, CompletionEvent, ProgressEvent
+from .files import _safe_filename
 from .telemetry import tracer
 
 if TYPE_CHECKING:
     from .llm import LLM
 
+from concurrent.futures import ThreadPoolExecutor
+
+__all__ = ["BaseGateway"]
+
 _logger = logging.getLogger(__name__)
-
-
-def _safe_filename(name: str | None) -> str:
-    """Return a path-free filename suitable for handing to agent code."""
-    value = (name or "file").replace("\\", "/")
-    filename = os.path.basename(value).replace("\x00", "").strip()
-    filename = re.sub(r"[^a-zA-Z0-9._-]", "_", filename)
-    if filename in {"", ".", ".."}:
-        return "file"
-    return filename
+_executor = ThreadPoolExecutor(thread_name_prefix="lughus-gateway")
 
 
 def _validate_objective(objective: str, settings: BaseSettings) -> None:
@@ -160,7 +155,7 @@ class BaseGateway(AgentExecutor):
                             completed = True
 
                 if not completed:
-                    raise RuntimeError("Agent handler finished without CompletionEvent")
+                    raise LughusError("Agent handler finished without CompletionEvent")
 
                 span.set_attribute("lughus.status", "completed")
                 span.set_status(StatusCode.OK)
@@ -179,12 +174,22 @@ class BaseGateway(AgentExecutor):
                 span.set_status(StatusCode.ERROR, "agent cancelled")
                 span.set_attribute("lughus.status", "cancelled")
 
-            except Exception as exc:  # noqa: BLE001 — boundary guard: last-resort catch at A2A execute() to prevent internal error disclosure via TaskUpdater
+            except Exception as exc:
                 span.set_status(StatusCode.ERROR, str(exc))
                 span.record_exception(exc)
                 span.set_attribute("lughus.status", "failed")
+                if isinstance(exc, SafeToolError):
+                    error_msg = f"Error: {exc.public_message}"
+                elif isinstance(exc, (LughusError, ValueError)):
+                    error_msg = f"Error: {exc}"
+                else:
+                    _logger.exception(
+                        "Internal error during agent execution for task '%s'",
+                        context.task_id or "",
+                    )
+                    error_msg = "Error: Internal agent execution error"
                 msg = updater.new_agent_message(
-                    parts=[Part(root=TextPart(text=f"Error: {exc}"))],
+                    parts=[Part(root=TextPart(text=error_msg))],
                 )
                 await updater.failed(message=msg)
             finally:
@@ -207,7 +212,8 @@ class BaseGateway(AgentExecutor):
             task.cancel()
 
     async def shutdown(self) -> None:
-        """Cancel all currently running A2A tasks for graceful shutdown."""
+        """Cancel all currently running A2A tasks and release process-local resources."""
+        _executor.shutdown(wait=False, cancel_futures=True)
         tasks = list(self._running_tasks.values())
         if not tasks:
             return
@@ -327,6 +333,7 @@ class BaseGateway(AgentExecutor):
 
                 raw = await run_sync_in_thread(
                     _decode_b64,
+                    executor=_executor,
                     max_workers=self.settings.max_sync_thread_workers,
                 )
             except (binascii.Error, OSError) as exc:
