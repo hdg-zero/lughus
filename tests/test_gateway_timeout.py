@@ -115,7 +115,7 @@ async def test_gateway_execute_fails_without_completion(monkeypatch) -> None:
     context = MagicMock()
     context.task_id = "task-123"
     context.context_id = "ctx-456"
-    monkeypatch.setattr(gateway, "_extract", lambda ctx: ("", []))
+    monkeypatch.setattr(gateway, "_extract_async", AsyncMock(return_value=("", [])))
 
     mock_updater = MagicMock()
     mock_updater.start_work = AsyncMock()
