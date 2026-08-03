@@ -21,17 +21,9 @@ classifiers = [
 ]
 dependencies = [
     "litellm>=1.0,<2.0",
-    "a2a-sdk>=0.3.0,<1.0",
     "python-dotenv",
-    "fastapi",
     "orjson",
-    "uvicorn[standard]",
-    "starlette",
-    "sse-starlette",
     "jsonschema>=4.0",
-    "opentelemetry-api>=1.20",
-    "opentelemetry-sdk>=1.20",
-    "opentelemetry-exporter-otlp-proto-grpc>=1.20",
 ]
 
 [project.urls]
@@ -51,7 +43,23 @@ exclude = ["scratch*", "tests*", "examples*"]
 lughus = ["ui/*.html", "ui/*.css", "ui/*.js"]
 
 [project.optional-dependencies]
+server = [
+    "a2a-sdk>=0.3.0,<1.0",
+    "fastapi",
+    "uvicorn[standard]",
+    "starlette",
+    "sse-starlette",
+]
+otel = [
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20",
+]
+all = [
+    "lughus[server,otel]",
+]
 dev = [
+    "lughus[all]",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-mock>=3.12",
