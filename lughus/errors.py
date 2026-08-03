@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "LLMResponseError",
+    "LoopLimitError",
+    "LughusError",
+    "SafeToolError",
+    "ToolExecutionError",
+    "ToolTimeoutError",
+    "ToolValidationError",
+]
+
 
 class LughusError(Exception):
     """Base class for framework-level errors."""

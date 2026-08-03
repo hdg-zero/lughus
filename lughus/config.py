@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 
 _logger = logging.getLogger(__name__)
 
+__all__ = ["BaseSettings"]
+
 
 _DOTENV_LOADED = False
 

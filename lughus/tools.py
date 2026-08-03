@@ -14,6 +14,14 @@ from jsonschema import Draft202012Validator, SchemaError  # type: ignore[import-
 
 from .errors import ToolValidationError
 
+__all__ = [
+    "ConcurrencyMode",
+    "ToolDef",
+    "ToolEffect",
+    "ToolRegistry",
+    "ToolRisk",
+]
+
 _logger = logging.getLogger(__name__)
 
 
