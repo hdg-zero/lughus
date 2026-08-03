@@ -14,8 +14,8 @@ When scaling out horizontally across multiple workers or containers, the in-memo
 - The framework requires that these stores support **atomic updates** (e.g., via optimistic concurrency control using the `version` field). If two workers attempt to modify the same run, one must cleanly fail with a `ConcurrentUpdateError`.
 
 ## Distributed Locks
-Lughus does not implement distributed locking natively. The included `InMemoryDurableStore` is explicitly for testing and development. For production, applications must implement a backend (like PostgreSQL, Redis, or DynamoDB) that can enforce transactional consistency over the event sequence.
+Lughus does not implement distributed locking natively. The included `InMemoryRunStore` is explicitly for testing and development. For production, applications must implement a backend (like PostgreSQL, Redis, or DynamoDB) that can enforce transactional consistency over the event sequence.
 
-## Alpha (0.5.0) Limitations
+## Current Limitations
 - There is currently no native framework support for rebalancing active runs if a worker node dies unexpectedly. This relies on the surrounding infrastructure (like Kubernetes) and the polling/resume logic.
 - Long-polling subscriptions over the event stream currently require sticky sessions or an external pub/sub mechanism like Redis Streams to broadcast events across replicas.

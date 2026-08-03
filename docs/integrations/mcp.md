@@ -28,7 +28,7 @@ Because remote tools run outside of Lughus's control, `MCPAdapter.conservative_m
 ## Limitations
 Currently, Lughus only supports unary RPC-style MCP interactions.
 - Native standard I/O (stdio) transports are not yet supported.
-- Server-Sent Events (SSE) for push notifications and streaming tool outputs are not integrated into the Alpha release.
+- Server-Sent Events (SSE) for push notifications and streaming tool outputs are not yet supported.
 
 ```python
 from lughus.mcp import MCPServerConfig, MCPAdapter

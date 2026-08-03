@@ -1,6 +1,9 @@
 # Tool Contract v2
 
-This specification defines the formal contract for tool registration, policy evaluation, and human-in-the-loop approvals in `lughus` v0.3.0.
+This specification defines the formal contract for tool registration, policy evaluation, and human-in-the-loop approvals in `lughus`.
+
+> **Contract stability:** This specification is frozen as of Lughus 0.10.0.
+> Future changes follow the compatibility policy in ADR-001.
 
 ---
 

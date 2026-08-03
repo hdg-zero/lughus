@@ -8,9 +8,9 @@
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
 </p>
 
-> [!WARNING]
-> **DEVELOPMENT STATUS — BETA RELEASE**  
-> `lughus` is currently in active **BETA** development. Core APIs, contracts, and runtime architecture are undergoing rapid evolution over the coming weeks. Breaking changes and major capability enhancements may occur frequently until `1.0.0` specification stabilization. Please consult [CHANGELOG.md](CHANGELOG.md) before upgrading version releases.
+> [!NOTE]
+> **v0.10.0 — Contract Stabilization**  
+> Core contracts (events, streaming, budgets, context, tools-v2) are **frozen** at this release. APIs may still evolve additively before `1.0.0`. See the [Capability Maturity Matrix](docs/maturity.md) and [CHANGELOG.md](CHANGELOG.md) for details.
 
 # lughus
 
@@ -38,7 +38,10 @@ You write your tools, your prompts, and your orchestration logic. The framework 
 ## Install
 
 ```bash
-pip install lughus
+pip install lughus              # Core only (litellm, orjson, jsonschema)
+pip install lughus[server]      # + FastAPI, uvicorn, a2a-sdk
+pip install lughus[otel]        # + OpenTelemetry
+pip install lughus[all]         # Everything
 ```
 
 Or for development (see [CONTRIBUTING.md](CONTRIBUTING.md) for details):
@@ -46,7 +49,7 @@ Or for development (see [CONTRIBUTING.md](CONTRIBUTING.md) for details):
 ```bash
 git clone https://github.com/hdg-zero/lughus.git
 cd lughus
-uv sync --all-extras --dev
+uv sync --all-extras --dev --locked
 .venv/bin/pre-commit install
 ```
 
