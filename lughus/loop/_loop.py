@@ -122,6 +122,14 @@ async def _stream_with_timeout(
         yield chunk
 
 
+def _ensure_config(tool_config: ToolExecutionConfig | None) -> ToolExecutionConfig:
+    if tool_config is None:
+        from ..runtime import ExecutionRuntime
+
+        return ToolExecutionConfig(runtime=ExecutionRuntime())
+    return tool_config
+
+
 async def agent_loop(
     llm: GenerateLLM,
     *,
@@ -139,7 +147,7 @@ async def agent_loop(
     metadata (``iterations``, ``elapsed``, ``prompt_tokens``,
     ``completion_tokens``, ``cached_tokens``, ``total_tokens``).
     """
-    cfg = tool_config or ToolExecutionConfig()
+    cfg = _ensure_config(tool_config)
     with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
         with retry_budget(getattr(llm, "retry_max_elapsed", None)):
             loop_span.set_attribute("gen_ai.request.model", llm.model)
@@ -236,7 +244,7 @@ async def agent_loop_stream(
     if mode_str not in {"buffered", "live"}:
         raise ValueError("streaming_mode must be 'buffered' or 'live'")
     streaming_mode_normalized = mode_str
-    cfg = tool_config or ToolExecutionConfig()
+    cfg = _ensure_config(tool_config)
     with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
         with retry_budget(getattr(llm, "retry_max_elapsed", None)):
             loop_span.set_attribute("gen_ai.request.model", llm.model)

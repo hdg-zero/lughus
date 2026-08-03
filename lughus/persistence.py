@@ -69,7 +69,7 @@ class RunUnitOfWork(Protocol):
     ) -> Run: ...
 
 
-class InMemoryDurableStore:
+class InMemoryRunStore:
     """Atomic in-memory reference store; explicitly not process durable."""
 
     durable = False

@@ -7,16 +7,13 @@ import functools
 import inspect
 import json
 import logging
-import threading
 import time
-import weakref
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import Callable, Iterator
 from typing import Any
 
 from jsonschema import Draft202012Validator, ValidationError  # type: ignore[import-untyped]
 from opentelemetry.trace import StatusCode
 
-from .._threading import run_sync_in_thread
 from ..approval import ApprovalRequest, proposal_digest
 from ..budget import BudgetAmount
 from ..errors import (
@@ -50,11 +47,6 @@ _tool_errors = meter.create_counter(
     description="Tool execution errors",
 )
 
-_GLOBAL_TOOL_LOCK = threading.Lock()
-_GLOBAL_TOOL_SEMAPHORES: weakref.WeakKeyDictionary[
-    asyncio.AbstractEventLoop,
-    asyncio.Semaphore,
-] = weakref.WeakKeyDictionary()
 _tool_event_sink: contextvars.ContextVar[Callable[[dict[str, Any]], None] | None] = (
     contextvars.ContextVar("lughus_tool_event_sink", default=None)
 )
@@ -185,47 +177,6 @@ def _check_message_history_size(messages: list[dict], config: ToolExecutionConfi
         raise LoopLimitError(f"Agent message history exceeded {limit} characters")
 
 
-def _global_tool_semaphore(max_global_tools: int) -> asyncio.Semaphore:
-    loop = asyncio.get_running_loop()
-    with _GLOBAL_TOOL_LOCK:
-        semaphore = _GLOBAL_TOOL_SEMAPHORES.get(loop)
-        if semaphore is None:
-            initial_limit = max_global_tools if max_global_tools > 0 else 64
-            semaphore = asyncio.Semaphore(initial_limit)
-            _GLOBAL_TOOL_SEMAPHORES[loop] = semaphore
-        return semaphore
-
-
-@contextlib.asynccontextmanager
-async def _acquire_global_tool_slot(
-    max_global_tools: int,
-    wait_timeout: float | None,
-) -> AsyncIterator[None]:
-    """Acquire one worker-local tool slot."""
-    if max_global_tools <= 0:
-        yield
-        return
-
-    semaphore = _global_tool_semaphore(max_global_tools)
-    normalized_timeout = wait_timeout if wait_timeout and wait_timeout > 0 else 0.0
-    acquired = False
-    if normalized_timeout <= 0:
-        if semaphore.locked():
-            raise ToolTimeoutError("Timed out waiting for a global tool slot")
-        await semaphore.acquire()
-    else:
-        try:
-            await asyncio.wait_for(semaphore.acquire(), timeout=normalized_timeout)
-        except TimeoutError as exc:
-            raise ToolTimeoutError("Timed out waiting for a global tool slot") from exc
-    acquired = True
-    try:
-        yield
-    finally:
-        if acquired:
-            semaphore.release()
-
-
 def _unwrap_async_target(fn: Callable[..., Any]) -> Any:
     target: Any = fn
     while isinstance(target, functools.partial):
@@ -244,11 +195,6 @@ def _is_async_callable(fn: Callable[..., Any]) -> bool:
     return bool(call and inspect.iscoroutinefunction(_unwrap_async_target(call)))
 
 
-async def _run_sync_tool(call: Callable[[], Any], *, max_workers: int) -> Any:
-    """Run a synchronous tool using the optimized process-wide thread pool."""
-    return await run_sync_in_thread(call, max_workers=max_workers)
-
-
 async def _invoke_tool_callable(
     fn: Any,
     state: dict,
@@ -258,12 +204,8 @@ async def _invoke_tool_callable(
 ) -> Any:
     if _is_async_callable(fn):
         call: Any = fn(state=state, **args)
-    elif cfg.runtime is not None:
-        call = cfg.runtime.run_sync(lambda: fn(state=state, **args))
     else:
-        call = _run_sync_tool(
-            lambda: fn(state=state, **args), max_workers=cfg.max_sync_thread_workers
-        )
+        call = cfg.runtime.run_sync(lambda: fn(state=state, **args))  # type: ignore[union-attr]
     return await asyncio.wait_for(call, timeout=timeout) if timeout else await call
 
 
@@ -423,11 +365,7 @@ async def _execute_tools(
                     if existing is not None:
                         raise ToolExecutionError("An idempotent execution is already in progress")
 
-                slot = (
-                    cfg.runtime.tool_slot(cfg.tool_queue_timeout)
-                    if cfg.runtime is not None
-                    else _acquire_global_tool_slot(cfg.max_global_tools, cfg.tool_queue_timeout)
-                )
+                slot = cfg.runtime.tool_slot(cfg.tool_queue_timeout)  # type: ignore[union-attr]
                 if cfg.budget is not None:
                     budget_reservation = await cfg.budget.reserve(BudgetAmount(tool_calls=1))
                 async with slot:
