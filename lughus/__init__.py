@@ -153,6 +153,7 @@ __all__ = [
     "RecordedCall",
     "RemoteAgentClient",
     "ReplayBundle",
+    "ReplayCapturePolicy",
     "ResumeAction",
     "ResumeDecision",
     "Run",
