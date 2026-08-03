@@ -6,13 +6,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Added `lughus.files` module (`lughus/files.py`) consolidating safe Base64 file decoding, file size validation, and filename sanitization (`_safe_filename`, `decode_file_bytes`, `decode_files_payload`).
+- Added `shutdown_ui_server()` in `lughus.ui_server` for clean ThreadPoolExecutor teardown during Starlette/ASGI lifespan shutdown.
+- Added sorted `__all__` declarations across public modules (`gateway.py`, `server.py`, `ui_server.py`, `tools.py`, `config.py`, `errors.py`, `files.py`).
+
+### Changed
+- Refactored `BaseGateway` (`lughus.gateway`) and `ui_server` (`lughus.ui_server`) to use the unified `lughus.files` Base64 decoding utilities.
+- Connected `shutdown_ui_server()` to `ProductionGuardMiddleware` (`lughus.server`) lifespan shutdown handler.
+
 ---
 
 ## [0.10.0] — 2026-08-03
 
+### Fixed
+
+- Hardened A2A error boundary in `BaseGateway.execute()` (`lughus.gateway`): unhandled internal exceptions are masked to generic error messages to prevent internal details disclosure.
+- Added explicit `shutdown()` method to `BaseGateway` (`lughus.gateway`) for clean thread executor teardown.
+- Added `lughus.a2a` subpackage initialisation (`lughus/a2a/__init__.py`).
+- Annotated broad exception handlers in `lughus.ui_server` with `# noqa: BLE001` for strict linting compliance.
+
 ### Added
 
-- Added qualification gate test suite (`tests/test_milestone_0100.py`) certifying contract stabilization, replay security, and CI quality gates for v0.10.0.
+- Added explicit packaging optional extras in `pyproject.toml`: `server` (FastAPI, uvicorn, Starlette, a2a-sdk), `otel` (OpenTelemetry API/SDK/exporters), and `all`.
+- Added contract freeze specification document `docs/architecture/ADR-009-contract-freeze.md` freezing all core contract schemas (events, streaming, budgets, context, tools-v2) for version 0.10.0.
+- Added qualification gate test suite (`tests/test_stabilization_0100.py`) certifying contract stabilization, replay security, and CI quality gates for v0.10.0.
+
+### Changed
+
+- Made `ExecutionRuntime` strictly mandatory in `ToolExecutionConfig` and removed process-global fallback states (`_GLOBAL_TOOL_SEMAPHORES`, `_GLOBAL_TOOL_LOCK`, global `ThreadPoolExecutor`).
+- Renamed `InMemoryDurableStore` to `InMemoryRunStore` in `lughus.persistence` to accurately reflect its non-durable, in-memory reference nature.
+- Expanded core contract documentation (`docs/contracts/events.md`, `streaming.md`, `budgets.md`, `context.md`, `tools-v2.md`) and `docs/architecture/ADR-001-compatibility.md` with explicit freezing declarations and invariants.
+- Unified HTTP 413 payload responses across `ProductionGuardMiddleware` (`lughus.server`).
+- Hardened CI workflows (`.github/workflows/ci.yml`, `publish.yml`): pinned GitHub Actions by immutable SHA, enforced `--locked` lockfile resolution, and decoupled PyPI build/publish jobs.
+
+### Removed
+
+- Removed unused private legacy aliases (`_test_ui_html`, `_decode_test_ui_files`, `_fetch_test_ui_otel_url`, `_test_ui_telemetry_event`) from `lughus.ui_server`.
 
 ---
 
