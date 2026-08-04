@@ -22,7 +22,14 @@ from starlette.routing import Route
 
 from .gateway import BaseGateway
 from .telemetry import setup_telemetry
-from .ui_server import _test_ui_routes
+from .ui_server import _test_ui_routes, shutdown_ui_server
+
+__all__ = [
+    "BoundedInMemoryTaskStore",
+    "ProductionGuardMiddleware",
+    "build_app",
+    "serve",
+]
 
 _logger = logging.getLogger(__name__)
 _AUTH_EXEMPT_PATHS = {"/health", "/healthz"}
@@ -78,12 +85,10 @@ class ProductionGuardMiddleware:
 
             async def lifespan_receive() -> dict[str, Any]:
                 msg = await receive()
-                if (
-                    msg.get("type") == "lifespan.shutdown"
-                    and self.gateway
-                    and hasattr(self.gateway, "shutdown")
-                ):
-                    await self.gateway.shutdown()
+                if msg.get("type") == "lifespan.shutdown":
+                    if self.gateway and hasattr(self.gateway, "shutdown"):
+                        await self.gateway.shutdown()
+                    shutdown_ui_server()
                 return cast(dict[str, Any], msg)
 
             await self.app(scope, lifespan_receive, send)
@@ -110,7 +115,7 @@ class ProductionGuardMiddleware:
                     return
                 if length > self.max_body_bytes:
                     response = JSONResponse(
-                        {"error": f"Request body exceeds {self.max_body_bytes} bytes"},
+                        {"error": "request_body_too_large"},
                         status_code=413,
                     )
                     await response(scope, receive, send)

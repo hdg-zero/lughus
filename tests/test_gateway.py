@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -300,3 +300,56 @@ def test_extract_sanitizes_shell_injection_characters(monkeypatch) -> None:
 
     # All unsafe characters replaced with underscores
     assert files[0][2] == "foo__rm_-rf____id_.txt"
+
+
+@pytest.mark.asyncio
+async def test_gateway_execute_masks_unhandled_internal_exceptions(monkeypatch) -> None:
+    """Unhandled internal exceptions are masked to generic error messages."""
+    from lughus.errors import LughusError, SafeToolError
+
+    gw = _make_gateway(monkeypatch)
+
+    class ThrowingGateway(type(gw)):
+        def __init__(self, exc_to_raise: Exception):
+            super().__init__(gw.llm, gw.settings)
+            self.exc_to_raise = exc_to_raise
+
+        async def handle(self, objective: str, files: list):
+            raise self.exc_to_raise
+            yield None  # type: ignore[unreachable]
+
+    mock_queue = MagicMock()
+    mock_queue.enqueue_event = AsyncMock()
+    mock_context = MagicMock()
+    mock_context.task_id = "task-1"
+    mock_context.context_id = "ctx-1"
+    mock_context.message = None
+
+    # Case 1: Unhandled internal exception (e.g., RuntimeError)
+    gw_internal = ThrowingGateway(RuntimeError("secret_db_credentials_failed"))
+    await gw_internal.execute(mock_context, mock_queue)
+    # Check that failed message was updated and does NOT contain secret
+    updated_calls = mock_queue.enqueue_event.call_args_list
+    assert any("Internal agent execution error" in str(c) for c in updated_calls)
+    assert not any("secret_db_credentials_failed" in str(c) for c in updated_calls)
+
+    # Case 2: SafeToolError exposes public_message
+    mock_queue.reset_mock()
+    gw_safe = ThrowingGateway(SafeToolError(code="INVALID_ARG", message="Safe user message"))
+    await gw_safe.execute(mock_context, mock_queue)
+    updated_calls = mock_queue.enqueue_event.call_args_list
+    assert any("Safe user message" in str(c) for c in updated_calls)
+
+    # Case 3: LughusError exposes message
+    mock_queue.reset_mock()
+    gw_lughus = ThrowingGateway(LughusError("Framework error message"))
+    await gw_lughus.execute(mock_context, mock_queue)
+    updated_calls = mock_queue.enqueue_event.call_args_list
+    assert any("Framework error message" in str(c) for c in updated_calls)
+
+
+@pytest.mark.asyncio
+async def test_gateway_shutdown(monkeypatch) -> None:
+    """BaseGateway.shutdown closes executor idempotently."""
+    gw = _make_gateway(monkeypatch)
+    await gw.shutdown()

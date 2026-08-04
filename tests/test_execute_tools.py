@@ -10,8 +10,13 @@ import time
 
 import pytest
 
-from lughus import ToolRegistry
+from lughus import ConcurrencyMode, ToolRegistry
 from lughus.loop import ToolExecutionConfig, _execute_tools, collect_tool_events
+from lughus.runtime import ExecutionRuntime, RuntimeConfig
+
+
+def _test_runtime() -> ExecutionRuntime:
+    return ExecutionRuntime(RuntimeConfig(max_sync_workers=4))
 
 
 @pytest.fixture
@@ -54,6 +59,7 @@ def registry_with_tools() -> tuple[ToolRegistry, list]:
             "properties": {},
             "required": [],
         },
+        concurrency=ConcurrencyMode.PARALLEL_SAFE,
     )
     async def slow_tool(*, state) -> str:
         await asyncio.sleep(0.05)
@@ -196,7 +202,12 @@ async def test_sync_blocking_tool_does_not_block_event_loop() -> None:
     """J1-2: A sync tool using time.sleep() does not block the event loop."""
     registry = ToolRegistry()
 
-    @registry.tool("blocking", "Blocks for 50ms.", {"type": "object", "properties": {}})
+    @registry.tool(
+        "blocking",
+        "Blocks for 50ms.",
+        {"type": "object", "properties": {}},
+        concurrency=ConcurrencyMode.PARALLEL_SAFE,
+    )
     def blocking_tool(*, state) -> str:
         time.sleep(0.05)
         return json.dumps({"done": True})
@@ -225,7 +236,12 @@ async def test_max_parallel_tools_limits_concurrency() -> None:
     running = 0
     max_seen = 0
 
-    @registry.tool("slow", "Slow async tool.", {"type": "object", "properties": {}})
+    @registry.tool(
+        "slow",
+        "Slow async tool.",
+        {"type": "object", "properties": {}},
+        concurrency=ConcurrencyMode.PARALLEL_SAFE,
+    )
     async def slow(*, state) -> str:
         nonlocal running, max_seen
         running += 1
@@ -239,7 +255,7 @@ async def test_max_parallel_tools_limits_concurrency() -> None:
         tool_calls,
         registry,
         state=None,
-        config=ToolExecutionConfig(max_parallel_tools=2),
+        config=ToolExecutionConfig(max_parallel_tools=2, runtime=_test_runtime()),
     )
 
     assert len(results) == 4
@@ -260,7 +276,7 @@ async def test_tool_timeout_returns_error_json() -> None:
         [("call_timeout", "too_slow", "{}")],
         registry,
         state=None,
-        config=ToolExecutionConfig(tool_timeout=0.01),
+        config=ToolExecutionConfig(tool_timeout=0.01, runtime=_test_runtime()),
     )
 
     data = json.loads(results[0][1])
@@ -315,7 +331,7 @@ async def test_tool_args_size_limit() -> None:
         [("call_big_args", "echo", '{"x":"' + ("a" * 50) + '"}')],
         registry,
         state=None,
-        config=ToolExecutionConfig(max_tool_args_chars=10),
+        config=ToolExecutionConfig(max_tool_args_chars=10, runtime=_test_runtime()),
     )
 
     data = json.loads(results[0][1])
@@ -336,7 +352,7 @@ async def test_tool_output_size_limit() -> None:
         [("call_big_output", "big", "{}")],
         registry,
         state=None,
-        config=ToolExecutionConfig(max_tool_output_chars=10),
+        config=ToolExecutionConfig(max_tool_output_chars=10, runtime=_test_runtime()),
     )
 
     data = json.loads(results[0][1])
@@ -360,7 +376,7 @@ async def test_max_global_tools_limits_process_concurrency() -> None:
         running -= 1
         return json.dumps({"done": True})
 
-    cfg = ToolExecutionConfig(max_parallel_tools=10, max_global_tools=1)
+    cfg = ToolExecutionConfig(max_parallel_tools=10, max_global_tools=1, runtime=_test_runtime())
 
     await asyncio.gather(
         _execute_tools([("call_1", "slow", "{}")], registry, state=None, config=cfg),
@@ -387,11 +403,12 @@ async def test_global_tool_queue_timeout_returns_error_json() -> None:
         max_parallel_tools=1,
         max_global_tools=1,
         tool_queue_timeout=0.01,
+        runtime=ExecutionRuntime(RuntimeConfig(max_global_tools=1, max_sync_workers=4)),
     )
     first = asyncio.create_task(
         _execute_tools([("call_1", "wait", "{}")], registry, state=None, config=cfg)
     )
-    await started.wait()
+    await asyncio.wait_for(started.wait(), timeout=2.0)
 
     results = await _execute_tools(
         [("call_2", "wait", "{}")],
@@ -401,7 +418,7 @@ async def test_global_tool_queue_timeout_returns_error_json() -> None:
     )
 
     release.set()
-    await first
+    await asyncio.wait_for(first, timeout=2.0)
     data = json.loads(results[0][1])
     assert data["error_code"] == "ToolTimeoutError"
     assert "global tool slot" in data["error"]
@@ -459,7 +476,7 @@ async def test_async_partial_tool_executes_without_sync_worker() -> None:
         [("call_partial", "partial_async", '{"value": "yes"}')],
         registry,
         state=None,
-        config=ToolExecutionConfig(max_sync_thread_workers=1),
+        config=ToolExecutionConfig(max_sync_thread_workers=1, runtime=_test_runtime()),
     )
 
     assert json.loads(results[0][1]) == {"value": "ok:yes"}
@@ -470,17 +487,27 @@ async def test_sync_tool_worker_pool_is_bounded() -> None:
     """Synchronous tool execution uses a bounded worker pool."""
     registry = ToolRegistry()
     lock = threading.Lock()
+    barrier = threading.Barrier(2)
     running = 0
     max_seen = 0
 
-    @registry.tool("blocking", "Blocks briefly.", {"type": "object", "properties": {}})
+    from lughus.tools import ConcurrencyMode
+
+    @registry.tool(
+        "blocking",
+        "Blocks briefly.",
+        {"type": "object", "properties": {}},
+        concurrency=ConcurrencyMode.PARALLEL_SAFE,
+    )
     def blocking(*, state) -> str:
         nonlocal running, max_seen
         with lock:
             running += 1
             max_seen = max(max_seen, running)
         try:
-            time.sleep(0.05)
+            barrier.wait(timeout=2.0)
+            return json.dumps({"done": True})
+        except threading.BrokenBarrierError:
             return json.dumps({"done": True})
         finally:
             with lock:
@@ -494,19 +521,9 @@ async def test_sync_tool_worker_pool_is_bounded() -> None:
             max_parallel_tools=4,
             max_global_tools=4,
             max_sync_thread_workers=2,
+            runtime=ExecutionRuntime(RuntimeConfig(max_sync_workers=2)),
         ),
     )
 
     assert len(results) == 4
     assert max_seen == 2
-
-
-@pytest.mark.asyncio
-async def test_global_tool_semaphore_is_shared_across_configurations() -> None:
-    """The global tool semaphore is shared per event loop across configs."""
-    from lughus.loop._execute import _global_tool_semaphore
-
-    sem1 = _global_tool_semaphore(2)
-    sem2 = _global_tool_semaphore(3)
-
-    assert sem1 is sem2

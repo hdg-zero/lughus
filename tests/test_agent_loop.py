@@ -8,7 +8,12 @@ import pytest
 
 from lughus import LughusError, ToolRegistry
 from lughus.loop import LoopResult, ToolExecutionConfig, _extract_usage, agent_loop
+from lughus.runtime import ExecutionRuntime, RuntimeConfig
 from lughus.testing import MockLLM
+
+
+def _test_runtime() -> ExecutionRuntime:
+    return ExecutionRuntime(RuntimeConfig(max_sync_workers=4))
 
 
 @pytest.fixture
@@ -186,7 +191,10 @@ async def test_message_history_size_limit_prevents_llm_call(registry: ToolRegist
             registry=registry,
             tool_names=["greet"],
             state=None,
-            tool_config=ToolExecutionConfig(max_message_history_chars=10),
+            tool_config=ToolExecutionConfig(
+                max_message_history_chars=10,
+                runtime=_test_runtime(),
+            ),
         )
 
     assert llm.calls == []
@@ -267,7 +275,10 @@ async def test_compact_tool_schema_removes_parameter_descriptions() -> None:
         registry=r,
         tool_names=["describe"],
         state=None,
-        tool_config=ToolExecutionConfig(compact_tool_schemas=True),
+        tool_config=ToolExecutionConfig(
+            compact_tool_schemas=True,
+            runtime=_test_runtime(),
+        ),
     )
 
     tool = llm.calls[0]["tools"][0]

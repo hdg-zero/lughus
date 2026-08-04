@@ -20,7 +20,7 @@ from lughus.idempotency import (
     InMemoryIdempotencyStore,
 )
 from lughus.loop import ToolExecutionConfig, _execute_tools
-from lughus.persistence import Checkpoint, InMemoryDurableStore
+from lughus.persistence import Checkpoint, InMemoryRunStore
 from lughus.policy import LeastPrivilegePolicy, Principal
 from lughus.runtime import ExecutionRuntime, RuntimeConfig
 from lughus.tools import ToolRegistry, ToolRisk
@@ -140,7 +140,7 @@ async def test_governed_runtime_060_e2e_gate():
     policy = LeastPrivilegePolicy()
     approvals = InMemoryApprovalStore()
     idempotency = InMemoryIdempotencyStore()
-    durable_store = InMemoryDurableStore()
+    durable_store = InMemoryRunStore()
     events = InMemoryEventSink()
     budget = BudgetLedger(BudgetLimit(model_calls=10, tool_calls=10))
     context = ContextManager(10_000)

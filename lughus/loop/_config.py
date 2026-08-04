@@ -65,3 +65,8 @@ class ToolExecutionConfig:
         invalid = [name for name, value in positive.items() if value <= 0]
         if invalid:
             raise ValueError(f"Tool execution limits must be positive: {', '.join(invalid)}")
+
+        if self.runtime is None:
+            from ..runtime import ExecutionRuntime
+
+            object.__setattr__(self, "runtime", ExecutionRuntime())

@@ -10,7 +10,7 @@ We adopted an event-sourced execution model organized around the `Run` and `RunE
 - **Visibility:** We implemented a 4-level visibility system (`EventVisibility`: `INTERNAL`, `MODEL`, `PUBLIC`, `AUDIT`) to control exposure of event data.
 
 ## Alternatives
-- **Generic DAG:** We evaluated modeling executions as a Directed Acyclic Graph (DAG), but deemed it too complex for our Alpha release. It introduced significant overhead in state tracking.
+- **Generic DAG:** We evaluated modeling executions as a Directed Acyclic Graph (DAG), but deemed it too complex for the initial release. It introduced significant overhead in state tracking.
 - **Mutable Events:** We considered allowing updates to past events. This was rejected because it fundamentally breaks replayability and makes reliable real-time event streaming impossible.
 
 ## Consequences

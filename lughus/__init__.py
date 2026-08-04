@@ -55,7 +55,7 @@ from .persistence import (
     CheckpointStore,
     ConcurrentUpdateError,
     EventStore,
-    InMemoryDurableStore,
+    InMemoryRunStore,
     RunStore,
     RunUnitOfWork,
 )
@@ -68,7 +68,7 @@ from .policy import (
     ToolPolicy,
     ToolProposal,
 )
-from .replay import REPLAY_SCHEMA_VERSION, RecordedCall, ReplayBundle
+from .replay import REPLAY_SCHEMA_VERSION, RecordedCall, ReplayBundle, ReplayCapturePolicy
 from .resume import ResumeAction, ResumeDecision, decide_resume
 from .runner import AgentRunner
 from .runtime import ExecutionRuntime, RuntimeConfig
@@ -135,9 +135,9 @@ __all__ = [
     "IdempotencyKey",
     "IdempotencyStore",
     "InMemoryApprovalStore",
-    "InMemoryDurableStore",
     "InMemoryEventSink",
     "InMemoryIdempotencyStore",
+    "InMemoryRunStore",
     "LeastPrivilegePolicy",
     "LoopLimitError",
     "LoopResult",
@@ -153,6 +153,7 @@ __all__ = [
     "RecordedCall",
     "RemoteAgentClient",
     "ReplayBundle",
+    "ReplayCapturePolicy",
     "ResumeAction",
     "ResumeDecision",
     "Run",

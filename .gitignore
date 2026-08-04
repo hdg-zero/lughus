@@ -15,7 +15,7 @@ local.properties
 scratch/
 
 # --- Lock files ---
-*.lock
+# Project lockfiles are versioned for reproducible CI.
 
 # --- Generated demo/test outputs ---
 *.pptx
