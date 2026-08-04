@@ -6,7 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [0.10.0] — 2026-08-03
+## [0.10.1] — 2026-08-03
+
+### Fixed
+- Fixed unresolved GitHub Action reference for `pypa/gh-action-pypi-publish` in `.github/workflows/publish.yml` by pointing to stable `release/v1`.
+
+---
 
 ### Added
 - Added `lughus.files` module (`lughus/files.py`) consolidating safe Base64 file decoding, file size validation, and filename sanitization (`_safe_filename`, `decode_file_bytes`, `decode_files_payload`).
