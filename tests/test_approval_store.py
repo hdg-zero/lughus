@@ -91,7 +91,7 @@ async def test_deciding_twice_is_refused() -> None:
     request = make_request()
     await store.create(request)
     await store.decide(request.request_id, ApprovalStatus.APPROVED, "alice")
-    with pytest.raises(ValueError, match="already terminal|not pending"):
+    with pytest.raises(ValueError, match=r"already terminal|not pending"):
         await store.decide(request.request_id, ApprovalStatus.REJECTED, "bob")
 
 

@@ -137,9 +137,7 @@ async def test_store_keeps_accepting_work_when_full_of_terminal_receipts() -> No
     store = InMemoryIdempotencyStore(max_entries=10, now=clock)
 
     for i in range(10):
-        await store.save(
-            attempt(i, status=AttemptStatus.COMPLETED, created_at=clock.now + i)
-        )
+        await store.save(attempt(i, status=AttemptStatus.COMPLETED, created_at=clock.now + i))
     assert len(store) == 10
 
     assert await store.claim(attempt(999, created_at=clock.now)) is None

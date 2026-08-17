@@ -82,7 +82,6 @@ from .runtime import ExecutionRuntime, RuntimeConfig
 from .telemetry import setup_telemetry
 from .tools import ConcurrencyMode, ToolDef, ToolEffect, ToolRegistry, ToolRisk
 
-
 # Symbols resolved on first access instead of at import time.
 #
 #   name -> (module, extra that provides its dependencies or None for base deps)

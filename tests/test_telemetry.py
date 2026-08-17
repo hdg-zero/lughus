@@ -23,14 +23,17 @@ def reset_telemetry_initialized():
 
 def test_telemetry_retryable_after_failure(monkeypatch) -> None:
     with (
-        patch("lughus.telemetry.Resource.create", side_effect=RuntimeError("simulated error")),
+        patch(
+            "opentelemetry.sdk.resources.Resource.create",
+            side_effect=RuntimeError("simulated error"),
+        ),
         pytest.raises(RuntimeError, match="simulated error"),
     ):
         setup_telemetry("test")
 
     assert lughus.telemetry._INITIALIZED is False
 
-    with patch("lughus.telemetry.Resource.create"):
+    with patch("opentelemetry.sdk.resources.Resource.create"):
         setup_telemetry("test")
 
     assert lughus.telemetry._INITIALIZED is True
@@ -40,11 +43,11 @@ def test_telemetry_idempotent_after_success(monkeypatch) -> None:
     monkeypatch.setenv("LUGHUS_TELEMETRY_CONSOLE", "true")
 
     with (
-        patch("lughus.telemetry.Resource.create") as mock_resource,
-        patch("lughus.telemetry.TracerProvider") as mock_tracer_provider,
-        patch("lughus.telemetry.MeterProvider"),
-        patch("lughus.telemetry.trace.set_tracer_provider"),
-        patch("lughus.telemetry.metrics.set_meter_provider"),
+        patch("opentelemetry.sdk.resources.Resource.create") as mock_resource,
+        patch("opentelemetry.sdk.trace.TracerProvider") as mock_tracer_provider,
+        patch("opentelemetry.sdk.metrics.MeterProvider"),
+        patch("opentelemetry.trace.set_tracer_provider"),
+        patch("opentelemetry.metrics.set_meter_provider"),
     ):
         setup_telemetry("test")
         assert lughus.telemetry._INITIALIZED is True
@@ -64,7 +67,7 @@ def test_telemetry_configures_logging_when_no_handlers(monkeypatch) -> None:
     root.handlers.clear()
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
     try:
-        with patch("lughus.telemetry.Resource.create"):
+        with patch("opentelemetry.sdk.resources.Resource.create"):
             setup_telemetry("test", configure_logging=True)
         assert len(root.handlers) > 0
     finally:
@@ -79,7 +82,7 @@ def test_telemetry_skips_logging_when_disabled(monkeypatch) -> None:
     original_handlers = root.handlers[:]
     root.handlers.clear()
     try:
-        with patch("lughus.telemetry.Resource.create"):
+        with patch("opentelemetry.sdk.resources.Resource.create"):
             setup_telemetry("test", configure_logging=False)
         assert len(root.handlers) == 0
     finally:

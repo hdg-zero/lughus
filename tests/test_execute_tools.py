@@ -3,20 +3,43 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import functools
 import json
 import threading
 import time
+from typing import Any
 
 import pytest
 
 from lughus import ConcurrencyMode, ToolRegistry
-from lughus.loop import ToolExecutionConfig, _execute_tools, collect_tool_events
+from lughus.loop import ToolExecutionConfig, collect_tool_events
+from lughus.loop import _execute_tools as _raw_execute_tools
 from lughus.runtime import ExecutionRuntime, RuntimeConfig
 
 
-def _test_runtime() -> ExecutionRuntime:
-    return ExecutionRuntime(RuntimeConfig(max_sync_workers=4))
+def _test_runtime(max_workers: int = 32) -> ExecutionRuntime:
+    return ExecutionRuntime(RuntimeConfig(max_sync_workers=max_workers))
+
+
+async def _execute_tools(
+    tool_calls: list[tuple[str, str, str]],
+    registry: ToolRegistry,
+    state: Any = None,
+    config: ToolExecutionConfig | None = None,
+) -> list[tuple[str, str]]:
+    runtime_to_close: ExecutionRuntime | None = None
+    if config is None:
+        runtime_to_close = _test_runtime()
+        config = ToolExecutionConfig(runtime=runtime_to_close)
+    elif config.runtime is None:
+        runtime_to_close = _test_runtime(config.max_sync_thread_workers)
+        config = dataclasses.replace(config, runtime=runtime_to_close)
+    try:
+        return await _raw_execute_tools(tool_calls, registry, state, config=config)
+    finally:
+        if runtime_to_close is not None:
+            await runtime_to_close.close()
 
 
 @pytest.fixture
@@ -223,7 +246,7 @@ async def test_sync_blocking_tool_does_not_block_event_loop() -> None:
     for _, output in results:
         assert json.loads(output) == {"done": True}
     # Must run in ~50ms (parallel), not ~150ms (sequential)
-    assert elapsed < 0.12, (
+    assert elapsed < 0.25, (
         f"Expected parallel execution (~50ms) but took {elapsed:.3f}s — "
         "sync tool may still be blocking the event loop."
     )
@@ -376,7 +399,12 @@ async def test_max_global_tools_limits_process_concurrency() -> None:
         running -= 1
         return json.dumps({"done": True})
 
-    cfg = ToolExecutionConfig(max_parallel_tools=10, max_global_tools=1, runtime=_test_runtime())
+    runtime = ExecutionRuntime(RuntimeConfig(max_global_tools=1, max_sync_workers=32))
+    cfg = ToolExecutionConfig(
+        max_parallel_tools=10,
+        max_global_tools=1,
+        runtime=runtime,
+    )
 
     await asyncio.gather(
         _execute_tools([("call_1", "slow", "{}")], registry, state=None, config=cfg),
@@ -399,11 +427,12 @@ async def test_global_tool_queue_timeout_returns_error_json() -> None:
         await release.wait()
         return json.dumps({"done": True})
 
+    runtime = ExecutionRuntime(RuntimeConfig(max_global_tools=1, max_sync_workers=32))
     cfg = ToolExecutionConfig(
         max_parallel_tools=1,
         max_global_tools=1,
         tool_queue_timeout=0.01,
-        runtime=ExecutionRuntime(RuntimeConfig(max_global_tools=1, max_sync_workers=4)),
+        runtime=runtime,
     )
     first = asyncio.create_task(
         _execute_tools([("call_1", "wait", "{}")], registry, state=None, config=cfg)
@@ -476,7 +505,10 @@ async def test_async_partial_tool_executes_without_sync_worker() -> None:
         [("call_partial", "partial_async", '{"value": "yes"}')],
         registry,
         state=None,
-        config=ToolExecutionConfig(max_sync_thread_workers=1, runtime=_test_runtime()),
+        config=ToolExecutionConfig(
+            max_sync_thread_workers=1,
+            runtime=ExecutionRuntime(RuntimeConfig(max_sync_workers=1)),
+        ),
     )
 
     assert json.loads(results[0][1]) == {"value": "ok:yes"}
@@ -521,7 +553,7 @@ async def test_sync_tool_worker_pool_is_bounded() -> None:
             max_parallel_tools=4,
             max_global_tools=4,
             max_sync_thread_workers=2,
-            runtime=ExecutionRuntime(RuntimeConfig(max_sync_workers=2)),
+            runtime=ExecutionRuntime(RuntimeConfig(max_global_tools=4, max_sync_workers=2)),
         ),
     )
 

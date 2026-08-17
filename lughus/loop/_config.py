@@ -86,9 +86,7 @@ class ToolExecutionConfig:
                     runtime_config.max_sync_workers,
                 ),
             }
-            mismatched = {
-                name: pair for name, pair in conflicts.items() if pair[0] != pair[1]
-            }
+            mismatched = {name: pair for name, pair in conflicts.items() if pair[0] != pair[1]}
             if mismatched:
                 detail = ", ".join(
                     f"{name}: config={declared}, runtime={effective}"
@@ -98,4 +96,3 @@ class ToolExecutionConfig:
                     "The injected ExecutionRuntime already fixes these capacities; "
                     f"align them or drop them from ToolExecutionConfig ({detail})"
                 )
-

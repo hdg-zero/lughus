@@ -145,7 +145,6 @@ async def test_execute_tools_refuses_a_config_without_runtime(
             [("c1", "noop", "{}")],
             registry,
             {},
-            ["noop"],
             config=None,
         )
 
@@ -198,9 +197,7 @@ async def test_injected_runtime_with_conflicting_limits_is_rejected() -> None:
 async def test_injected_runtime_with_matching_limits_is_accepted() -> None:
     runtime = ExecutionRuntime(RuntimeConfig(max_global_tools=8, max_sync_workers=4))
     try:
-        cfg = ToolExecutionConfig(
-            runtime=runtime, max_global_tools=8, max_sync_thread_workers=4
-        )
+        cfg = ToolExecutionConfig(runtime=runtime, max_global_tools=8, max_sync_thread_workers=4)
         assert cfg.runtime is runtime
     finally:
         await runtime.close()

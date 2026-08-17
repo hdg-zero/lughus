@@ -9,7 +9,7 @@ from lughus.event_stream import InMemoryEventSink
 
 
 def event(run_id: str, sequence: int) -> RunEvent:
-    return RunEvent(run_id=run_id, sequence=sequence, kind="run.started", payload={})
+    return RunEvent(type="run.started", run_id=run_id, sequence=sequence, data={})
 
 
 async def test_sequence_tracker_is_bounded() -> None:

@@ -309,9 +309,7 @@ class MockLLM:
         messages: list[dict],
         tools: list[dict] | None = None,
     ) -> FakeResponse:
-        self.calls.append(
-            {"messages": copy.deepcopy(messages), "tools": copy.deepcopy(tools)}
-        )
+        self.calls.append({"messages": copy.deepcopy(messages), "tools": copy.deepcopy(tools)})
         if not self._responses:
             raise AssertionError(
                 f"MockLLM ran out of scripted responses after {len(self.calls)} call(s). "
@@ -354,13 +352,10 @@ class MockStreamingLLM:
         messages: list[dict],
         tools: list[dict] | None = None,
     ) -> AsyncIterator[FakeChunk]:
-        self.calls.append(
-            {"messages": copy.deepcopy(messages), "tools": copy.deepcopy(tools)}
-        )
+        self.calls.append({"messages": copy.deepcopy(messages), "tools": copy.deepcopy(tools)})
         if not self._responses:
             raise AssertionError(
-                f"MockStreamingLLM ran out of scripted responses after "
-                f"{len(self.calls)} call(s)."
+                f"MockStreamingLLM ran out of scripted responses after {len(self.calls)} call(s)."
             )
         resp = self._responses.pop(0)
         if isinstance(resp, str):
