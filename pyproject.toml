@@ -22,7 +22,6 @@ classifiers = [
 dependencies = [
     "litellm>=1.0,<2.0",
     "python-dotenv",
-    "orjson",
     "jsonschema>=4.0",
     # The OTel *API* is a base dependency, not an extra: lughus.loop, lughus.llm
     # and lughus.telemetry create tracers and counters at import time. Without an
