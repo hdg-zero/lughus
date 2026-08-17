@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 from collections.abc import AsyncIterator
 from typing import Protocol
 
@@ -14,14 +15,27 @@ class EventSink(Protocol):
 
 
 class InMemoryEventSink:
-    """Bounded development sink with cursor-based subscriptions."""
+    """Bounded development sink with cursor-based subscriptions.
 
-    def __init__(self, max_events: int = 10_000) -> None:
+    Both the event buffer and the per-run sequence tracker are bounded. Once a run
+    falls out of the tracker, a sequence regression for that run is no longer
+    detected -- acceptable because its events have already been evicted from the
+    buffer, and because this sink is explicitly a development tool. Use a durable
+    event store in production.
+    """
+
+    def __init__(self, max_events: int = 10_000, *, max_tracked_runs: int | None = None) -> None:
         if max_events <= 0:
             raise ValueError("max_events must be positive")
+        if max_tracked_runs is not None and max_tracked_runs <= 0:
+            raise ValueError("max_tracked_runs must be positive")
         self._max_events = max_events
         self._events: list[tuple[int, RunEvent]] = []
-        self._last_sequence: dict[str, int] = {}
+        # W1-06 / N-04: `_events` was bounded but `_last_sequence` was not, so one
+        # entry per run_id accumulated for the life of the process. Both structures
+        # are now bounded, with a retention aligned on the event bound.
+        self._max_tracked_runs = max_tracked_runs or max(64, max_events // 16)
+        self._last_sequence: OrderedDict[str, int] = OrderedDict()
         self._global_counter: int = 0
         self._condition = asyncio.Condition()
 
@@ -34,6 +48,12 @@ class InMemoryEventSink:
             self._global_counter += 1
             self._events.append((global_offset, event))
             self._last_sequence[event.run_id] = event.sequence
+            self._last_sequence.move_to_end(event.run_id)
+            while len(self._last_sequence) > self._max_tracked_runs:
+                # Dropping the least recently seen run only loses the ability to
+                # detect a sequence regression for a run whose events have already
+                # left `_events`. Documented on the class: this is a development sink.
+                self._last_sequence.popitem(last=False)
             if len(self._events) > self._max_events:
                 del self._events[: len(self._events) - self._max_events]
             self._condition.notify_all()
