@@ -13,6 +13,24 @@ from typing import Any
 from .errors import ToolTimeoutError
 
 
+@dataclass(slots=True)
+class _LockEntry:
+    """A resource lock plus the number of tasks currently interested in it.
+
+    W1-05 / F-17. ``_resource_locks`` used ``setdefault`` and never removed an
+    entry, so the dict grew with every distinct resource key ever seen -- and keys
+    are derived from tool arguments (``f"{name}:{tool.resource_key(args)}"``),
+    i.e. potentially from model-controlled data. Reference counting bounds the dict
+    by *actual concurrency* instead of by history, which is both simpler and more
+    correct than evicting on a heuristic: an entry is dropped only once the last
+    interested task has released it, so a held lock can never be removed from under
+    its holder.
+    """
+
+    lock: asyncio.Lock
+    waiters: int = 0
+
+
 @dataclass(frozen=True, slots=True)
 class RuntimeConfig:
     max_global_tools: int = 64
@@ -40,7 +58,7 @@ class ExecutionRuntime:
             thread_name_prefix="lughus-tool",
         )
         self._semaphore = asyncio.Semaphore(self.config.max_global_tools)
-        self._resource_locks: dict[str, asyncio.Lock] = {}
+        self._resource_locks: dict[str, _LockEntry] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
         self._closed = False
 
@@ -82,15 +100,38 @@ class ExecutionRuntime:
     @asynccontextmanager
     async def resource_slot(self, key: str) -> AsyncIterator[None]:
         self._bind()
-        lock = self._resource_locks.setdefault(key, asyncio.Lock())
-        async with lock:
-            yield
+        entry = self._resource_locks.get(key)
+        if entry is None:
+            entry = _LockEntry(asyncio.Lock())
+            self._resource_locks[key] = entry
+        entry.waiters += 1
+        try:
+            async with entry.lock:
+                yield
+        finally:
+            entry.waiters -= 1
+            if entry.waiters == 0:
+                # Nobody is interested in this resource any more, so the entry
+                # cannot be serving anyone: dropping it is safe by construction.
+                self._resource_locks.pop(key, None)
 
     async def close(self, *, wait: bool = True) -> None:
+        """Shut the thread pool down. Idempotent.
+
+        W1-05 / N-09: ``wait`` used to be ignored -- ``shutdown(wait=False)`` ran
+        whatever the caller asked, so ``await runtime.close(wait=True)`` could
+        return while synchronous tools were still executing side effects.
+
+        ``shutdown(wait=True)`` blocks, so it is offloaded to a thread: running it
+        on the event loop would stall every other task in the process.
+        """
         if self._closed:
             return
         self._closed = True
-        self._executor.shutdown(wait=False, cancel_futures=True)
+        if wait:
+            await asyncio.to_thread(self._executor.shutdown, True)
+        else:
+            self._executor.shutdown(wait=False, cancel_futures=True)
 
     async def __aenter__(self) -> ExecutionRuntime:
         self._bind()

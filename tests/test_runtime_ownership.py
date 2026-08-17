@@ -204,3 +204,77 @@ async def test_injected_runtime_with_matching_limits_is_accepted() -> None:
         assert cfg.runtime is runtime
     finally:
         await runtime.close()
+
+
+# ── W1-05 / N-09 / F-17: lifecycle and resource locks ─────────────────────────
+
+
+async def test_resource_locks_do_not_accumulate() -> None:
+    """The regression test for F-17.
+
+    Resource keys are derived from tool arguments, so an unbounded dict is fed by
+    potentially model-controlled data.
+    """
+    runtime = ExecutionRuntime()
+    try:
+        for i in range(500):
+            async with runtime.resource_slot(f"key-{i}"):
+                pass
+        assert len(runtime._resource_locks) == 0
+    finally:
+        await runtime.close()
+
+
+async def test_resource_slot_still_serialises_the_same_key() -> None:
+    runtime = ExecutionRuntime()
+    order: list[tuple[str, int]] = []
+
+    async def worker(n: int) -> None:
+        async with runtime.resource_slot("shared"):
+            order.append(("in", n))
+            await asyncio.sleep(0.01)
+            order.append(("out", n))
+
+    try:
+        await asyncio.gather(*(worker(i) for i in range(3)))
+        # Every "in" must be immediately followed by its matching "out".
+        assert all(order[i][0] == "in" and order[i + 1][0] == "out" for i in range(0, 6, 2))
+        assert "shared" not in runtime._resource_locks
+    finally:
+        await runtime.close()
+
+
+async def test_resource_slot_releases_on_exception() -> None:
+    runtime = ExecutionRuntime()
+    try:
+        with pytest.raises(ValueError):
+            async with runtime.resource_slot("boom"):
+                raise ValueError("boom")
+        assert "boom" not in runtime._resource_locks
+    finally:
+        await runtime.close()
+
+
+async def test_close_wait_true_waits_for_running_sync_tools() -> None:
+    """Fails on 0.10.1: `wait` was ignored and shutdown(wait=False) always ran."""
+    import time as _time
+
+    runtime = ExecutionRuntime(RuntimeConfig(max_sync_workers=2))
+    finished: list[bool] = []
+
+    def slow() -> None:
+        _time.sleep(0.2)
+        finished.append(True)
+
+    task = asyncio.ensure_future(runtime.run_sync(slow))
+    await asyncio.sleep(0.02)
+    await runtime.close(wait=True)
+    assert finished == [True], "close(wait=True) must not return mid-execution"
+    await task
+
+
+async def test_close_is_idempotent() -> None:
+    runtime = ExecutionRuntime()
+    await runtime.close()
+    await runtime.close(wait=False)
+    assert runtime._closed is True
