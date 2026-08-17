@@ -24,6 +24,11 @@ dependencies = [
     "python-dotenv",
     "orjson",
     "jsonschema>=4.0",
+    # The OTel *API* is a base dependency, not an extra: lughus.loop, lughus.llm
+    # and lughus.telemetry create tracers and counters at import time. Without an
+    # SDK it is a no-op with a negligible footprint, which is precisely what the
+    # OTel project designs the API package for. The SDK stays in the otel extra.
+    "opentelemetry-api>=1.20",
 ]
 
 [project.urls]
@@ -51,7 +56,6 @@ server = [
     "sse-starlette",
 ]
 otel = [
-    "opentelemetry-api>=1.20",
     "opentelemetry-sdk>=1.20",
     "opentelemetry-exporter-otlp-proto-grpc>=1.20",
 ]
