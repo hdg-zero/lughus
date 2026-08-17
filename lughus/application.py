@@ -68,6 +68,22 @@ class GovernedAgentRunner:
         from .domain import RunStatus
         from .loop import agent_loop
 
+        # W1-14 / F-04. `context_items` was accepted, typed, and then thrown away.
+        # A user supplying context with explicit provenance and trust levels believed
+        # their agent received it; it did not. On a framework that sells context
+        # governance, a silent lie is the worst possible defect (R7).
+        #
+        # Proper injection lands in W2-06 (0.11.0) because correct truncation depends
+        # on the token budget and atomic message groups (W3-03). Until then this fails
+        # loudly: a NotImplementedError is honest, a UserWarning would still be silent
+        # in production -- exactly where the user needs to know.
+        if context_items:
+            raise NotImplementedError(
+                "context_items is accepted but not yet injected into the prompt "
+                "(tracked as W2-06, shipping in 0.11.0). Until then, fold the content "
+                "into `objective` yourself so that nothing is silently dropped."
+            )
+
         if not isinstance(self.runtime.run_store, RunUnitOfWork):
             raise TypeError("AgentRuntime.run_store must implement RunUnitOfWork protocol")
         coordinator = RunCoordinator(self.runtime.run_store)
