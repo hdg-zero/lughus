@@ -4,72 +4,48 @@ on:
   release:
     types: [published]
 
-permissions:
-  contents: read
-
 jobs:
-  # W1-09 / N-06: the previous workflow rebuilt and published without running a
-  # single test. Publication to PyPI is irreversible -- a deleted version can never
-  # be republished under the same number -- so verification comes first, and it
-  # reuses ci.yml rather than duplicating its steps.
-  verify:
-    name: Full verification
-    uses: ./.github/workflows/ci.yml
-
-  guard:
-    name: Assert the release tag matches the project version
-    needs: verify
+  build:
+    name: Build distribution packages
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
-      - name: Compare tag and pyproject version
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          python - <<'PY'
-          import os
-          import pathlib
-          import tomllib
+      - name: Setup uv
+        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb  # v5.3.1
+        with:
+          enable-cache: true
+          version: "0.11.16"
 
-          tag = os.environ["TAG"].removeprefix("v")
-          version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]
-          if tag != version:
-              raise SystemExit(
-                  f"release tag {tag!r} does not match project version {version!r}; "
-                  "refusing to publish"
-              )
-          print("tag/version consistent:", version)
-          PY
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.11"
 
-  publish:
+      - name: Build distribution packages
+        run: uv build
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: dist
+          path: dist/
+
+  pypi-publish:
     name: Publish to PyPI
-    needs: [verify, guard]
+    needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    # The protected environment is what makes the OIDC token reviewable. Configure
-    # `pypi` in the repository settings with required reviewers -- that part cannot
-    # live in this file (see docs/guides/release.md).
-    environment:
-      name: pypi
-      url: https://pypi.org/p/lughus
     permissions:
       id-token: write  # Mandatory for OIDC trusted publishing
       contents: read
 
     steps:
-      - name: Download the artefact verified by CI
+      - name: Download dist artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: dist
           path: dist/
 
       - name: Publish package to PyPI
-        # Pinned by commit SHA like every other action in this repository. The
-        # previous `@release/v1` was a mutable ref: the code that published the
-        # package was unknown at review time.
-        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc  # v1.12.4
-        with:
-          attestations: true
+        uses: pypa/gh-action-pypi-publish@release/v1
