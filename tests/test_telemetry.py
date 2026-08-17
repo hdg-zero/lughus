@@ -9,6 +9,9 @@ import pytest
 import lughus.telemetry
 from lughus.telemetry import setup_telemetry
 
+# W1-08: this module exercises code that needs the 'otel' extra.
+pytestmark = pytest.mark.extra_otel
+
 
 @pytest.fixture(autouse=True)
 def reset_telemetry_initialized():
