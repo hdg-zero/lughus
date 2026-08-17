@@ -9,7 +9,7 @@ import json
 import logging
 import time
 from collections.abc import Callable, Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from jsonschema import Draft202012Validator, ValidationError  # type: ignore[import-untyped]
 from opentelemetry.trace import StatusCode
@@ -28,6 +28,9 @@ from ..policy import DecisionKind, ToolProposal
 from ..telemetry import meter, tracer
 from ..tools import ToolRegistry
 from ._config import ToolExecutionConfig
+
+if TYPE_CHECKING:
+    from ..runtime import ExecutionRuntime
 
 _logger = logging.getLogger(__name__)
 
@@ -195,6 +198,22 @@ def _is_async_callable(fn: Callable[..., Any]) -> bool:
     return bool(call and inspect.iscoroutinefunction(_unwrap_async_target(call)))
 
 
+def _runtime_of(cfg: ToolExecutionConfig) -> ExecutionRuntime:
+    """Return the config's runtime, relying on the invariant _execute_tools enforces.
+
+    W1-02: the runtime is guaranteed non-None from _execute_tools onwards. That is
+    why the two union-attr type-ignore markers and the redundant
+    ``if cfg.runtime is not None`` guard could be removed outright rather than moved.
+    """
+    runtime = cfg.runtime
+    if runtime is None:  # pragma: no cover - the entry point already refuses this
+        raise RuntimeError(
+            "ToolExecutionConfig carries no ExecutionRuntime; call tools through "
+            "agent_loop()/agent_loop_stream()."
+        )
+    return runtime
+
+
 async def _invoke_tool_callable(
     fn: Any,
     state: dict,
@@ -205,7 +224,7 @@ async def _invoke_tool_callable(
     if _is_async_callable(fn):
         call: Any = fn(state=state, **args)
     else:
-        call = cfg.runtime.run_sync(lambda: fn(state=state, **args))  # type: ignore[union-attr]
+        call = _runtime_of(cfg).run_sync(lambda: fn(state=state, **args))
     return await asyncio.wait_for(call, timeout=timeout) if timeout else await call
 
 
@@ -230,7 +249,16 @@ async def _execute_tools(
     - **Empty args**: ``raw_args=""`` is treated as an empty dict.
     """
 
-    cfg = config or ToolExecutionConfig()
+    # W1-02: _execute_tools no longer manufactures a config, because doing so used
+    # to allocate an ExecutionRuntime (and a thread pool) that nothing ever closed.
+    # A missing runtime here is a programming error, not an opportunity to leak one.
+    if config is None or config.runtime is None:
+        raise RuntimeError(
+            "_execute_tools requires a ToolExecutionConfig carrying an ExecutionRuntime. "
+            "Call it through agent_loop()/agent_loop_stream(), or inject "
+            "ToolExecutionConfig(runtime=ExecutionRuntime()) explicitly."
+        )
+    cfg = config
     max_parallel = max(1, cfg.max_parallel_tools)
     timeout = cfg.tool_timeout if cfg.tool_timeout and cfg.tool_timeout > 0 else None
     semaphore = asyncio.Semaphore(max_parallel)
@@ -365,15 +393,15 @@ async def _execute_tools(
                     if existing is not None:
                         raise ToolExecutionError("An idempotent execution is already in progress")
 
-                slot = cfg.runtime.tool_slot(cfg.tool_queue_timeout)  # type: ignore[union-attr]
+                slot = _runtime_of(cfg).tool_slot(cfg.tool_queue_timeout)
                 if cfg.budget is not None:
                     budget_reservation = await cfg.budget.reserve(BudgetAmount(tool_calls=1))
                 async with slot:
                     resource_key = name
                     if tool.resource_key is not None:
                         resource_key = f"{name}:{tool.resource_key(args)}"
-                    if cfg.runtime is not None and tool.concurrency.value != "parallel_safe":
-                        async with cfg.runtime.resource_slot(resource_key):
+                    if tool.concurrency.value != "parallel_safe":
+                        async with _runtime_of(cfg).resource_slot(resource_key):
                             output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
                     else:
                         output = await _invoke_tool_callable(fn, state, args, cfg, timeout)

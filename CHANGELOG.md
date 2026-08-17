@@ -6,6 +6,108 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.10.2] — 2026-08-17
+
+Correctness and packaging release. **No breaking API change**: it can be adopted
+without any migration. Derived from the 0.10.1 audit and counter-audit; each item
+names the finding it closes and the ticket that implements it.
+
+### Fixed
+
+- **`pip install lughus` produced an unusable package** (N-01, P0, W1-01). The core
+  eagerly imported `opentelemetry.sdk` (via `telemetry.py`, reached from `llm.py`
+  and `loop/_execute.py`), `a2a` (via `gateway.py`) and `starlette`/`uvicorn` (via
+  `server.py`) — all optional extras. `opentelemetry-api` is now a base dependency
+  (it is a no-op without an SDK, which is what that package is designed for), the
+  SDK imports moved inside `setup_telemetry()`, and `.gateway`/`.server` resolve
+  lazily. Accessing an unavailable symbol now raises `ImportError` naming the extra
+  to install.
+- **The idempotency store saturated permanently** (N-02, P0, W1-04). `_is_expired`
+  only ever returned `True` for `PENDING`, so terminal receipts never expired; once
+  10 000 had accumulated, every idempotent tool execution failed for the remaining
+  life of the process. Receipts now have two TTLs (`pending_ttl_seconds` for
+  orphaned in-flight attempts, `ttl_seconds` for terminal receipts), saturation
+  evicts the oldest terminal receipt instead of refusing work, and
+  `IdempotencyCapacityError` replaces the bare `RuntimeError`.
+- **Constructing a `ToolExecutionConfig` leaked 32 threads** (F-05, N-03, W1-02).
+  `__post_init__` allocated an `ExecutionRuntime`, and nothing ever closed it.
+  Configuration is now inert; `agent_loop`/`agent_loop_stream` own and close the
+  runtime they create, and never close an injected one.
+- **`max_global_tools` and `max_sync_thread_workers` had no effect** (N-10, W1-03).
+  The implicit runtime was built with `RuntimeConfig()` defaults. They are now
+  derived from the configuration, and a conflict with an injected runtime raises
+  `ValueError` instead of being ignored.
+- **`ExecutionRuntime.close(wait=True)` did not wait** (N-09, W1-05). `wait` was
+  ignored, so `close(wait=True)` could return while synchronous tools were still
+  producing side effects.
+- **Resource locks accumulated without bound** (F-17, W1-05). `resource_slot` never
+  removed an entry, and keys derive from tool arguments — i.e. from potentially
+  model-controlled data. Now reference-counted.
+- **`InMemoryEventSink._last_sequence` grew forever** (N-04, W1-06). The event
+  buffer was bounded; the per-run sequence tracker was not.
+- **`ApprovalRequest` transitions were rebuilt from nine positional arguments**
+  (N-13, W1-11). Adding or reordering a field would have silently shifted values on
+  a tamper-evident record. Now `dataclasses.replace()`.
+- **`InMemoryApprovalStore` was unbounded** (W1-11). Bounded, evicting terminal
+  requests only; a live pending decision is never dropped silently.
+- **`context_items` was accepted and silently discarded** (F-04, W1-14). It now
+  raises `NotImplementedError` naming the ticket that implements it (W2-06, 0.11.0).
+  A silent lie is worse than a loud gap.
+- **`registry._tools` was accessed privately by the framework itself** (W1-12).
+  `ToolRegistry.names()`, `__contains__` and `__len__` added.
+- **Mypy targeted 3.12 while `requires-python` is `>=3.11`** (N-17, W1-10), so the
+  lowest supported interpreter was never type-checked.
+
+### Added
+
+- `ToolRegistry.names()`, `ToolRegistry.__contains__`, `ToolRegistry.__len__`.
+- `IdempotencyCapacityError`, `InMemoryIdempotencyStore.purge_expired()` and
+  `__len__`.
+- `lughus.idempotency.evictions` counter (`reason=expired|capacity`). Eviction
+  weakens the exactly-once guarantee, so it must be observable.
+- Eleven strict `Fake*` dataclasses in `lughus.testing`, exported: they are the
+  executable specification of the provider response shape Lughus expects (W1-13).
+- CI jobs `dist`, `dist-core` and `extras`: the distribution is built, installed in
+  a base-dependency-only environment, imported, and functionally smoke-tested
+  (N-07, W1-08). This is the control whose absence let N-01 ship.
+- `docs/architecture/ADR-010-core-import-surface.md`,
+  `docs/architecture/ADR-013-runtime-ownership.md`, `docs/guides/release.md`.
+
+### Changed
+
+- `lughus.testing` no longer uses `MagicMock` (N-14, W1-13). A `MagicMock` answers
+  every attribute access, so the doubles could not fail — the root cause of a
+  261-test suite missing a P0. Response shapes are now strict frozen dataclasses;
+  a misspelled attribute raises `AttributeError`.
+- `pytest.ini`: `filterwarnings = error` with named, dated exceptions;
+  `--strict-markers`, `--strict-config`; `asyncio_default_fixture_loop_scope`
+  pinned; markers declared.
+- `.pre-commit-config.yaml` runs the fast test subset; the full suite with coverage
+  stays in CI. A hook slow enough to be bypassed protects nothing.
+- `publish.yml`: verification before publication, protected `pypi` environment,
+  tag/version guard, every action pinned by SHA, and the published artefact is the
+  one CI tested (N-06, F-19, W1-09).
+
+### Removed
+
+- `orjson` from the base dependencies: it was declared and never imported (N-05,
+  W1-07). **Run `uv lock` before merging** — the lockfile still pins it and could
+  not be regenerated offline. `uv lock --check` fails until then, deliberately.
+
+### Deprecated
+
+- Nothing.
+
+### Known gaps, shipping in 0.11.0
+
+- `BudgetedLLM` + streaming still raises `TypeError` (F-02): the `astream` contract
+  fix is a breaking change and belongs in a minor release (W2-01).
+- `context_items` raises instead of being injected (W2-06).
+- Approval is still consumed before the tool dispatches (F-12, W2-03), approval
+  expiry is still not enforced (W2-04), and a missing approval is still returned to
+  the model as a tool error rather than suspending the run (N-16, W2-05).
+
+
 ## [0.10.1] — 2026-08-03
 
 ### Fixed

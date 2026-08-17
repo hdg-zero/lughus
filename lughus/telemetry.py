@@ -6,18 +6,11 @@ import logging
 import os
 import threading
 
+# Only the OpenTelemetry *API* is imported at module level. It is a base
+# dependency: without an SDK installed it returns no-op tracers and meters at
+# near-zero cost, which is exactly the contract a library needs.
+# The SDK (otel extra) is imported inside setup_telemetry() -- see W1-01 / N-01.
 from opentelemetry import metrics, trace
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import (
-    ConsoleMetricExporter,
-    PeriodicExportingMetricReader,
-)
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (
-    BatchSpanProcessor,
-    ConsoleSpanExporter,
-)
 
 _INITIALIZED = False
 _INIT_LOCK = threading.Lock()
@@ -30,6 +23,24 @@ def setup_telemetry(service_name: str, *, configure_logging: bool = True) -> Non
     module retryable instead of poisoning the process-wide initialized flag.
     """
     global _INITIALIZED
+    try:
+        from opentelemetry.sdk.metrics import MeterProvider
+        from opentelemetry.sdk.metrics.export import (
+            ConsoleMetricExporter,
+            PeriodicExportingMetricReader,
+        )
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import (
+            BatchSpanProcessor,
+            ConsoleSpanExporter,
+        )
+    except ModuleNotFoundError as exc:  # pragma: no cover - exercised in dist-core CI job
+        raise ImportError(
+            "setup_telemetry() requires the OpenTelemetry SDK, which is an optional "
+            "dependency. Install it with: pip install 'lughus[otel]'"
+        ) from exc
+
     with _INIT_LOCK:
         if _INITIALIZED:
             return

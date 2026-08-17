@@ -1,6 +1,6 @@
 [project]
 name = "lughus"
-version = "0.10.1"
+version = "0.10.2"
 description = "Micro-framework for building A2A agents with LiteLLM — agent loop, tool registry, A2A gateway."
 readme = "README.md"
 license = "MIT"
@@ -22,8 +22,12 @@ classifiers = [
 dependencies = [
     "litellm>=1.0,<2.0",
     "python-dotenv",
-    "orjson",
     "jsonschema>=4.0",
+    # The OTel *API* is a base dependency, not an extra: lughus.loop, lughus.llm
+    # and lughus.telemetry create tracers and counters at import time. Without an
+    # SDK it is a no-op with a negligible footprint, which is precisely what the
+    # OTel project designs the API package for. The SDK stays in the otel extra.
+    "opentelemetry-api>=1.20",
 ]
 
 [project.urls]
@@ -51,7 +55,6 @@ server = [
     "sse-starlette",
 ]
 otel = [
-    "opentelemetry-api>=1.20",
     "opentelemetry-sdk>=1.20",
     "opentelemetry-exporter-otlp-proto-grpc>=1.20",
 ]
@@ -89,7 +92,10 @@ show_missing = true
 skip_covered = true
 
 [tool.mypy]
-python_version = "3.12"
+# W1-10 / N-17: must match the *lowest* supported interpreter declared in
+# requires-python, otherwise 3.12-only constructs pass type checking and
+# break at runtime on 3.11.
+python_version = "3.11"
 check_untyped_defs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true

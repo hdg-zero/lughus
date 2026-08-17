@@ -25,10 +25,11 @@ repos:
         types: [python]
         pass_filenames: false
 
-      # Run Pytest suite from local virtualenv
-      - id: pytest
-        name: pytest
-        entry: uv run pytest tests/ -q --cov=lughus --cov-branch --cov-fail-under=85
+      # W1-10: fast subset only. The full suite with coverage runs in CI.
+      # A pre-commit hook slow enough to be bypassed with --no-verify protects nothing.
+      - id: pytest-fast
+        name: pytest (fast subset)
+        entry: uv run pytest tests/ -q -x -m "not slow and not integration" -p no:cacheprovider
         language: system
         pass_filenames: false
 

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import OrderedDict
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Protocol
@@ -77,17 +78,54 @@ class ApprovalStore(Protocol):
     async def find(self, run_id: str, proposal_hash: str) -> ApprovalRequest | None: ...
 
 
-class InMemoryApprovalStore:
-    """In-memory reference implementation of ApprovalStore."""
+# Statuses from which no further action is possible. Kept as a module constant so
+# that eviction and the future expiry logic (W2-04) agree on one definition.
+TERMINAL_APPROVAL_STATUSES = frozenset(
+    {ApprovalStatus.CONSUMED, ApprovalStatus.REJECTED, ApprovalStatus.EXPIRED}
+)
 
-    def __init__(self) -> None:
-        """Initialize empty in-memory approval store."""
-        self._items: dict[str, ApprovalRequest] = {}
+
+class InMemoryApprovalStore:
+    """In-memory reference implementation of ApprovalStore.
+
+    Bounded (W1-11): the store used to keep every request for the life of the
+    process. Only *terminal* requests are ever evicted; a PENDING or APPROVED
+    request is a live decision and is never dropped silently. If only live requests
+    remain, creation fails loudly rather than losing one.
+    """
+
+    def __init__(self, *, max_entries: int = 10_000) -> None:
+        if max_entries <= 0:
+            raise ValueError("max_entries must be positive")
+        self._max_entries = max_entries
+        self._items: OrderedDict[str, ApprovalRequest] = OrderedDict()
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def _make_room(self) -> None:
+        """Evict the oldest terminal requests; never a live one."""
+        while len(self._items) >= self._max_entries:
+            victim = next(
+                (
+                    request_id
+                    for request_id, item in self._items.items()
+                    if item.status in TERMINAL_APPROVAL_STATUSES
+                ),
+                None,
+            )
+            if victim is None:
+                raise RuntimeError(
+                    f"Approval store holds {self._max_entries} live (pending or approved) "
+                    "requests; decide on them or raise max_entries"
+                )
+            del self._items[victim]
 
     async def create(self, request: ApprovalRequest) -> None:
         """Create an approval request in memory, raising ValueError if request_id exists."""
         if request.request_id in self._items:
             raise ValueError("Approval request already exists")
+        self._make_room()
         self._items[request.request_id] = request
 
     async def get(self, request_id: str) -> ApprovalRequest | None:
@@ -111,16 +149,15 @@ class InMemoryApprovalStore:
             raise ValueError("Approval request is already terminal")
         if status not in {ApprovalStatus.APPROVED, ApprovalStatus.REJECTED}:
             raise ValueError("Decision must approve or reject")
-        updated = ApprovalRequest(
-            current.run_id,
-            current.tool_name,
-            current.proposal_hash,
-            current.risk,
-            current.request_id,
-            current.expires_at,
-            status,
-            subject,
-            datetime.now(UTC).isoformat(),
+        # W1-11 / N-13: dataclasses.replace() instead of re-listing nine positional
+        # arguments. The previous form broke -- or worse, silently shifted values --
+        # the moment a field was added or reordered, on an object whose entire
+        # purpose is to be a tamper-evident record.
+        updated = replace(
+            current,
+            status=status,
+            decided_by=subject,
+            decided_at=datetime.now(UTC).isoformat(),
         )
         self._items[request_id] = updated
         return updated
@@ -130,16 +167,6 @@ class InMemoryApprovalStore:
         current = self._items[request_id]
         if current.status != ApprovalStatus.APPROVED:
             raise ValueError("Only approved requests can be consumed")
-        updated = ApprovalRequest(
-            current.run_id,
-            current.tool_name,
-            current.proposal_hash,
-            current.risk,
-            current.request_id,
-            current.expires_at,
-            ApprovalStatus.CONSUMED,
-            current.decided_by,
-            current.decided_at,
-        )
+        updated = replace(current, status=ApprovalStatus.CONSUMED)
         self._items[request_id] = updated
         return updated

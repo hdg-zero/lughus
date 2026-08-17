@@ -8,12 +8,12 @@ import pytest
 
 from lughus import LughusError, ToolRegistry
 from lughus.loop import LoopResult, ToolExecutionConfig, _extract_usage, agent_loop
-from lughus.runtime import ExecutionRuntime, RuntimeConfig
+from lughus.runtime import ExecutionRuntime
 from lughus.testing import MockLLM
 
 
 def _test_runtime() -> ExecutionRuntime:
-    return ExecutionRuntime(RuntimeConfig(max_sync_workers=4))
+    return ExecutionRuntime()
 
 
 @pytest.fixture

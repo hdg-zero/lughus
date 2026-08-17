@@ -8,11 +8,11 @@ import pytest
 
 from lughus.config import BaseSettings, _env_bool, _env_float, _env_int
 from lughus.loop._config import ToolExecutionConfig
-from lughus.runtime import ExecutionRuntime, RuntimeConfig
+from lughus.runtime import ExecutionRuntime
 
 
 def _test_runtime() -> ExecutionRuntime:
-    return ExecutionRuntime(RuntimeConfig(max_sync_workers=4))
+    return ExecutionRuntime()
 
 
 # ── _env_int ──────────────────────────────────────────────────────────────────
@@ -350,4 +350,4 @@ def test_tool_config_rejects_negative() -> None:
 
 def test_tool_execution_config_requires_runtime():
     cfg = ToolExecutionConfig()
-    assert cfg.runtime is not None
+    assert cfg.runtime is None

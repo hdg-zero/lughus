@@ -5,6 +5,7 @@ import logging
 import random
 import time
 from collections.abc import AsyncGenerator, AsyncIterator
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from opentelemetry.trace import StatusCode
@@ -28,6 +29,7 @@ _logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..llm import GenerateLLM, StreamingLLM
+    from ..runtime import ExecutionRuntime
 
 
 def _prepare_loop(
@@ -122,12 +124,34 @@ async def _stream_with_timeout(
         yield chunk
 
 
-def _ensure_config(tool_config: ToolExecutionConfig | None) -> ToolExecutionConfig:
-    if tool_config is None:
-        from ..runtime import ExecutionRuntime
+def _resolve_tool_config(
+    tool_config: ToolExecutionConfig | None,
+) -> tuple[ToolExecutionConfig, ExecutionRuntime | None]:
+    """Return a runnable config plus the runtime this loop must close.
 
-        return ToolExecutionConfig(runtime=ExecutionRuntime())
-    return tool_config
+    W1-02 / W1-03. A ``ToolExecutionConfig`` is a value: it no longer allocates an
+    ``ExecutionRuntime`` (and therefore a thread pool) in ``__post_init__``. The
+    loop owns the runtime it creates and closes it in a ``finally``; a runtime
+    injected by the caller stays the caller's property and is never closed here.
+
+    The implicit runtime is derived from the config, so ``max_global_tools``,
+    ``max_sync_thread_workers`` and ``tool_queue_timeout`` finally take effect
+    (W1-03 / N-10: they used to be silently ignored).
+    """
+    from ..runtime import ExecutionRuntime, RuntimeConfig
+
+    cfg = tool_config if tool_config is not None else ToolExecutionConfig()
+    if cfg.runtime is not None:
+        return cfg, None
+
+    runtime = ExecutionRuntime(
+        RuntimeConfig(
+            max_global_tools=cfg.max_global_tools,
+            max_sync_workers=cfg.max_sync_thread_workers,
+            queue_timeout=cfg.tool_queue_timeout,
+        )
+    )
+    return replace(cfg, runtime=runtime), runtime
 
 
 async def agent_loop(
@@ -147,78 +171,84 @@ async def agent_loop(
     metadata (``iterations``, ``elapsed``, ``prompt_tokens``,
     ``completion_tokens``, ``cached_tokens``, ``total_tokens``).
     """
-    cfg = _ensure_config(tool_config)
-    with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
-        with retry_budget(getattr(llm, "retry_max_elapsed", None)):
-            loop_span.set_attribute("gen_ai.request.model", llm.model)
-            loop_span.set_attribute("lughus.max_iterations", max_iterations)
+    cfg, _owned_runtime = _resolve_tool_config(tool_config)
+    try:
+        with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
+            with retry_budget(getattr(llm, "retry_max_elapsed", None)):
+                loop_span.set_attribute("gen_ai.request.model", llm.model)
+                loop_span.set_attribute("lughus.max_iterations", max_iterations)
 
-            messages, tools = _prepare_loop(system, context, registry, tool_names, cfg)
+                messages, tools = _prepare_loop(system, context, registry, tool_names, cfg)
 
-            t0 = time.perf_counter()
-            prompt_tokens = 0
-            completion_tokens = 0
-            cached_tokens = 0
+                t0 = time.perf_counter()
+                prompt_tokens = 0
+                completion_tokens = 0
+                cached_tokens = 0
 
-            for iteration in range(max_iterations):
-                _check_message_history_size(messages, cfg)
-                with tracer.start_as_current_span("llm.generate") as llm_span:
-                    llm_span.set_attribute("gen_ai.request.model", llm.model)
-                    llm_span.set_attribute("lughus.iteration", iteration + 1)
-                    response = await llm.generate(messages=messages, tools=tools)
+                for iteration in range(max_iterations):
+                    _check_message_history_size(messages, cfg)
+                    with tracer.start_as_current_span("llm.generate") as llm_span:
+                        llm_span.set_attribute("gen_ai.request.model", llm.model)
+                        llm_span.set_attribute("lughus.iteration", iteration + 1)
+                        response = await llm.generate(messages=messages, tools=tools)
 
-                    if hasattr(response, "usage") and response.usage:
-                        p, c, ca = _record_llm_usage(
-                            llm_span,
-                            response.usage,
+                        if hasattr(response, "usage") and response.usage:
+                            p, c, ca = _record_llm_usage(
+                                llm_span,
+                                response.usage,
+                                llm.model,
+                            )
+                            prompt_tokens += p
+                            completion_tokens += c
+                            cached_tokens += ca
+
+                    msg = response.choices[0].message
+
+                    if not msg.tool_calls:
+                        return _finalize_loop(
+                            loop_span,
+                            msg.content or "",
+                            iteration,
+                            t0,
+                            prompt_tokens,
+                            completion_tokens,
+                            cached_tokens,
                             llm.model,
                         )
-                        prompt_tokens += p
-                        completion_tokens += c
-                        cached_tokens += ca
 
-                msg = response.choices[0].message
+                    assistant_tool_payload = [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        }
+                        for tc in msg.tool_calls
+                    ]
+                    tc_inputs = [
+                        (tc.id or "", tc.function.name or "", tc.function.arguments or "")
+                        for tc in msg.tool_calls
+                    ]
 
-                if not msg.tool_calls:
-                    return _finalize_loop(
-                        loop_span,
-                        msg.content or "",
-                        iteration,
-                        t0,
-                        prompt_tokens,
-                        completion_tokens,
-                        cached_tokens,
-                        llm.model,
+                    await _run_tool_calls(
+                        tc_inputs,
+                        messages,
+                        registry,
+                        state,
+                        cfg,
+                        assistant_tool_payload,
+                        content=msg.content,
                     )
 
-                assistant_tool_payload = [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments,
-                        },
-                    }
-                    for tc in msg.tool_calls
-                ]
-                tc_inputs = [
-                    (tc.id or "", tc.function.name or "", tc.function.arguments or "")
-                    for tc in msg.tool_calls
-                ]
-
-                await _run_tool_calls(
-                    tc_inputs,
-                    messages,
-                    registry,
-                    state,
-                    cfg,
-                    assistant_tool_payload,
-                    content=msg.content,
-                )
-
-            loop_span.set_status(StatusCode.ERROR, "max iterations exceeded")
-            raise LoopLimitError(f"Agent loop exceeded {max_iterations} iterations")
+                loop_span.set_status(StatusCode.ERROR, "max iterations exceeded")
+                raise LoopLimitError(f"Agent loop exceeded {max_iterations} iterations")
+    finally:
+        # Only close what this call created; an injected runtime is the
+        # caller's to manage (W1-02 / N-03: nothing used to close it at all).
+        if _owned_runtime is not None:
+            await _owned_runtime.close()
 
 
 async def agent_loop_stream(
@@ -244,45 +274,91 @@ async def agent_loop_stream(
     if mode_str not in {"buffered", "live"}:
         raise ValueError("streaming_mode must be 'buffered' or 'live'")
     streaming_mode_normalized = mode_str
-    cfg = _ensure_config(tool_config)
-    with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
-        with retry_budget(getattr(llm, "retry_max_elapsed", None)):
-            loop_span.set_attribute("gen_ai.request.model", llm.model)
-            loop_span.set_attribute("lughus.max_iterations", max_iterations)
-            loop_span.set_attribute("lughus.streaming", True)
+    cfg, _owned_runtime = _resolve_tool_config(tool_config)
+    try:
+        with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
+            with retry_budget(getattr(llm, "retry_max_elapsed", None)):
+                loop_span.set_attribute("gen_ai.request.model", llm.model)
+                loop_span.set_attribute("lughus.max_iterations", max_iterations)
+                loop_span.set_attribute("lughus.streaming", True)
 
-            messages, tools = _prepare_loop(system, context, registry, tool_names, cfg)
+                messages, tools = _prepare_loop(system, context, registry, tool_names, cfg)
 
-            t0 = time.perf_counter()
-            prompt_tokens = 0
-            completion_tokens = 0
-            cached_tokens = 0
+                t0 = time.perf_counter()
+                prompt_tokens = 0
+                completion_tokens = 0
+                cached_tokens = 0
 
-            for iteration in range(max_iterations):
-                _check_message_history_size(messages, cfg)
-                content_parts: list[str] = []
-                tc_map: dict[int, dict[str, str]] = {}
+                for iteration in range(max_iterations):
+                    _check_message_history_size(messages, cfg)
+                    content_parts: list[str] = []
+                    tc_map: dict[int, dict[str, str]] = {}
 
-                max_retries = getattr(llm, "max_retries", 0)
-                retry_base_delay = getattr(llm, "retry_base_delay", 1.0)
-                retry_max_elapsed = getattr(llm, "retry_max_elapsed", None)
-                timeout = getattr(llm, "timeout", None)
+                    max_retries = getattr(llm, "max_retries", 0)
+                    retry_base_delay = getattr(llm, "retry_base_delay", 1.0)
+                    retry_max_elapsed = getattr(llm, "retry_max_elapsed", None)
+                    timeout = getattr(llm, "timeout", None)
 
-                for attempt in range(max_retries + 1):
-                    content_parts.clear()
-                    tc_map.clear()
-                    try:
-                        emitted = False
-                        with tracer.start_as_current_span("llm.generate") as llm_span:
-                            llm_span.set_attribute("gen_ai.request.model", llm.model)
-                            llm_span.set_attribute("lughus.iteration", iteration + 1)
+                    for attempt in range(max_retries + 1):
+                        content_parts.clear()
+                        tc_map.clear()
+                        try:
+                            emitted = False
+                            with tracer.start_as_current_span("llm.generate") as llm_span:
+                                llm_span.set_attribute("gen_ai.request.model", llm.model)
+                                llm_span.set_attribute("lughus.iteration", iteration + 1)
 
-                            stream = await llm.astream(messages=messages, tools=tools)
-                            async for chunk in _stream_with_timeout(stream, timeout):
-                                _usage_recorded = False
+                                stream = await llm.astream(messages=messages, tools=tools)
+                                async for chunk in _stream_with_timeout(stream, timeout):
+                                    _usage_recorded = False
 
-                                if not chunk.choices:
-                                    if hasattr(chunk, "usage") and chunk.usage:
+                                    if not chunk.choices:
+                                        if hasattr(chunk, "usage") and chunk.usage:
+                                            p, c, ca = _record_llm_usage(
+                                                llm_span,
+                                                chunk.usage,
+                                                llm.model,
+                                            )
+                                            prompt_tokens += p
+                                            completion_tokens += c
+                                            cached_tokens += ca
+                                            _usage_recorded = True
+                                        continue
+
+                                    delta = chunk.choices[0].delta
+                                    if not delta:
+                                        continue
+
+                                    if delta.content:
+                                        content_parts.append(delta.content)
+                                        if streaming_mode_normalized == "live":
+                                            emitted = True
+                                            yield delta.content
+
+                                    if delta.tool_calls:
+                                        for tc_delta in delta.tool_calls:
+                                            idx = tc_delta.index
+                                            if idx not in tc_map:
+                                                tc_map[idx] = {
+                                                    "id": "",
+                                                    "name": "",
+                                                    "arguments": "",
+                                                }
+                                            if tc_delta.id:
+                                                tc_map[idx]["id"] = tc_delta.id
+                                            if tc_delta.function:
+                                                if tc_delta.function.name:
+                                                    tc_map[idx]["name"] += tc_delta.function.name
+                                                if tc_delta.function.arguments:
+                                                    tc_map[idx]["arguments"] += (
+                                                        tc_delta.function.arguments
+                                                    )
+
+                                    if (
+                                        not _usage_recorded
+                                        and hasattr(chunk, "usage")
+                                        and chunk.usage
+                                    ):
                                         p, c, ca = _record_llm_usage(
                                             llm_span,
                                             chunk.usage,
@@ -291,115 +367,83 @@ async def agent_loop_stream(
                                         prompt_tokens += p
                                         completion_tokens += c
                                         cached_tokens += ca
-                                        _usage_recorded = True
-                                    continue
+                            break
+                        except _RETRYABLE_ERRORS as exc:
+                            if streaming_mode_normalized == "live" and emitted:
+                                raise
+                            if attempt >= max_retries:
+                                raise
+                            retry_after = _retry_after_seconds(exc)
+                            if retry_after is not None:
+                                delay = retry_after
+                            else:
+                                raw_delay = retry_base_delay * (2**attempt)
+                                delay = random.uniform(0.0, raw_delay) if raw_delay > 0 else 0.0
 
-                                delta = chunk.choices[0].delta
-                                if not delta:
-                                    continue
+                            budget = _retry_budget_var.get()
+                            retry_sleep_elapsed = _retry_used_var.get()
+                            if budget is None:
+                                budget = retry_max_elapsed
+                            if budget is not None and retry_sleep_elapsed + delay > budget:
+                                raise
+                            _retry_used_var.set(retry_sleep_elapsed + delay)
 
-                                if delta.content:
-                                    content_parts.append(delta.content)
-                                    if streaming_mode_normalized == "live":
-                                        emitted = True
-                                        yield delta.content
+                            _logger.warning(
+                                "LLM.astream: transient error (%s) during chunk streaming, "
+                                "retry %d/%d in %.1fs",
+                                type(exc).__name__,
+                                attempt + 1,
+                                max_retries,
+                                delay,
+                            )
+                            await asyncio.sleep(delay)
 
-                                if delta.tool_calls:
-                                    for tc_delta in delta.tool_calls:
-                                        idx = tc_delta.index
-                                        if idx not in tc_map:
-                                            tc_map[idx] = {"id": "", "name": "", "arguments": ""}
-                                        if tc_delta.id:
-                                            tc_map[idx]["id"] = tc_delta.id
-                                        if tc_delta.function:
-                                            if tc_delta.function.name:
-                                                tc_map[idx]["name"] += tc_delta.function.name
-                                            if tc_delta.function.arguments:
-                                                tc_map[idx]["arguments"] += (
-                                                    tc_delta.function.arguments
-                                                )
+                    full_content = "".join(content_parts)
 
-                                if not _usage_recorded and hasattr(chunk, "usage") and chunk.usage:
-                                    p, c, ca = _record_llm_usage(
-                                        llm_span,
-                                        chunk.usage,
-                                        llm.model,
-                                    )
-                                    prompt_tokens += p
-                                    completion_tokens += c
-                                    cached_tokens += ca
-                        break
-                    except _RETRYABLE_ERRORS as exc:
-                        if streaming_mode_normalized == "live" and emitted:
-                            raise
-                        if attempt >= max_retries:
-                            raise
-                        retry_after = _retry_after_seconds(exc)
-                        if retry_after is not None:
-                            delay = retry_after
-                        else:
-                            raw_delay = retry_base_delay * (2**attempt)
-                            delay = random.uniform(0.0, raw_delay) if raw_delay > 0 else 0.0
-
-                        budget = _retry_budget_var.get()
-                        retry_sleep_elapsed = _retry_used_var.get()
-                        if budget is None:
-                            budget = retry_max_elapsed
-                        if budget is not None and retry_sleep_elapsed + delay > budget:
-                            raise
-                        _retry_used_var.set(retry_sleep_elapsed + delay)
-
-                        _logger.warning(
-                            "LLM.astream: transient error (%s) during chunk streaming, "
-                            "retry %d/%d in %.1fs",
-                            type(exc).__name__,
-                            attempt + 1,
-                            max_retries,
-                            delay,
+                    if not tc_map:
+                        if streaming_mode_normalized == "buffered":
+                            for content in content_parts:
+                                yield content
+                        yield _finalize_loop(
+                            loop_span,
+                            full_content,
+                            iteration,
+                            t0,
+                            prompt_tokens,
+                            completion_tokens,
+                            cached_tokens,
+                            llm.model,
                         )
-                        await asyncio.sleep(delay)
+                        return
 
-                full_content = "".join(content_parts)
+                    sorted_tcs = [tc_map[i] for i in sorted(tc_map)]
+                    assistant_tool_payload = [
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": tc["arguments"],
+                            },
+                        }
+                        for tc in sorted_tcs
+                    ]
+                    tc_inputs = [(tc["id"], tc["name"], tc["arguments"]) for tc in sorted_tcs]
 
-                if not tc_map:
-                    if streaming_mode_normalized == "buffered":
-                        for content in content_parts:
-                            yield content
-                    yield _finalize_loop(
-                        loop_span,
-                        full_content,
-                        iteration,
-                        t0,
-                        prompt_tokens,
-                        completion_tokens,
-                        cached_tokens,
-                        llm.model,
+                    await _run_tool_calls(
+                        tc_inputs,
+                        messages,
+                        registry,
+                        state,
+                        cfg,
+                        assistant_tool_payload,
+                        content=full_content,
                     )
-                    return
 
-                sorted_tcs = [tc_map[i] for i in sorted(tc_map)]
-                assistant_tool_payload = [
-                    {
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {
-                            "name": tc["name"],
-                            "arguments": tc["arguments"],
-                        },
-                    }
-                    for tc in sorted_tcs
-                ]
-                tc_inputs = [(tc["id"], tc["name"], tc["arguments"]) for tc in sorted_tcs]
-
-                await _run_tool_calls(
-                    tc_inputs,
-                    messages,
-                    registry,
-                    state,
-                    cfg,
-                    assistant_tool_payload,
-                    content=full_content,
-                )
-
-            loop_span.set_status(StatusCode.ERROR, "max iterations exceeded")
-            raise LoopLimitError(f"Agent loop exceeded {max_iterations} iterations")
+                loop_span.set_status(StatusCode.ERROR, "max iterations exceeded")
+                raise LoopLimitError(f"Agent loop exceeded {max_iterations} iterations")
+    finally:
+        # Only close what this call created; an injected runtime is the
+        # caller's to manage (W1-02 / N-03: nothing used to close it at all).
+        if _owned_runtime is not None:
+            await _owned_runtime.close()

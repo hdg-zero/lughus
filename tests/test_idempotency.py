@@ -47,7 +47,7 @@ async def test_different_payload_same_key_rejected():
 
 @pytest.mark.asyncio
 async def test_pending_attempt_expires_after_ttl():
-    store = InMemoryIdempotencyStore(ttl_seconds=0.01)
+    store = InMemoryIdempotencyStore(pending_ttl_seconds=0.01)
     key = _key()
     await store.save(ExecutionAttempt(key=key, status=AttemptStatus.PENDING))
     await asyncio.sleep(0.02)
@@ -97,9 +97,9 @@ async def test_two_workers_same_key():
 async def test_receipt_expiration():
     store = InMemoryIdempotencyStore(ttl_seconds=0.01)
     key = _key()
-    await store.save(ExecutionAttempt(key=key, status=AttemptStatus.PENDING))
+    await store.save(ExecutionAttempt(key=key, status=AttemptStatus.COMPLETED, result="ok"))
     await asyncio.sleep(0.02)
-    # Expired PENDING attempts are cleaned up on get
+    # Expired COMPLETED attempts are cleaned up on get
     assert await store.get(key) is None
 
 

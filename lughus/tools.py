@@ -185,6 +185,24 @@ class ToolRegistry:
 
         return decorator
 
+    def names(self) -> tuple[str, ...]:
+        """Return the registered tool names, in registration order.
+
+        W1-12: the framework itself was reaching into ``registry._tools.keys()``
+        (application.py). When the core violates its own encapsulation, users will
+        too -- and the signal sent is "an API is missing, help yourself".
+
+        Deliberately NOT added: describe(), filter_by_risk(), groups(), iteration
+        over ToolDef. No demonstrated need today (R4/R9).
+        """
+        return tuple(self._tools)
+
+    def __contains__(self, name: object) -> bool:
+        return isinstance(name, str) and name in self._tools
+
+    def __len__(self) -> int:
+        return len(self._tools)
+
     def get_fn(self, name: str) -> Callable[..., str] | None:
         """Return the callable for a tool, or None if not found."""
         td = self._tools.get(name)

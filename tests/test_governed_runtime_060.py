@@ -72,20 +72,26 @@ async def test_approved_proposal_is_consumed_after_execution():
     async def charge(*, state: dict, amount: int) -> str:
         return f"charged_{amount}"
 
+    runtime = ExecutionRuntime()
     cfg = ToolExecutionConfig(
         principal=Principal(subject="user_1", tenant_id="tenant_1"),
         approval_store=store,
         run_id="run_1",
+        runtime=runtime,
     )
-    res = await _execute_tools([("tc_1", "charge", '{"amount": 100}')], registry, {}, cfg)
-    assert res[0][1] == "charged_100"
+    try:
+        res = await _execute_tools([("tc_1", "charge", '{"amount": 100}')], registry, {}, cfg)
+        assert res[0][1] == "charged_100"
 
-    consumed_request = await store.get(request.request_id)
-    assert consumed_request.status == ApprovalStatus.CONSUMED
+        consumed_request = await store.get(request.request_id)
+        assert consumed_request is not None
+        assert consumed_request.status == ApprovalStatus.CONSUMED
 
-    # Subsequent execution without new approval must return approval_required error
-    res_2 = await _execute_tools([("tc_2", "charge", '{"amount": 100}')], registry, {}, cfg)
-    assert "approval_required" in res_2[0][1]
+        # Subsequent execution without new approval must return approval_required error
+        res_2 = await _execute_tools([("tc_2", "charge", '{"amount": 100}')], registry, {}, cfg)
+        assert "approval_required" in res_2[0][1]
+    finally:
+        await runtime.close()
 
 
 @pytest.mark.asyncio
