@@ -75,7 +75,7 @@ class GovernedAgentRunner:
             objective, tenant_id=principal.tenant_id, principal_id=principal.subject
         )
         running = await coordinator.transition(run, RunStatus.RUNNING, "run.started")
-        tool_names = list(registry._tools.keys())
+        tool_names = list(registry.names())
         try:
             result = await agent_loop(
                 BudgetedLLM(llm, self.runtime.budget),
