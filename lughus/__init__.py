@@ -37,6 +37,7 @@ from .delegation import (
 )
 from .domain import EventVisibility, Run, RunEvent, RunStatus, Usage
 from .errors import (
+    IdempotencyCapacityError,
     LoopLimitError,
     LughusError,
     SafeToolError,
@@ -165,6 +166,7 @@ __all__ = [
     "ExecutionRuntime",
     "GenerateLLM",
     "GovernedAgentRunner",
+    "IdempotencyCapacityError",
     "IdempotencyKey",
     "IdempotencyStore",
     "InMemoryApprovalStore",
