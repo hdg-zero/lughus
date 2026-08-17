@@ -74,3 +74,28 @@ class ToolExecutionConfig:
         if invalid:
             raise ValueError(f"Tool execution limits must be positive: {', '.join(invalid)}")
 
+        # W1-03 / N-10. An injected runtime has already fixed its capacities and
+        # cannot be reconfigured. Silently ignoring the mismatch is exactly the
+        # defect being fixed, so the conflict is refused instead.
+        if self.runtime is not None:
+            runtime_config = self.runtime.config
+            conflicts = {
+                "max_global_tools": (self.max_global_tools, runtime_config.max_global_tools),
+                "max_sync_thread_workers": (
+                    self.max_sync_thread_workers,
+                    runtime_config.max_sync_workers,
+                ),
+            }
+            mismatched = {
+                name: pair for name, pair in conflicts.items() if pair[0] != pair[1]
+            }
+            if mismatched:
+                detail = ", ".join(
+                    f"{name}: config={declared}, runtime={effective}"
+                    for name, (declared, effective) in sorted(mismatched.items())
+                )
+                raise ValueError(
+                    "The injected ExecutionRuntime already fixes these capacities; "
+                    f"align them or drop them from ToolExecutionConfig ({detail})"
+                )
+

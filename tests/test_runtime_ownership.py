@@ -148,3 +148,59 @@ async def test_execute_tools_refuses_a_config_without_runtime(
             ["noop"],
             config=None,
         )
+
+
+# ── W1-03 / N-10: declared limits must take effect ────────────────────────────
+
+
+async def test_config_limits_reach_the_implicit_runtime(registry: ToolRegistry) -> None:
+    """Fails on 0.10.1: the implicit runtime used RuntimeConfig() defaults (32/64)."""
+    seen: list[RuntimeConfig] = []
+    original = ExecutionRuntime.__init__
+
+    def spy(self, config=None):  # type: ignore[no-untyped-def]
+        original(self, config)
+        seen.append(self.config)
+
+    ExecutionRuntime.__init__ = spy  # type: ignore[method-assign]
+    try:
+        await agent_loop(
+            MockLLM(["done"]),
+            system="s",
+            context="c",
+            registry=registry,
+            tool_names=[],
+            tool_config=ToolExecutionConfig(
+                max_sync_thread_workers=3,
+                max_global_tools=5,
+                tool_queue_timeout=7.0,
+            ),
+        )
+    finally:
+        ExecutionRuntime.__init__ = original  # type: ignore[method-assign]
+
+    assert seen, "no runtime was created"
+    assert seen[0].max_sync_workers == 3
+    assert seen[0].max_global_tools == 5
+    assert seen[0].queue_timeout == 7.0
+
+
+async def test_injected_runtime_with_conflicting_limits_is_rejected() -> None:
+    """Silently ignoring the conflict is exactly the defect being fixed (R7)."""
+    runtime = ExecutionRuntime(RuntimeConfig(max_global_tools=64, max_sync_workers=32))
+    try:
+        with pytest.raises(ValueError, match="max_sync_thread_workers"):
+            ToolExecutionConfig(runtime=runtime, max_sync_thread_workers=4)
+    finally:
+        await runtime.close()
+
+
+async def test_injected_runtime_with_matching_limits_is_accepted() -> None:
+    runtime = ExecutionRuntime(RuntimeConfig(max_global_tools=8, max_sync_workers=4))
+    try:
+        cfg = ToolExecutionConfig(
+            runtime=runtime, max_global_tools=8, max_sync_thread_workers=4
+        )
+        assert cfg.runtime is runtime
+    finally:
+        await runtime.close()
