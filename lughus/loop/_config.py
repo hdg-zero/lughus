@@ -34,6 +34,9 @@ class ToolExecutionConfig:
     ``tool_timeout`` is per tool call. Set it to ``None`` or ``<= 0`` to disable.
     ``max_parallel_tools`` limits concurrency within one agent loop iteration.
     ``max_global_tools`` limits tool calls across the current event loop / worker.
+
+    This object is inert: constructing it allocates nothing. See the ``runtime``
+    field for how the execution runtime is created and owned.
     """
 
     max_parallel_tools: int = DEFAULT_MAX_PARALLEL_TOOLS
@@ -45,6 +48,11 @@ class ToolExecutionConfig:
     max_message_history_chars: int = DEFAULT_MAX_MESSAGE_HISTORY_CHARS
     tool_queue_timeout: float | None = DEFAULT_TOOL_QUEUE_TIMEOUT
     compact_tool_schemas: bool = False
+    # W1-02 / R5: stays None. A configuration is a value and must never allocate
+    # a system resource -- __post_init__ used to build an ExecutionRuntime here,
+    # so merely constructing a config spawned 32 threads that nothing closed.
+    # agent_loop()/agent_loop_stream() now create and close a runtime when this is
+    # None. Inject one explicitly to share a single thread pool across runs.
     runtime: ExecutionRuntime | None = field(default=None, repr=False, compare=False)
     policy: ToolPolicy | None = field(default=None, repr=False, compare=False)
     principal: Principal | None = field(default=None, repr=False, compare=False)
@@ -66,7 +74,3 @@ class ToolExecutionConfig:
         if invalid:
             raise ValueError(f"Tool execution limits must be positive: {', '.join(invalid)}")
 
-        if self.runtime is None:
-            from ..runtime import ExecutionRuntime
-
-            object.__setattr__(self, "runtime", ExecutionRuntime())
