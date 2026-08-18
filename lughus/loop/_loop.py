@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
@@ -27,11 +27,13 @@ from ._execute import (
     _loop_duration,
     _record_llm_usage,
 )
+from ._messages import render_context_messages
 from ._result import LoopResult
 
 _logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from ..context import ContextItem
     from ..llm import GenerateLLM, StreamingLLM
     from ..runtime import ExecutionRuntime
 
@@ -42,11 +44,13 @@ def _prepare_loop(
     registry: ToolRegistry,
     tool_names: list[str],
     cfg: ToolExecutionConfig,
+    context_items: Sequence[ContextItem] = (),
 ) -> tuple[list[dict], list[dict]]:
-    messages = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": context},
-    ]
+    messages: list[dict] = [{"role": "system", "content": system}]
+    # Context items go BEFORE the user objective so they are part of
+    # the cacheable prefix (rule A1: byte-identical across turns).
+    messages.extend(render_context_messages(context_items))
+    messages.append({"role": "user", "content": context})
     tools = registry.declarations(
         tool_names,
         strict=True,
@@ -169,6 +173,7 @@ async def agent_loop(
     state: Any = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     tool_config: ToolExecutionConfig | None = None,
+    context_items: Sequence[ContextItem] = (),
 ) -> LoopResult:
     """Run an agentic loop until the LLM produces a text response.
 
@@ -183,7 +188,9 @@ async def agent_loop(
                 loop_span.set_attribute("gen_ai.request.model", llm.model)
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
 
-                messages, tools = _prepare_loop(system, context, registry, tool_names, cfg)
+                messages, tools = _prepare_loop(
+                    system, context, registry, tool_names, cfg, context_items,
+                )
 
                 t0 = time.perf_counter()
                 prompt_tokens = 0
@@ -267,6 +274,7 @@ async def agent_loop_stream(
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     tool_config: ToolExecutionConfig | None = None,
     streaming_mode: str | StreamingMode = StreamingMode.BUFFERED,
+    context_items: Sequence[ContextItem] = (),
 ) -> AsyncGenerator[str | LoopResult, None]:
     """Streaming variant of :func:`agent_loop`.
 
@@ -287,7 +295,9 @@ async def agent_loop_stream(
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
                 loop_span.set_attribute("lughus.streaming", True)
 
-                messages, tools = _prepare_loop(system, context, registry, tool_names, cfg)
+                messages, tools = _prepare_loop(
+                    system, context, registry, tool_names, cfg, context_items,
+                )
 
                 t0 = time.perf_counter()
                 prompt_tokens = 0
