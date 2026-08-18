@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import random
 import time
 from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import replace
@@ -11,11 +10,16 @@ from typing import TYPE_CHECKING, Any
 from opentelemetry.trace import StatusCode
 
 from ..errors import LoopLimitError
-from ..llm import _RETRYABLE_ERRORS, _retry_after_seconds
-from ..retry import _retry_budget_var, _retry_used_var, retry_budget
+from ..retry import retry_budget
 from ..telemetry import tracer
 from ..tools import ToolRegistry
-from ._config import DEFAULT_MAX_ITERATIONS, StreamingMode, ToolExecutionConfig
+from ._config import (
+    DEFAULT_MAX_GLOBAL_TOOLS,
+    DEFAULT_MAX_ITERATIONS,
+    DEFAULT_MAX_SYNC_THREAD_WORKERS,
+    StreamingMode,
+    ToolExecutionConfig,
+)
 from ._execute import (
     _assistant_tool_message,
     _check_message_history_size,
@@ -129,14 +133,15 @@ def _resolve_tool_config(
 ) -> tuple[ToolExecutionConfig, ExecutionRuntime | None]:
     """Return a runnable config plus the runtime this loop must close.
 
-    W1-02 / W1-03. A ``ToolExecutionConfig`` is a value: it no longer allocates an
-    ``ExecutionRuntime`` (and therefore a thread pool) in ``__post_init__``. The
-    loop owns the runtime it creates and closes it in a ``finally``; a runtime
-    injected by the caller stays the caller's property and is never closed here.
+    W1-02 / W1-03 / W2-13.  A ``ToolExecutionConfig`` is a value: it no longer
+    allocates an ``ExecutionRuntime`` (and therefore a thread pool) in
+    ``__post_init__``.  The loop owns the runtime it creates and closes it in a
+    ``finally``; a runtime injected by the caller stays the caller's property and
+    is never closed here.
 
-    The implicit runtime is derived from the config, so ``max_global_tools``,
-    ``max_sync_thread_workers`` and ``tool_queue_timeout`` finally take effect
-    (W1-03 / N-10: they used to be silently ignored).
+    ``max_global_tools`` and ``max_sync_thread_workers`` are capacities of the
+    runtime, not per-loop guardrails.  The implicit runtime is built from the
+    module-level constants; ``tool_queue_timeout`` is still read from the config.
     """
     from ..runtime import ExecutionRuntime, RuntimeConfig
 
@@ -146,8 +151,8 @@ def _resolve_tool_config(
 
     runtime = ExecutionRuntime(
         RuntimeConfig(
-            max_global_tools=cfg.max_global_tools,
-            max_sync_workers=cfg.max_sync_thread_workers,
+            max_global_tools=DEFAULT_MAX_GLOBAL_TOOLS,
+            max_sync_workers=DEFAULT_MAX_SYNC_THREAD_WORKERS,
             queue_timeout=cfg.tool_queue_timeout,
         )
     )
@@ -294,109 +299,69 @@ async def agent_loop_stream(
                     content_parts: list[str] = []
                     tc_map: dict[int, dict[str, str]] = {}
 
-                    max_retries = getattr(llm, "max_retries", 0)
-                    retry_base_delay = getattr(llm, "retry_base_delay", 1.0)
-                    retry_max_elapsed = getattr(llm, "retry_max_elapsed", None)
-                    timeout = getattr(llm, "timeout", None)
+                    with tracer.start_as_current_span("llm.generate") as llm_span:
+                        llm_span.set_attribute("gen_ai.request.model", llm.model)
+                        llm_span.set_attribute("lughus.iteration", iteration + 1)
 
-                    for attempt in range(max_retries + 1):
-                        content_parts.clear()
-                        tc_map.clear()
-                        try:
-                            emitted = False
-                            with tracer.start_as_current_span("llm.generate") as llm_span:
-                                llm_span.set_attribute("gen_ai.request.model", llm.model)
-                                llm_span.set_attribute("lughus.iteration", iteration + 1)
+                        stream = await llm.astream(messages=messages, tools=tools)
+                        timeout = getattr(llm, "timeout", None)
+                        async for chunk in _stream_with_timeout(stream, timeout):
+                            _usage_recorded = False
 
-                                stream = await llm.astream(messages=messages, tools=tools)
-                                async for chunk in _stream_with_timeout(stream, timeout):
-                                    _usage_recorded = False
+                            if not chunk.choices:
+                                if hasattr(chunk, "usage") and chunk.usage:
+                                    p, c, ca = _record_llm_usage(
+                                        llm_span,
+                                        chunk.usage,
+                                        llm.model,
+                                    )
+                                    prompt_tokens += p
+                                    completion_tokens += c
+                                    cached_tokens += ca
+                                    _usage_recorded = True
+                                continue
 
-                                    if not chunk.choices:
-                                        if hasattr(chunk, "usage") and chunk.usage:
-                                            p, c, ca = _record_llm_usage(
-                                                llm_span,
-                                                chunk.usage,
-                                                llm.model,
+                            delta = chunk.choices[0].delta
+                            if not delta:
+                                continue
+
+                            if delta.content:
+                                content_parts.append(delta.content)
+                                if streaming_mode_normalized == "live":
+                                    yield delta.content
+
+                            if delta.tool_calls:
+                                for tc_delta in delta.tool_calls:
+                                    idx = tc_delta.index
+                                    if idx not in tc_map:
+                                        tc_map[idx] = {
+                                            "id": "",
+                                            "name": "",
+                                            "arguments": "",
+                                        }
+                                    if tc_delta.id:
+                                        tc_map[idx]["id"] = tc_delta.id
+                                    if tc_delta.function:
+                                        if tc_delta.function.name:
+                                            tc_map[idx]["name"] += tc_delta.function.name
+                                        if tc_delta.function.arguments:
+                                            tc_map[idx]["arguments"] += (
+                                                tc_delta.function.arguments
                                             )
-                                            prompt_tokens += p
-                                            completion_tokens += c
-                                            cached_tokens += ca
-                                            _usage_recorded = True
-                                        continue
 
-                                    delta = chunk.choices[0].delta
-                                    if not delta:
-                                        continue
-
-                                    if delta.content:
-                                        content_parts.append(delta.content)
-                                        if streaming_mode_normalized == "live":
-                                            emitted = True
-                                            yield delta.content
-
-                                    if delta.tool_calls:
-                                        for tc_delta in delta.tool_calls:
-                                            idx = tc_delta.index
-                                            if idx not in tc_map:
-                                                tc_map[idx] = {
-                                                    "id": "",
-                                                    "name": "",
-                                                    "arguments": "",
-                                                }
-                                            if tc_delta.id:
-                                                tc_map[idx]["id"] = tc_delta.id
-                                            if tc_delta.function:
-                                                if tc_delta.function.name:
-                                                    tc_map[idx]["name"] += tc_delta.function.name
-                                                if tc_delta.function.arguments:
-                                                    tc_map[idx]["arguments"] += (
-                                                        tc_delta.function.arguments
-                                                    )
-
-                                    if (
-                                        not _usage_recorded
-                                        and hasattr(chunk, "usage")
-                                        and chunk.usage
-                                    ):
-                                        p, c, ca = _record_llm_usage(
-                                            llm_span,
-                                            chunk.usage,
-                                            llm.model,
-                                        )
-                                        prompt_tokens += p
-                                        completion_tokens += c
-                                        cached_tokens += ca
-                            break
-                        except _RETRYABLE_ERRORS as exc:
-                            if streaming_mode_normalized == "live" and emitted:
-                                raise
-                            if attempt >= max_retries:
-                                raise
-                            retry_after = _retry_after_seconds(exc)
-                            if retry_after is not None:
-                                delay = retry_after
-                            else:
-                                raw_delay = retry_base_delay * (2**attempt)
-                                delay = random.uniform(0.0, raw_delay) if raw_delay > 0 else 0.0
-
-                            budget = _retry_budget_var.get()
-                            retry_sleep_elapsed = _retry_used_var.get()
-                            if budget is None:
-                                budget = retry_max_elapsed
-                            if budget is not None and retry_sleep_elapsed + delay > budget:
-                                raise
-                            _retry_used_var.set(retry_sleep_elapsed + delay)
-
-                            _logger.warning(
-                                "LLM.astream: transient error (%s) during chunk streaming, "
-                                "retry %d/%d in %.1fs",
-                                type(exc).__name__,
-                                attempt + 1,
-                                max_retries,
-                                delay,
-                            )
-                            await asyncio.sleep(delay)
+                            if (
+                                not _usage_recorded
+                                and hasattr(chunk, "usage")
+                                and chunk.usage
+                            ):
+                                p, c, ca = _record_llm_usage(
+                                    llm_span,
+                                    chunk.usage,
+                                    llm.model,
+                                )
+                                prompt_tokens += p
+                                completion_tokens += c
+                                cached_tokens += ca
 
                     full_content = "".join(content_parts)
 

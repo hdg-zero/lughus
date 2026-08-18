@@ -154,7 +154,7 @@ class BaseSettings:
     # Total retry delay budget in seconds. Set to 0 or a negative value to disable.
     # Env: LLM_RETRY_MAX_ELAPSED.
     retry_max_elapsed: float = field(
-        default_factory=lambda: _env_float("LLM_RETRY_MAX_ELAPSED", 0.0)
+        default_factory=lambda: _env_float("LLM_RETRY_MAX_ELAPSED", 60.0)
     )
 
     # Total agent timeout in seconds — applied to the entire handle() call in BaseGateway.

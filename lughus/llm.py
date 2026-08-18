@@ -100,7 +100,7 @@ class LLM:
         retry_base_delay: Base delay in seconds for exponential backoff.
             Delay for attempt N is ``retry_base_delay * 2**N``. Default: 1.0s.
             Controlled via ``LLM_RETRY_BASE_DELAY``. Set to 0.0 in tests.
-        retry_max_elapsed: Optional total retry sleep budget in seconds.
+        retry_max_elapsed: Total retry sleep budget in seconds (default 60s).
             Set to ``None`` or ``0`` to disable the budget.
     """
 
@@ -111,7 +111,7 @@ class LLM:
         timeout: float | None = 120.0,
         max_retries: int = 3,
         retry_base_delay: float = 1.0,
-        retry_max_elapsed: float | None = None,
+        retry_max_elapsed: float | None = 60.0,
     ):
         if not model:
             raise ValueError(
