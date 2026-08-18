@@ -60,10 +60,12 @@ async def test_governed_run_persists_tool_events() -> None:
 
     runner = GovernedAgentRunner(runtime)
     principal = Principal(subject="user-1", tenant_id="t-1")
-    llm = MockLLM([
-        [{"name": "greet", "arguments": {"name": "World"}, "id": "c1"}],
-        "Done!",
-    ])
+    llm = MockLLM(
+        [
+            [{"name": "greet", "arguments": {"name": "World"}, "id": "c1"}],
+            "Done!",
+        ]
+    )
 
     result = await runner.run(
         llm,
@@ -108,10 +110,12 @@ async def test_sequences_strictly_increasing_no_gaps() -> None:
 
     runner = GovernedAgentRunner(runtime)
     principal = Principal(subject="user-1", tenant_id="t-1")
-    llm = MockLLM([
-        [{"name": "add", "arguments": {"a": 1, "b": 2}, "id": "c1"}],
-        "Result is 3",
-    ])
+    llm = MockLLM(
+        [
+            [{"name": "add", "arguments": {"a": 1, "b": 2}, "id": "c1"}],
+            "Result is 3",
+        ]
+    )
 
     await runner.run(
         llm,
@@ -156,10 +160,12 @@ async def test_checkpoint_saved_after_run() -> None:
 
     runner = GovernedAgentRunner(runtime)
     principal = Principal(subject="user-1", tenant_id="t-1")
-    llm = MockLLM([
-        [{"name": "echo", "arguments": {"msg": "hi"}, "id": "c1"}],
-        "echoed",
-    ])
+    llm = MockLLM(
+        [
+            [{"name": "echo", "arguments": {"msg": "hi"}, "id": "c1"}],
+            "echoed",
+        ]
+    )
 
     await runner.run(
         llm,
@@ -199,11 +205,13 @@ async def test_tool_result_persisted_for_each_tool_call() -> None:
 
     runner = GovernedAgentRunner(runtime)
     principal = Principal(subject="user-1", tenant_id="t-1")
-    llm = MockLLM([
-        [{"name": "double", "arguments": {"n": 5}, "id": "c1"}],
-        [{"name": "double", "arguments": {"n": 10}, "id": "c2"}],
-        "All doubled",
-    ])
+    llm = MockLLM(
+        [
+            [{"name": "double", "arguments": {"n": 5}, "id": "c1"}],
+            [{"name": "double", "arguments": {"n": 10}, "id": "c2"}],
+            "All doubled",
+        ]
+    )
 
     await runner.run(
         llm,

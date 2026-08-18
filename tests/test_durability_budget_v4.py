@@ -36,7 +36,12 @@ async def test_event_order_and_checkpoint_compare_and_swap():
 async def test_budget_reservation_is_atomic():
     ledger = BudgetLedger(
         BudgetLimit(
-            model_calls=1, tool_calls=1, tokens=10, bytes=10, estimated_cost_micros=1, delegation_depth=1
+            model_calls=1,
+            tool_calls=1,
+            tokens=10,
+            bytes=10,
+            estimated_cost_micros=1,
+            delegation_depth=1,
         )
     )
     reservation = await ledger.reserve(BudgetAmount(tokens=8))

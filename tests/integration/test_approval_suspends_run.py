@@ -19,7 +19,6 @@ from lughus.approval import (
     ApprovalRequest,
     ApprovalStatus,
     InMemoryApprovalStore,
-    proposal_digest,
 )
 from lughus.budget import BudgetLedger, BudgetLimit
 from lughus.context import ContextManager
@@ -56,9 +55,7 @@ class _PreApprovedStore(InMemoryApprovalStore):
 
     async def consume(self, request_id: str) -> ApprovalRequest:
         # No-op for synthetic requests not backed by real store entries.
-        return ApprovalRequest(
-            run_id="", tool_name="restricted", proposal_hash="", risk="low"
-        )
+        return ApprovalRequest(run_id="", tool_name="restricted", proposal_hash="", risk="low")
 
 
 class _PreRejectedStore(InMemoryApprovalStore):
@@ -116,10 +113,12 @@ async def test_model_never_sees_approval_required() -> None:
     async def restricted(*, state: Any) -> str:
         return "done"
 
-    llm = MockLLM([
-        [{"name": "restricted", "arguments": {}, "id": "call_1"}],
-        "Done!",
-    ])
+    llm = MockLLM(
+        [
+            [{"name": "restricted", "arguments": {}, "id": "call_1"}],
+            "Done!",
+        ]
+    )
     runner = GovernedAgentRunner(runtime)
 
     with pytest.raises(RunSuspended):
@@ -154,10 +153,12 @@ async def test_run_ends_in_waiting() -> None:
     async def restricted(*, state: Any) -> str:
         return "done"
 
-    llm = MockLLM([
-        [{"name": "restricted", "arguments": {}, "id": "call_1"}],
-        "Done!",
-    ])
+    llm = MockLLM(
+        [
+            [{"name": "restricted", "arguments": {}, "id": "call_1"}],
+            "Done!",
+        ]
+    )
     runner = GovernedAgentRunner(runtime)
 
     with pytest.raises(RunSuspended):
@@ -196,13 +197,15 @@ async def test_two_tools_produce_single_suspension() -> None:
     async def tool_b(*, state: Any) -> str:
         return "b"
 
-    llm = MockLLM([
+    llm = MockLLM(
         [
-            {"name": "tool_a", "arguments": {}, "id": "call_a"},
-            {"name": "tool_b", "arguments": {}, "id": "call_b"},
-        ],
-        "Done!",
-    ])
+            [
+                {"name": "tool_a", "arguments": {}, "id": "call_a"},
+                {"name": "tool_b", "arguments": {}, "id": "call_b"},
+            ],
+            "Done!",
+        ]
+    )
     runner = GovernedAgentRunner(runtime)
 
     with pytest.raises(RunSuspended) as exc_info:
@@ -232,10 +235,12 @@ async def test_approved_then_resumed() -> None:
     async def restricted(*, state: Any) -> str:
         return "done"
 
-    llm = MockLLM([
-        [{"name": "restricted", "arguments": {}, "id": "call_1"}],
-        "Done!",
-    ])
+    llm = MockLLM(
+        [
+            [{"name": "restricted", "arguments": {}, "id": "call_1"}],
+            "Done!",
+        ]
+    )
     runner = GovernedAgentRunner(runtime)
 
     result = await runner.run(
@@ -254,7 +259,7 @@ async def test_approved_then_resumed() -> None:
 async def test_rejected_produces_failure() -> None:
     """Pre-rejected tool causes the run to see a ToolExecutionError payload
     (rejection IS a tool error visible to the model, unlike approval barriers)."""
-    runtime, store = _build_runtime(approval_store=_PreRejectedStore())
+    runtime, _store = _build_runtime(approval_store=_PreRejectedStore())
     registry = ToolRegistry()
 
     @registry.tool("restricted", "Restricted action", _EMPTY_SCHEMA, requires_approval=True)
@@ -265,10 +270,12 @@ async def test_rejected_produces_failure() -> None:
     # an error payload that the model sees (rejection IS a tool error).
     # The run completes because the error is converted to a tool error
     # payload and the LLM gets a second turn.
-    llm = MockLLM([
-        [{"name": "restricted", "arguments": {}, "id": "call_1"}],
-        "The tool was rejected.",
-    ])
+    llm = MockLLM(
+        [
+            [{"name": "restricted", "arguments": {}, "id": "call_1"}],
+            "The tool was rejected.",
+        ]
+    )
     runner = GovernedAgentRunner(runtime)
 
     result = await runner.run(

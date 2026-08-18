@@ -366,9 +366,7 @@ async def _execute_tools(
                                 risk=tool.risk.value,
                             )
                             await cfg.approval_store.create(request)
-                        raise ApprovalRequired(
-                            request.request_id, name, request.expires_at
-                        )
+                        raise ApprovalRequired(request.request_id, name, request.expires_at)
 
                 # ── Step 4: Claim ───────────────────────────────────
                 if cfg.idempotency_store is not None and tool.idempotent:
@@ -517,9 +515,7 @@ async def _execute_tools(
 
     # Use return_exceptions=True so that tools already dispatched in the same
     # turn complete normally even when other tools need approval.
-    results = await asyncio.gather(
-        *(_run(*tc) for tc in tool_calls), return_exceptions=True
-    )
+    results = await asyncio.gather(*(_run(*tc) for tc in tool_calls), return_exceptions=True)
     approval_errors = [r for r in results if isinstance(r, ApprovalRequired)]
     if approval_errors:
         raise ApprovalRequiredGroup(approval_errors)

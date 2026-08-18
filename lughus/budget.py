@@ -45,7 +45,14 @@ class BudgetAmount:
 class BudgetLedger:
     """Reserve before an external action, then settle actual consumption."""
 
-    _FIELDS = ("model_calls", "tool_calls", "tokens", "bytes", "estimated_cost_micros", "delegation_depth")
+    _FIELDS = (
+        "model_calls",
+        "tool_calls",
+        "tokens",
+        "bytes",
+        "estimated_cost_micros",
+        "delegation_depth",
+    )
 
     def __init__(self, limit: BudgetLimit) -> None:
         self.limit = limit

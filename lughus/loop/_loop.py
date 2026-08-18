@@ -189,7 +189,12 @@ async def agent_loop(
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
 
                 messages, tools = _prepare_loop(
-                    system, context, registry, tool_names, cfg, context_items,
+                    system,
+                    context,
+                    registry,
+                    tool_names,
+                    cfg,
+                    context_items,
                 )
 
                 t0 = time.perf_counter()
@@ -296,7 +301,12 @@ async def agent_loop_stream(
                 loop_span.set_attribute("lughus.streaming", True)
 
                 messages, tools = _prepare_loop(
-                    system, context, registry, tool_names, cfg, context_items,
+                    system,
+                    context,
+                    registry,
+                    tool_names,
+                    cfg,
+                    context_items,
                 )
 
                 t0 = time.perf_counter()

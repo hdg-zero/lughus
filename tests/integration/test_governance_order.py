@@ -26,7 +26,7 @@ from lughus.approval import (
     InMemoryApprovalStore,
     proposal_digest,
 )
-from lughus.budget import BudgetAmount, BudgetLedger, BudgetLimit
+from lughus.budget import BudgetLedger, BudgetLimit
 from lughus.idempotency import (
     AttemptStatus,
     ExecutionAttempt,
@@ -38,7 +38,6 @@ from lughus.loop._execute import _execute_tools
 from lughus.policy import DecisionKind, PolicyDecision, Principal, ToolProposal
 from lughus.runtime import ExecutionRuntime, RuntimeConfig
 from lughus.tools import ToolRegistry, ToolRisk
-
 
 # ── Helpers ──────────────────────────────────────────────
 
@@ -65,27 +64,21 @@ def owned_config(**kwargs: Any) -> ToolExecutionConfig:
 class _AllowPolicy:
     """Policy that allows every proposal."""
 
-    async def evaluate(
-        self, proposal: ToolProposal, principal: Principal
-    ) -> PolicyDecision:
+    async def evaluate(self, proposal: ToolProposal, principal: Principal) -> PolicyDecision:
         return PolicyDecision(DecisionKind.ALLOW, "allowed")
 
 
 class _DenyPolicy:
     """Policy that denies every proposal."""
 
-    async def evaluate(
-        self, proposal: ToolProposal, principal: Principal
-    ) -> PolicyDecision:
+    async def evaluate(self, proposal: ToolProposal, principal: Principal) -> PolicyDecision:
         return PolicyDecision(DecisionKind.DENY, "blocked")
 
 
 class _RequireApprovalPolicy:
     """Policy that requires approval for every proposal."""
 
-    async def evaluate(
-        self, proposal: ToolProposal, principal: Principal
-    ) -> PolicyDecision:
+    async def evaluate(self, proposal: ToolProposal, principal: Principal) -> PolicyDecision:
         return PolicyDecision(DecisionKind.REQUIRE_APPROVAL, "needs_approval")
 
 
@@ -100,9 +93,7 @@ def _pre_approve(
     request = ApprovalRequest(RUN_ID, tool_name, digest, "high")
     loop = asyncio.get_event_loop()
     loop.run_until_complete(store.create(request))
-    loop.run_until_complete(
-        store.decide(request.request_id, ApprovalStatus.APPROVED, "reviewer")
-    )
+    loop.run_until_complete(store.decide(request.request_id, ApprovalStatus.APPROVED, "reviewer"))
     return request
 
 
@@ -136,15 +127,11 @@ async def test_approval_not_consumed_when_claim_signals_in_progress():
     digest = proposal_digest("idem_tool", {})
     request = ApprovalRequest(RUN_ID, "idem_tool", digest, "high")
     await approval_store.create(request)
-    await approval_store.decide(
-        request.request_id, ApprovalStatus.APPROVED, "reviewer"
-    )
+    await approval_store.decide(request.request_id, ApprovalStatus.APPROVED, "reviewer")
 
     # Plant a PENDING receipt so the claim sees an in-progress execution
     idem_key = IdempotencyKey.from_args(RUN_ID, "idem_tool", {})
-    await idem_store.claim(
-        ExecutionAttempt(key=idem_key, status=AttemptStatus.PENDING)
-    )
+    await idem_store.claim(ExecutionAttempt(key=idem_key, status=AttemptStatus.PENDING))
 
     cfg = owned_config(
         approval_store=approval_store,
@@ -193,9 +180,7 @@ async def test_approval_not_consumed_when_budget_exceeds():
     digest = proposal_digest("budget_tool", {})
     request = ApprovalRequest(RUN_ID, "budget_tool", digest, "high")
     await approval_store.create(request)
-    await approval_store.decide(
-        request.request_id, ApprovalStatus.APPROVED, "reviewer"
-    )
+    await approval_store.decide(request.request_id, ApprovalStatus.APPROVED, "reviewer")
 
     # Budget with zero tool_calls: any reservation immediately fails
     budget = BudgetLedger(
@@ -269,13 +254,9 @@ async def test_approval_not_consumed_when_slot_timeout():
     digest = proposal_digest("gated_tool", {})
     request = ApprovalRequest(RUN_ID, "gated_tool", digest, "high")
     await approval_store.create(request)
-    await approval_store.decide(
-        request.request_id, ApprovalStatus.APPROVED, "reviewer"
-    )
+    await approval_store.decide(request.request_id, ApprovalStatus.APPROVED, "reviewer")
 
-    runtime = ExecutionRuntime(
-        RuntimeConfig(max_global_tools=1, max_sync_workers=32)
-    )
+    runtime = ExecutionRuntime(RuntimeConfig(max_global_tools=1, max_sync_workers=32))
     cfg = ToolExecutionConfig(
         runtime=runtime,
         run_id=RUN_ID,
@@ -340,9 +321,7 @@ async def test_approval_consumed_on_successful_dispatch():
     digest = proposal_digest("approved_tool", {})
     request = ApprovalRequest(RUN_ID, "approved_tool", digest, "high")
     await approval_store.create(request)
-    await approval_store.decide(
-        request.request_id, ApprovalStatus.APPROVED, "reviewer"
-    )
+    await approval_store.decide(request.request_id, ApprovalStatus.APPROVED, "reviewer")
 
     cfg = owned_config(
         approval_store=approval_store,
@@ -449,9 +428,7 @@ async def test_budget_not_reserved_during_slot_wait():
         )
     )
 
-    runtime = ExecutionRuntime(
-        RuntimeConfig(max_global_tools=1, max_sync_workers=32)
-    )
+    runtime = ExecutionRuntime(RuntimeConfig(max_global_tools=1, max_sync_workers=32))
     cfg = ToolExecutionConfig(
         runtime=runtime,
         run_id=RUN_ID,
@@ -486,8 +463,7 @@ async def test_budget_not_reserved_during_slot_wait():
         # Only the blocker (inside the slot) should have a reservation.
         # The checked_tool must NOT have reserved budget while waiting.
         assert len(budget._reserved) <= 1, (
-            f"Expected at most 1 budget reservation (the blocker), "
-            f"got {len(budget._reserved)}"
+            f"Expected at most 1 budget reservation (the blocker), got {len(budget._reserved)}"
         )
 
         release.set()

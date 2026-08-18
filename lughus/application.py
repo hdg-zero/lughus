@@ -125,9 +125,7 @@ class GovernedAgentRunner:
         for te in tool_events:
             seq = coordinator.next_sequence(run.run_id)
             last_event_seq = seq
-            run_event = RunEvent(
-                te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT
-            )
+            run_event = RunEvent(te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT)
             await self.runtime.event_store.append(run_event)
 
         # Save a checkpoint capturing post-tool-execution state.
@@ -142,9 +140,7 @@ class GovernedAgentRunner:
                     "total_tokens": result.total_tokens,
                 },
             )
-            await self.runtime.checkpoint_store.save(
-                checkpoint, expected_version=running.version
-            )
+            await self.runtime.checkpoint_store.save(checkpoint, expected_version=running.version)
 
         await coordinator.transition(
             running,

@@ -9,13 +9,13 @@ from __future__ import annotations
 import pytest
 
 from lughus.loop._config import (
+    DEFAULT_MAX_GLOBAL_TOOLS,
     DEFAULT_MAX_ITERATIONS,
+    DEFAULT_MAX_MESSAGE_HISTORY_CHARS,
     DEFAULT_MAX_PARALLEL_TOOLS,
+    DEFAULT_MAX_SYNC_THREAD_WORKERS,
     DEFAULT_MAX_TOOL_ARGS_CHARS,
     DEFAULT_MAX_TOOL_OUTPUT_CHARS,
-    DEFAULT_MAX_GLOBAL_TOOLS,
-    DEFAULT_MAX_MESSAGE_HISTORY_CHARS,
-    DEFAULT_MAX_SYNC_THREAD_WORKERS,
     DEFAULT_TOOL_QUEUE_TIMEOUT,
     ToolExecutionConfig,
 )
@@ -55,7 +55,7 @@ def test_default_max_message_history_chars() -> None:
 
 
 def test_default_tool_queue_timeout() -> None:
-    assert DEFAULT_TOOL_QUEUE_TIMEOUT == pytest.approx(30.0)
+    assert pytest.approx(30.0) == DEFAULT_TOOL_QUEUE_TIMEOUT
 
 
 def test_tool_config_uses_tightened_defaults() -> None:

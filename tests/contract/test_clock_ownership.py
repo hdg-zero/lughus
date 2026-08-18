@@ -143,15 +143,12 @@ async def test_injected_clock_alone_controls_expiration(
 
     # Entry must be alive just before TTL.
     clock.advance(case.ttl - 1)
-    assert await case.alive(store, key), (
-        f"{case.id}: entry must be alive before TTL ({case.ttl}s)"
-    )
+    assert await case.alive(store, key), f"{case.id}: entry must be alive before TTL ({case.ttl}s)"
 
     # Entry must expire just after TTL.
     clock.advance(2)
     assert not await case.alive(store, key), (
-        f"{case.id}: entry must expire after TTL ({case.ttl}s) "
-        "using only the injected clock"
+        f"{case.id}: entry must expire after TTL ({case.ttl}s) using only the injected clock"
     )
 
 
@@ -183,8 +180,7 @@ async def test_idempotency_store_stamps_created_at_from_own_clock() -> None:
     stored = await store.get(k)
     assert stored is not None
     assert stored.created_at == clock.now, (
-        "The store must stamp created_at from its own clock, "
-        "not from the dataclass default_factory"
+        "The store must stamp created_at from its own clock, not from the dataclass default_factory"
     )
 
 

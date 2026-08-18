@@ -17,16 +17,14 @@ import litellm
 import pytest
 
 from lughus.llm import LLM, retry_budget
-from lughus.loop import LoopResult, agent_loop_stream
+from lughus.loop import agent_loop_stream
 from lughus.testing import (
     FakeChunk,
     FakeDelta,
     FakeStreamChoice,
     FakeUsage,
-    MockStreamingLLM,
 )
 from lughus.tools import ToolRegistry
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -244,8 +242,8 @@ async def test_retry_budget_shared_across_generate_and_stream(
         with pytest.raises(litellm.RateLimitError):
             await llm.astream(messages=[{"role": "user", "content": "two"}])
 
-    # First call: attempt 0 fails, sleep 20 (used=20), attempt 1 fails, sleep 20 (used=40>30) -> raise
-    # Actually: attempt 0 fails, delay=20, used=0+20=20 <= 30 -> sleep, attempt 1 fails, delay=20, used=20+20=40 > 30 -> raise
+    # First call: attempt 0 fails, sleep 20 (used=20),
+    # attempt 1 fails, sleep 20 (used=40>30) -> raise.
     # Second call: attempt 0 fails, delay=20, used=20+20=40 > 30 -> raise immediately
     assert call_count == 3  # 2 from first call + 1 from second
     assert sleeps == [20.0]

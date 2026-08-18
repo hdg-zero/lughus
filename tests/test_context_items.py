@@ -230,9 +230,7 @@ async def test_prefix_identical_between_turn_1_and_turn_3(
     prefix_turn_1 = turn_1_msgs[:prefix_len]
     prefix_turn_3 = turn_3_msgs[:prefix_len]
 
-    assert prefix_turn_1 == prefix_turn_3, (
-        "Cacheable prefix diverged between turn 1 and turn 3"
-    )
+    assert prefix_turn_1 == prefix_turn_3, "Cacheable prefix diverged between turn 1 and turn 3"
 
 
 # ── Empty context_items is a no-op ──────────────────────────────────────────

@@ -3,11 +3,10 @@
 import asyncio
 import contextlib
 from dataclasses import dataclass
-from typing import Any
 
 import pytest
 
-from lughus.budget import BudgetAmount, BudgetLedger, BudgetLimit
+from lughus.budget import BudgetLedger, BudgetLimit
 from lughus.budgeted_llm import BudgetedLLM
 
 
