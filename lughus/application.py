@@ -9,6 +9,7 @@ from typing import Any
 from .approval import ApprovalStore
 from .budget import BudgetLedger
 from .context import ContextItem, ContextManager
+from .errors import ApprovalRequiredGroup, RunSuspended
 from .event_stream import EventSink
 from .idempotency import IdempotencyStore
 from .loop import LoopResult, ToolExecutionConfig
@@ -112,6 +113,22 @@ class GovernedAgentRunner:
                     max_iterations=max_iterations,
                     tool_config=self.runtime.tool_config(run_id=run.run_id, principal=principal),
                 )
+        except ApprovalRequiredGroup as e:
+            # Persist any tool events that completed before the suspension.
+            for te in tool_events:
+                seq = coordinator.next_sequence(run.run_id)
+                run_event = RunEvent(
+                    te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT
+                )
+                await self.runtime.event_store.append(run_event)
+            # Transition to WAITING — the run is suspended, not failed.
+            await coordinator.transition(
+                running,
+                RunStatus.WAITING,
+                "run.waiting",
+                {"pending_approvals": [r.request_id for r in e.requests]},
+            )
+            raise RunSuspended(run.run_id, e.requests) from e
         except BaseException as exc:
             await coordinator.transition(
                 running, RunStatus.FAILED, "run.failed", {"error_code": type(exc).__name__}

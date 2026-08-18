@@ -12,6 +12,7 @@ from lughus.approval import (
 from lughus.budget import BudgetLedger, BudgetLimit
 from lughus.context import ContextManager
 from lughus.domain import RunEvent
+from lughus.errors import ApprovalRequiredGroup
 from lughus.event_stream import InMemoryEventSink
 from lughus.idempotency import (
     AttemptStatus,
@@ -87,9 +88,9 @@ async def test_approved_proposal_is_consumed_after_execution():
         assert consumed_request is not None
         assert consumed_request.status == ApprovalStatus.CONSUMED
 
-        # Subsequent execution without new approval must return approval_required error
-        res_2 = await _execute_tools([("tc_2", "charge", '{"amount": 100}')], registry, {}, cfg)
-        assert "approval_required" in res_2[0][1]
+        # Subsequent execution without new approval must raise ApprovalRequiredGroup
+        with pytest.raises(ApprovalRequiredGroup):
+            await _execute_tools([("tc_2", "charge", '{"amount": 100}')], registry, {}, cfg)
     finally:
         await runtime.close()
 
@@ -193,8 +194,8 @@ async def test_governed_runtime_060_e2e_gate():
 
     # --- Phase 1: Proposal (Requires Approval) ---
     cfg = runtime.tool_config(run_id=run_id, principal=principal)
-    res_prop = await _execute_tools([("tc_1", "transfer_funds", args_json)], registry, {}, cfg)
-    assert "approval_required" in res_prop[0][1]
+    with pytest.raises(ApprovalRequiredGroup):
+        await _execute_tools([("tc_1", "transfer_funds", args_json)], registry, {}, cfg)
 
     digest = proposal_digest("transfer_funds", {"to_account": "bob", "amount": 500})
     pending_request = await approvals.find(run_id, digest)

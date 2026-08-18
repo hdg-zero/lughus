@@ -17,6 +17,8 @@ from opentelemetry.trace import StatusCode
 from ..approval import ApprovalRequest, proposal_digest
 from ..budget import BudgetAmount
 from ..errors import (
+    ApprovalRequired,
+    ApprovalRequiredGroup,
     LoopLimitError,
     SafeToolError,
     ToolExecutionError,
@@ -348,7 +350,7 @@ async def _execute_tools(
                     decision is not None and decision.kind == DecisionKind.REQUIRE_APPROVAL
                 ) or tool.requires_approval:
                     if cfg.approval_store is None:
-                        raise SafeToolError("approval_required", "Human approval is required")
+                        raise ApprovalRequired("unknown", name)
                     digest = proposal_digest(name, args)
                     request = await cfg.approval_store.find(cfg.run_id, digest)
                     if request is not None and request.status.value == "approved":
@@ -364,9 +366,8 @@ async def _execute_tools(
                                 risk=tool.risk.value,
                             )
                             await cfg.approval_store.create(request)
-                        raise SafeToolError(
-                            "approval_required",
-                            f"Human approval is required (request_id={request.request_id})",
+                        raise ApprovalRequired(
+                            request.request_id, name, request.expires_at
                         )
 
                 # ── Step 4: Claim ───────────────────────────────────
@@ -464,6 +465,8 @@ async def _execute_tools(
                         )
                     )
                 output, status, error_type = _error_payload(exc), "error", type(exc).__name__
+            except ApprovalRequired:
+                raise  # propagate to gather — not a tool error
             except Exception as exc:  # noqa: BLE001 — boundary guard: tools execute arbitrary user code; the exception spectrum is unbounded by design
                 wrapped = (
                     exc
@@ -507,5 +510,22 @@ async def _execute_tools(
             return await _run_unbounded(tc_id, name, raw_args)
 
     if len(tool_calls) == 1:
-        return [await _run(*tool_calls[0])]
-    return list(await asyncio.gather(*(_run(*tc) for tc in tool_calls)))
+        try:
+            return [await _run(*tool_calls[0])]
+        except ApprovalRequired as e:
+            raise ApprovalRequiredGroup([e]) from e
+
+    # Use return_exceptions=True so that tools already dispatched in the same
+    # turn complete normally even when other tools need approval.
+    results = await asyncio.gather(
+        *(_run(*tc) for tc in tool_calls), return_exceptions=True
+    )
+    approval_errors = [r for r in results if isinstance(r, ApprovalRequired)]
+    if approval_errors:
+        raise ApprovalRequiredGroup(approval_errors)
+    # Non-approval exceptions shouldn't reach here (they're caught inside
+    # _run_unbounded) but handle defensively.
+    for r in results:
+        if isinstance(r, Exception):
+            raise r
+    return list(results)  # type: ignore[arg-type]
