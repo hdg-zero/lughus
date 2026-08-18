@@ -31,6 +31,9 @@ build/
 dist/
 *.egg-info/
 
+# --- CI / test reports ---
+reports/
+
 # --- Environments & Tooling (fallback for non-dot envs) ---
 env/
 venv/

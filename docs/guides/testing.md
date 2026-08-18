@@ -114,3 +114,37 @@ async def test_my_streaming_agent():
     assert chunks[-1].iterations == 1
     assert chunks[-1].prompt_tokens == 10
 ```
+
+---
+
+## CI Differential Test Scanning
+
+The CI pipeline includes a **differential check** that compares test results
+between the base branch and the pull-request head. It catches *new* test
+failures introduced by a PR, even when the overall failure count stays the same
+(e.g. one test fixed, one test broken).
+
+### How it works
+
+1. `pytest --junitxml=reports/junit.xml` produces a JUnit XML report.
+2. `scripts/diff_junit.py` parses two reports (base vs. head) and exits non-zero
+   if new failures appear.
+3. A separate **collect gate** step rejects any collection errors (import or
+   syntax errors that prevent pytest from discovering tests).
+
+### Running the differential check locally
+
+```bash
+# 1. Generate the base-branch report
+git stash
+uv run pytest tests/ -q --junitxml=reports/base.xml || true
+git stash pop
+
+# 2. Generate the head report
+uv run pytest tests/ -q --junitxml=reports/head.xml || true
+
+# 3. Compare
+python scripts/diff_junit.py reports/base.xml reports/head.xml
+```
+
+A zero exit code means no new failures were introduced.
