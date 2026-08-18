@@ -299,6 +299,26 @@ async def _execute_tools(
                     validator=tool.validator,
                     max_tool_args_chars=cfg.max_tool_args_chars,
                 )
+                # ── Step 1: Policy ──────────────────────────────────
+                decision = None
+                if cfg.policy is not None:
+                    if cfg.principal is None:
+                        raise ToolExecutionError(
+                            "A principal is required when tool policy is enabled"
+                        )
+                    proposal = ToolProposal(
+                        run_id=cfg.run_id,
+                        tool_name=name,
+                        arguments=args,
+                        effects=frozenset(effect.value for effect in tool.effects),
+                        risk=tool.risk.value,
+                        required_scopes=tool.required_scopes,
+                    )
+                    decision = await cfg.policy.evaluate(proposal, cfg.principal)
+                    if decision.kind == DecisionKind.DENY:
+                        raise ToolExecutionError(f"Tool policy denied action: {decision.code}")
+
+                # ── Step 2: Receipt lookup ──────────────────────────
                 if cfg.idempotency_store is not None and tool.idempotent:
                     check_key = IdempotencyKey.from_args(cfg.run_id, name, args)
                     existing_completed = await cfg.idempotency_store.get(check_key)
@@ -322,53 +342,34 @@ async def _execute_tools(
                         )
                         return tc_id, output
 
+                # ── Step 3: Approval (check/create, WITHOUT consuming)
+                approval_to_consume: ApprovalRequest | None = None
                 if (
-                    cfg.policy is not None
-                    or tool.requires_approval
-                    or cfg.approval_store is not None
-                ):
-                    decision = None
-                    if cfg.policy is not None:
-                        if cfg.principal is None:
-                            raise ToolExecutionError(
-                                "A principal is required when tool policy is enabled"
+                    decision is not None and decision.kind == DecisionKind.REQUIRE_APPROVAL
+                ) or tool.requires_approval:
+                    if cfg.approval_store is None:
+                        raise SafeToolError("approval_required", "Human approval is required")
+                    digest = proposal_digest(name, args)
+                    request = await cfg.approval_store.find(cfg.run_id, digest)
+                    if request is not None and request.status.value == "approved":
+                        approval_to_consume = request
+                    elif request is not None and request.status.value == "rejected":
+                        raise ToolExecutionError("Human approval was rejected")
+                    else:
+                        if request is None:
+                            request = ApprovalRequest(
+                                run_id=cfg.run_id,
+                                tool_name=name,
+                                proposal_hash=digest,
+                                risk=tool.risk.value,
                             )
-                        proposal = ToolProposal(
-                            run_id=cfg.run_id,
-                            tool_name=name,
-                            arguments=args,
-                            effects=frozenset(effect.value for effect in tool.effects),
-                            risk=tool.risk.value,
-                            required_scopes=tool.required_scopes,
+                            await cfg.approval_store.create(request)
+                        raise SafeToolError(
+                            "approval_required",
+                            f"Human approval is required (request_id={request.request_id})",
                         )
-                        decision = await cfg.policy.evaluate(proposal, cfg.principal)
-                        if decision.kind == DecisionKind.DENY:
-                            raise ToolExecutionError(f"Tool policy denied action: {decision.code}")
-                    if (
-                        decision is not None and decision.kind == DecisionKind.REQUIRE_APPROVAL
-                    ) or tool.requires_approval:
-                        if cfg.approval_store is None:
-                            raise SafeToolError("approval_required", "Human approval is required")
-                        digest = proposal_digest(name, args)
-                        request = await cfg.approval_store.find(cfg.run_id, digest)
-                        if request is not None and request.status.value == "approved":
-                            await cfg.approval_store.consume(request.request_id)
-                        elif request is not None and request.status.value == "rejected":
-                            raise ToolExecutionError("Human approval was rejected")
-                        else:
-                            if request is None:
-                                request = ApprovalRequest(
-                                    run_id=cfg.run_id,
-                                    tool_name=name,
-                                    proposal_hash=digest,
-                                    risk=tool.risk.value,
-                                )
-                                await cfg.approval_store.create(request)
-                            raise SafeToolError(
-                                "approval_required",
-                                f"Human approval is required (request_id={request.request_id})",
-                            )
 
+                # ── Step 4: Claim ───────────────────────────────────
                 if cfg.idempotency_store is not None and tool.idempotent:
                     idem_key = IdempotencyKey.from_args(cfg.run_id, name, args)
                     existing = await cfg.idempotency_store.claim(
@@ -393,10 +394,16 @@ async def _execute_tools(
                     if existing is not None:
                         raise ToolExecutionError("An idempotent execution is already in progress")
 
+                # ── Step 5: Slots ───────────────────────────────────
                 slot = _runtime_of(cfg).tool_slot(cfg.tool_queue_timeout)
-                if cfg.budget is not None:
-                    budget_reservation = await cfg.budget.reserve(BudgetAmount(tool_calls=1))
                 async with slot:
+                    # ── Step 6: Budget ──────────────────────────────
+                    if cfg.budget is not None:
+                        budget_reservation = await cfg.budget.reserve(BudgetAmount(tool_calls=1))
+                    # ── Step 7: Consumption ─────────────────────────
+                    if approval_to_consume is not None and cfg.approval_store is not None:
+                        await cfg.approval_store.consume(approval_to_consume.request_id)
+                    # ── Step 8: Dispatch ────────────────────────────
                     mode = tool.concurrency
                     if mode == ConcurrencyMode.GLOBAL_EXCLUSIVE:
                         async with _runtime_of(cfg).global_exclusive_lock:
