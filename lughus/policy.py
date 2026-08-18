@@ -54,6 +54,14 @@ class ToolPolicy(Protocol):
         ...
 
 
+class AllowAllPolicy:
+    """Policy that allows every proposal unconditionally."""
+
+    async def evaluate(self, proposal: ToolProposal, principal: Principal) -> PolicyDecision:
+        """Allow the proposal without further checks."""
+        return PolicyDecision(DecisionKind.ALLOW, "allowed")
+
+
 class LeastPrivilegePolicy:
     """Default policy: deny missing scopes; approve high-risk or irreversible writes."""
 

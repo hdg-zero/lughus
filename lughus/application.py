@@ -65,8 +65,10 @@ class GovernedAgentRunner:
     ) -> LoopResult:
         from .budgeted_llm import BudgetedLLM
         from .coordinator import RunCoordinator
-        from .domain import RunStatus
+        from .domain import EventVisibility, RunEvent, RunStatus
         from .loop import agent_loop
+        from .loop._execute import collect_tool_events
+        from .persistence import Checkpoint
 
         # W1-14 / F-04. `context_items` was accepted, typed, and then thrown away.
         # A user supplying context with explicit provenance and trust levels believed
@@ -92,22 +94,56 @@ class GovernedAgentRunner:
         )
         running = await coordinator.transition(run, RunStatus.RUNNING, "run.started")
         tool_names = list(registry.names())
+
+        tool_events: list[dict[str, Any]] = []
+
+        def _on_tool_event(event: dict[str, Any]) -> None:
+            tool_events.append(event)
+
         try:
-            result = await agent_loop(
-                BudgetedLLM(llm, self.runtime.budget),
-                system=system,
-                context=objective,
-                registry=registry,
-                tool_names=tool_names,
-                state=state,
-                max_iterations=max_iterations,
-                tool_config=self.runtime.tool_config(run_id=run.run_id, principal=principal),
-            )
+            with collect_tool_events(_on_tool_event):
+                result = await agent_loop(
+                    BudgetedLLM(llm, self.runtime.budget),
+                    system=system,
+                    context=objective,
+                    registry=registry,
+                    tool_names=tool_names,
+                    state=state,
+                    max_iterations=max_iterations,
+                    tool_config=self.runtime.tool_config(run_id=run.run_id, principal=principal),
+                )
         except BaseException as exc:
             await coordinator.transition(
                 running, RunStatus.FAILED, "run.failed", {"error_code": type(exc).__name__}
             )
             raise
+
+        # Persist tool events with globally unique sequences.
+        last_event_seq = -1
+        for te in tool_events:
+            seq = coordinator.next_sequence(run.run_id)
+            last_event_seq = seq
+            run_event = RunEvent(
+                te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT
+            )
+            await self.runtime.event_store.append(run_event)
+
+        # Save a checkpoint capturing post-tool-execution state.
+        if tool_events:
+            checkpoint = Checkpoint(
+                run.run_id,
+                running.version,
+                last_event_seq,
+                {
+                    "status": running.status.value,
+                    "iterations": result.iterations,
+                    "total_tokens": result.total_tokens,
+                },
+            )
+            await self.runtime.checkpoint_store.save(
+                checkpoint, expected_version=running.version
+            )
+
         await coordinator.transition(
             running,
             RunStatus.COMPLETED,
