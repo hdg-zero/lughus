@@ -6,6 +6,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-08-18
+
+Governance contracts and integrity wave. **Breaking changes** — this is a beta
+release; migration requires updating code that relied on previous defaults or
+approval error handling.
+
+### Added
+
+- **Approval suspends run** (W2-05). `ApprovalRequired`, `ApprovalRequiredGroup`,
+  and `RunSuspended` exceptions derive from `LughusError` (not
+  `ToolExecutionError`). The model never sees "approval_required" in tool results;
+  the governed runner transitions to `WAITING` and raises `RunSuspended`.
+- **Real context_items injection** (W2-06). `GovernedAgentRunner.run()` now renders
+  context items as `<context>` XML-tagged user messages, sorted by `(trust, id)`
+  for deterministic prefix stability. Removes the `NotImplementedError` guard.
+- **Honest concurrency modes** (W2-10). `ConcurrencyMode` enum: `PARALLEL_SAFE`
+  (new default), `SERIAL_PER_TOOL`, `SERIAL_PER_RESOURCE`, `GLOBAL_EXCLUSIVE`.
+- **Generation parameters** (W2-11). `LLM(params=...)` spreads user-supplied
+  parameters into provider calls, with reserved-key validation.
+- **Cost in integer micros** (W2-12). `estimated_cost_micros` is now `int`,
+  `BudgetLedger` settles idempotently on aborted streams.
+- **CI collect gate** (W2-14). Differential test scanning and collection gate.
+- **AllowAllPolicy** (W2-07). Governed vertical slice with tool event persistence,
+  sequence integrity, and checkpoint tests.
+- **MCPAdapter governance bypass fix** (W2-08). Schema fingerprinting prevents
+  tool schema drift between refresh and invocation.
+- **Governance order integration tests** (W2-03). Seven tests verifying the
+  eight-step governance pipeline order.
+- **Single clock audit** (W2-15). All timestamps use a single injectable clock.
+
+### Changed
+
+- **Tightened defaults** (W2-09). `max_iterations` 50→12, `tool_timeout` None→30s,
+  `max_tool_output_chars` 20000→8192, `max_parallel_tools` 8→4.
+- **Single retry layer** (W2-02). Stream-level retry removed; only LLM-level retry
+  via `retry_max_elapsed=60s` remains. Mid-stream errors propagate.
+- **Capacity options removed from ToolExecutionConfig** (W2-13). `max_global_tools`
+  and `max_sync_thread_workers` are runtime-level constants, not per-loop config.
+
 ## [0.10.2] — 2026-08-17
 
 Correctness and packaging release. **No breaking API change**: it can be adopted
