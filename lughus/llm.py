@@ -6,7 +6,7 @@ import asyncio
 import logging
 import random
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Mapping
 from typing import Any, Protocol, cast
 
 import litellm
@@ -104,6 +104,8 @@ class LLM:
             Set to ``None`` or ``0`` to disable the budget.
     """
 
+    _RESERVED_KEYS = frozenset({"messages", "tools", "stream", "stream_options", "model"})
+
     def __init__(
         self,
         model: str,
@@ -112,6 +114,7 @@ class LLM:
         max_retries: int = 3,
         retry_base_delay: float = 1.0,
         retry_max_elapsed: float | None = 60.0,
+        params: Mapping[str, Any] | None = None,
     ):
         if not model:
             raise ValueError(
@@ -126,6 +129,13 @@ class LLM:
         self.retry_max_elapsed = (
             retry_max_elapsed if (retry_max_elapsed and retry_max_elapsed > 0) else None
         )
+        if params:
+            for key in params:
+                if key in self._RESERVED_KEYS:
+                    raise ValueError(
+                        f"'{key}' is a reserved LLM parameter and cannot be overridden"
+                    )
+        self.params: Mapping[str, Any] = dict(params) if params else {}
 
     @classmethod
     def from_settings(cls, settings: Any) -> LLM:
@@ -202,6 +212,7 @@ class LLM:
                 "model": self.model,
                 "messages": messages,
                 "max_tokens": self.max_output_tokens,
+                **self.params,
             }
             if tools:
                 kwargs["tools"] = tools
@@ -227,6 +238,7 @@ class LLM:
                 "messages": messages,
                 "max_tokens": self.max_output_tokens,
                 "stream": True,
+                **self.params,
             }
             if tools:
                 kwargs["tools"] = tools
