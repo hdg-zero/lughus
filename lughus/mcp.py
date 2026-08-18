@@ -104,5 +104,5 @@ class MCPAdapter:
             "risk": ToolRisk.UNKNOWN,
             "idempotent": False,
             "requires_approval": True,
-            "concurrency": ConcurrencyMode.EXCLUSIVE,
+            "concurrency": ConcurrencyMode.SERIAL_PER_TOOL,
         }

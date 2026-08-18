@@ -26,7 +26,7 @@ from ..errors import (
 from ..idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey
 from ..policy import DecisionKind, ToolProposal
 from ..telemetry import meter, tracer
-from ..tools import ToolRegistry
+from ..tools import ConcurrencyMode, ToolRegistry
 from ._config import ToolExecutionConfig
 
 if TYPE_CHECKING:
@@ -397,13 +397,19 @@ async def _execute_tools(
                 if cfg.budget is not None:
                     budget_reservation = await cfg.budget.reserve(BudgetAmount(tool_calls=1))
                 async with slot:
-                    resource_key = name
-                    if tool.resource_key is not None:
-                        resource_key = f"{name}:{tool.resource_key(args)}"
-                    if tool.concurrency.value != "parallel_safe":
-                        async with _runtime_of(cfg).resource_slot(resource_key):
+                    mode = tool.concurrency
+                    if mode == ConcurrencyMode.GLOBAL_EXCLUSIVE:
+                        async with _runtime_of(cfg).global_exclusive_lock:
+                            output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
+                    elif mode == ConcurrencyMode.SERIAL_PER_TOOL:
+                        async with _runtime_of(cfg).resource_slot(name):
+                            output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
+                    elif mode == ConcurrencyMode.SERIAL_PER_RESOURCE:
+                        rk = f"{name}:{tool.resource_key(args)}"  # type: ignore[misc]
+                        async with _runtime_of(cfg).resource_slot(rk):
                             output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
                     else:
+                        # PARALLEL_SAFE — no lock
                         output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
                 if tool.output_validator is not None:
                     validation_errors = sorted(

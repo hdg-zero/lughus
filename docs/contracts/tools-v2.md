@@ -24,7 +24,7 @@ Every tool registered in `ToolRegistry` contains formal execution metadata:
 | `required_scopes` | `frozenset[str]` | Required permission scopes for authorization | `frozenset()` |
 | `idempotent` | `bool` | Explicit business guarantee for retry safety | `False` |
 | `requires_approval` | `bool` | Flag requiring human approval prior to dispatch | `False` |
-| `concurrency` | `ConcurrencyMode` | `PARALLEL_SAFE`, `EXCLUSIVE`, or `SERIAL_PER_RESOURCE` | `EXCLUSIVE` |
+| `concurrency` | `ConcurrencyMode` | `PARALLEL_SAFE`, `SERIAL_PER_TOOL`, `SERIAL_PER_RESOURCE`, or `GLOBAL_EXCLUSIVE` | `PARALLEL_SAFE` |
 
 ---
 

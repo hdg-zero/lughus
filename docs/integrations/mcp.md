@@ -18,7 +18,7 @@ Because remote tools run outside of Lughus's control, `MCPAdapter.conservative_m
 - **Effect:** Treated as `EXTERNAL`.
 - **Risk:** Marked as `UNKNOWN`.
 - **Approval:** Requires human approval (`requires_approval=True`) by default.
-- **Concurrency:** Enforced as `EXCLUSIVE` to prevent unexpected race conditions on the remote end.
+- **Concurrency:** Enforced as `SERIAL_PER_TOOL` to prevent unexpected race conditions on the remote end.
 
 ## Security Considerations
 - Lughus takes a snapshot of the permitted tool definitions during discovery. If the remote server alters a tool signature mid-run, it will be rejected.

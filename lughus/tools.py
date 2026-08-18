@@ -103,8 +103,9 @@ class ToolRisk(StrEnum):
 
 class ConcurrencyMode(StrEnum):
     PARALLEL_SAFE = "parallel_safe"
-    EXCLUSIVE = "exclusive"
+    SERIAL_PER_TOOL = "serial_per_tool"
     SERIAL_PER_RESOURCE = "serial_per_resource"
+    GLOBAL_EXCLUSIVE = "global_exclusive"
 
 
 @dataclass(frozen=True)
@@ -124,7 +125,7 @@ class ToolDef:
     required_scopes: frozenset[str] = field(default_factory=frozenset)
     idempotent: bool = False
     requires_approval: bool = False
-    concurrency: ConcurrencyMode = ConcurrencyMode.EXCLUSIVE
+    concurrency: ConcurrencyMode = ConcurrencyMode.PARALLEL_SAFE
     resource_key: Callable[[Mapping[str, Any]], str] | None = None
 
 
@@ -147,12 +148,16 @@ class ToolRegistry:
         required_scopes: frozenset[str] | None = None,
         idempotent: bool = False,
         requires_approval: bool = False,
-        concurrency: ConcurrencyMode = ConcurrencyMode.EXCLUSIVE,
+        concurrency: ConcurrencyMode = ConcurrencyMode.PARALLEL_SAFE,
         resource_key: Callable[[Mapping[str, Any]], str] | None = None,
     ) -> Callable:
         """Decorator to register a tool function (sync or async)."""
         if name in self._tools:
             raise ToolValidationError(f"Tool '{name}' is already registered")
+        if concurrency == ConcurrencyMode.SERIAL_PER_RESOURCE and resource_key is None:
+            raise ToolValidationError(
+                f"Tool '{name}' uses SERIAL_PER_RESOURCE but no resource_key was provided"
+            )
         try:
             Draft202012Validator.check_schema(parameters)
             validator = Draft202012Validator(parameters)
