@@ -137,7 +137,7 @@ def _resolve_tool_config(
 ) -> tuple[ToolExecutionConfig, ExecutionRuntime | None]:
     """Return a runnable config plus the runtime this loop must close.
 
-    W1-02 / W1-03 / W2-13.  A ``ToolExecutionConfig`` is a value: it no longer
+    A ``ToolExecutionConfig`` is a value: it no longer
     allocates an ``ExecutionRuntime`` (and therefore a thread pool) in
     ``__post_init__``.  The loop owns the runtime it creates and closes it in a
     ``finally``; a runtime injected by the caller stays the caller's property and

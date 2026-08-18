@@ -176,7 +176,7 @@ class InMemoryIdempotencyStore:
                         "Concurrent pending attempt for the same idempotency key"
                     )
             self._make_room(attempt.key)
-            # W2-15 / R12: the store's clock is authoritative.  Override the
+            # The store's clock is authoritative.  Override the
             # dataclass default_factory (time.time) so that created_at always
             # comes from the same clock used for expiry comparisons.
             self._store[attempt.key] = replace(attempt, created_at=self._now())
@@ -201,7 +201,7 @@ class InMemoryIdempotencyStore:
                 del self._store[attempt.key]
                 _evictions.add(1, {"reason": "expired"})
             self._make_room(attempt.key)
-            # W2-15 / R12: stamp from the store's own clock (see save()).
+            # Stamp from the store's own clock (see save()).
             self._store[attempt.key] = replace(attempt, created_at=self._now())
             return None
 

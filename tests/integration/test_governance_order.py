@@ -1,4 +1,4 @@
-"""Integration tests verifying the eight-step governance order (W2-03).
+"""Integration tests verifying the eight-step governance order.
 
 Governance pipeline:
 

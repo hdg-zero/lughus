@@ -1,11 +1,10 @@
-"""W1-02 / W1-03 / W1-05 / W2-13: runtime ownership, lifecycle and honoured limits.
+"""Runtime ownership, lifecycle and honoured limits.
 
-Three defects converge here:
+Key properties:
 
-* N-03  the implicit ExecutionRuntime was never closed -> thread pool leak;
-* F-05  a thread pool was allocated by *constructing a configuration object*;
-* W2-13 max_global_tools / max_sync_thread_workers removed from ToolExecutionConfig;
-        they are capacities of the runtime, not per-loop guardrails.
+* The implicit ExecutionRuntime is owned and closed by the loop;
+* ToolExecutionConfig is inert and does not allocate resources;
+* Capacities belong to ExecutionRuntime, not per-loop guardrails.
 """
 
 from __future__ import annotations
@@ -153,7 +152,7 @@ async def test_execute_tools_refuses_a_config_without_runtime(
 
 
 async def test_implicit_runtime_uses_module_defaults(registry: ToolRegistry) -> None:
-    """W2-13: the implicit runtime uses the module-level constants."""
+    """The implicit runtime uses the module-level constants."""
     from lughus.loop._config import DEFAULT_MAX_GLOBAL_TOOLS, DEFAULT_MAX_SYNC_THREAD_WORKERS
 
     seen: list[RuntimeConfig] = []
@@ -183,7 +182,7 @@ async def test_implicit_runtime_uses_module_defaults(registry: ToolRegistry) -> 
 
 
 async def test_injected_runtime_imposes_its_capacities() -> None:
-    """W2-13: an injected runtime is accepted without conflict checks."""
+    """An injected runtime is accepted without conflict checks."""
     runtime = ExecutionRuntime(RuntimeConfig(max_global_tools=8, max_sync_workers=4))
     try:
         cfg = ToolExecutionConfig(runtime=runtime)

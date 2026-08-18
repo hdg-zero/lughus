@@ -147,7 +147,7 @@ async def test_store_keeps_accepting_work_when_full_of_terminal_receipts() -> No
 
 
 async def test_eviction_is_fifo_on_created_at() -> None:
-    # W2-15: the store now stamps created_at from its own clock (R12), so
+    # The store stamps created_at from its own clock, so
     # entries are always timestamped in insertion order.  Advance the clock
     # between saves so each entry gets a distinct created_at.
     clock = FakeClock()

@@ -239,7 +239,7 @@ class BoundedInMemoryTaskStore(InMemoryTaskStore):
         super().__init__()
         self.ttl_seconds = ttl_seconds if ttl_seconds and ttl_seconds > 0 else None
         self.max_tasks = max_tasks if max_tasks and max_tasks > 0 else None
-        # W2-15 / R12: injectable clock for testability.  Resolved at init
+        # Injectable clock for testability.  Resolved at init
         # time so that monkeypatch-based tests still work when ``now`` is not
         # provided (they patch before construction).
         self._now = now if now is not None else time.monotonic

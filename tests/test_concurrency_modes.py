@@ -1,4 +1,4 @@
-"""Tests for ConcurrencyMode semantics (W2-10)."""
+"""Tests for ConcurrencyMode semantics."""
 
 from __future__ import annotations
 

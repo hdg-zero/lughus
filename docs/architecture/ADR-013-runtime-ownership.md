@@ -77,7 +77,7 @@ conflict. Flagged for re-examination in W4-02 once there is usage data.
 - `agent_loop_stream` is an async generator, so its `finally` runs when the
   generator is exhausted or closed. Consumers that abandon iteration early must
   close it (`contextlib.aclosing`). Documented in `docs/contracts/streaming.md`
-  and asserted by the W2-01 contract suite.
+  and asserted by the streaming contract suite.
 
 ## Enforcement
 

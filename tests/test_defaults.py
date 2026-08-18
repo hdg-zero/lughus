@@ -1,4 +1,4 @@
-"""W2-09: assert tightened defaults value-by-value.
+"""Assert tightened defaults value-by-value.
 
 Every variable-backed default MUST be tested with the env var cleared
 (monkeypatch.delenv) so the test validates the fallback, not the env.

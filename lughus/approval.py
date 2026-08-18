@@ -79,7 +79,7 @@ class ApprovalStore(Protocol):
 
 
 # Statuses from which no further action is possible. Kept as a module constant so
-# that eviction and the future expiry logic (W2-04) agree on one definition.
+# that eviction and expiry logic agree on one definition.
 TERMINAL_APPROVAL_STATUSES = frozenset(
     {ApprovalStatus.CONSUMED, ApprovalStatus.REJECTED, ApprovalStatus.EXPIRED}
 )

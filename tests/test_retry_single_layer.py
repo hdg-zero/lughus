@@ -1,4 +1,4 @@
-"""Tests for single retry layer (W2-02).
+"""Tests for single retry layer.
 
 Verifies:
 - Total retries = configured amount, not multiplied across layers

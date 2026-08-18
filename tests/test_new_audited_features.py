@@ -151,7 +151,7 @@ def test_resolve_and_validate_otel_url(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_stream_mid_stream_error_propagates() -> None:
-    """W2-02: single retry layer lives at LLM.astream() level, not in the loop.
+    """Single retry layer lives at LLM.astream() level, not in the loop.
 
     Once streaming has begun and the first chunk is emitted, a mid-stream
     error propagates to the caller instead of silently retrying.

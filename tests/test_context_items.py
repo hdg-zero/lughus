@@ -1,4 +1,4 @@
-"""W2-06: real context_items injection into the agent loop.
+"""Real context_items injection into the agent loop.
 
 Replaces tests/test_context_items_not_ignored.py (0.10.2 guard).
 """

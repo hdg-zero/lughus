@@ -1,6 +1,6 @@
 """Integration tests: approval barriers suspend runs instead of leaking to the model.
 
-W2-05: when a tool requires approval and none exists, the framework must raise
+When a tool requires approval and none exists, the framework must raise
 ApprovalRequired (NOT SafeToolError).  The model never sees "approval_required"
 in its tool results.  The governed runner catches ApprovalRequiredGroup,
 transitions the run to WAITING, and raises RunSuspended.

@@ -90,7 +90,7 @@ names the finding it closes and the ticket that implements it.
 - **`InMemoryApprovalStore` was unbounded** (W1-11). Bounded, evicting terminal
   requests only; a live pending decision is never dropped silently.
 - **`context_items` was accepted and silently discarded** (F-04, W1-14). It now
-  raises `NotImplementedError` naming the ticket that implements it (W2-06, 0.11.0).
+  raises `NotImplementedError` pending full support in 0.11.0.
   A silent lie is worse than a loud gap.
 - **`registry._tools` was accessed privately by the framework itself** (W1-12).
   `ToolRegistry.names()`, `__contains__` and `__len__` added.
@@ -140,11 +140,11 @@ names the finding it closes and the ticket that implements it.
 ### Known gaps, shipping in 0.11.0
 
 - `BudgetedLLM` + streaming still raises `TypeError` (F-02): the `astream` contract
-  fix is a breaking change and belongs in a minor release (W2-01).
-- `context_items` raises instead of being injected (W2-06).
-- Approval is still consumed before the tool dispatches (F-12, W2-03), approval
-  expiry is still not enforced (W2-04), and a missing approval is still returned to
-  the model as a tool error rather than suspending the run (N-16, W2-05).
+  fix is a breaking change and belongs in a minor release.
+- `context_items` raises instead of being injected.
+- Approval is still consumed before the tool dispatches (F-12), approval
+  expiry is still not enforced, and a missing approval is still returned to
+  the model as a tool error rather than suspending the run (N-16).
 
 
 ## [0.10.1] — 2026-08-03

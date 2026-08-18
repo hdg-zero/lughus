@@ -1,4 +1,4 @@
-"""Tests for LLM generation parameters (W2-11)."""
+"""Tests for LLM generation parameters."""
 
 from __future__ import annotations
 

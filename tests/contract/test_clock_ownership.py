@@ -1,4 +1,4 @@
-"""W2-15: single-clock ownership contract (R12).
+"""Single-clock ownership contract.
 
 Rule R12 -- an injectable clock is purely decorative if timestamps come
 from elsewhere.  These tests prove that advancing the injected clock
