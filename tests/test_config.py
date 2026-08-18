@@ -137,13 +137,13 @@ def test_settings_default_values(monkeypatch) -> None:
     assert s.retry_max_elapsed == pytest.approx(60.0)
     assert s.task_store_ttl_seconds == pytest.approx(24 * 60 * 60)
     assert s.task_store_max_tasks == 10_000
-    assert s.max_parallel_tools == 8
+    assert s.max_parallel_tools == 4
     assert s.max_global_tools == 64
     assert s.max_sync_thread_workers == 32
-    assert s.tool_timeout == pytest.approx(120.0)
+    assert s.tool_timeout == pytest.approx(30.0)
     assert s.tool_queue_timeout == pytest.approx(30.0)
     assert s.max_tool_args_chars == 20_000
-    assert s.max_tool_output_chars == 20_000
+    assert s.max_tool_output_chars == 8_192
     assert s.max_message_history_chars == 200_000
     assert s.compact_tool_schemas is False
 

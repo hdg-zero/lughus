@@ -17,11 +17,11 @@ class StreamingMode(StrEnum):
     LIVE_AT_MOST_ONCE = "live_at_most_once"
 
 
-DEFAULT_MAX_ITERATIONS = 50
-DEFAULT_MAX_PARALLEL_TOOLS = 8
+DEFAULT_MAX_ITERATIONS = 12
+DEFAULT_MAX_PARALLEL_TOOLS = 4
 DEFAULT_MAX_GLOBAL_TOOLS = 64
 DEFAULT_MAX_TOOL_ARGS_CHARS = 20_000
-DEFAULT_MAX_TOOL_OUTPUT_CHARS = 20_000
+DEFAULT_MAX_TOOL_OUTPUT_CHARS = 8_192
 DEFAULT_MAX_SYNC_THREAD_WORKERS = 32
 DEFAULT_MAX_MESSAGE_HISTORY_CHARS = 200_000
 DEFAULT_TOOL_QUEUE_TIMEOUT = 30.0
@@ -44,7 +44,7 @@ class ToolExecutionConfig:
     """
 
     max_parallel_tools: int = DEFAULT_MAX_PARALLEL_TOOLS
-    tool_timeout: float | None = None
+    tool_timeout: float | None = 30.0
     max_tool_args_chars: int = DEFAULT_MAX_TOOL_ARGS_CHARS
     max_tool_output_chars: int = DEFAULT_MAX_TOOL_OUTPUT_CHARS
     max_message_history_chars: int = DEFAULT_MAX_MESSAGE_HISTORY_CHARS
