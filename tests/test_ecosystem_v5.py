@@ -55,9 +55,9 @@ class _MCP:
 async def test_mcp_allowlist_applies_to_discovery_and_invocation():
     adapter = MCPAdapter(_MCP(), MCPServerConfig("https://mcp.example", frozenset({"allowed"})))
     assert [tool.name for tool in await adapter.refresh()] == ["allowed"]
-    assert (await adapter.invoke("allowed", {}))["name"] == "allowed"
+    assert (await adapter._invoke("allowed", {}))["name"] == "allowed"
     with pytest.raises(PermissionError):
-        await adapter.invoke("hidden", {})
+        await adapter._invoke("hidden", {})
 
 
 class _Remote:

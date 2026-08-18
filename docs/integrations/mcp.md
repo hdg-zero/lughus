@@ -20,8 +20,31 @@ Because remote tools run outside of Lughus's control, `MCPAdapter.conservative_m
 - **Approval:** Requires human approval (`requires_approval=True`) by default.
 - **Concurrency:** Enforced as `SERIAL_PER_TOOL` to prevent unexpected race conditions on the remote end.
 
+## Governance and Invocation
+
+All MCP tool invocations pass through the standard Lughus governance pipeline
+(policy, approval, idempotency, budget). The `MCPAdapter._invoke` method is
+**internal** and must never be called directly by application code. The leading
+underscore signals this intent.
+
+**Why is `_invoke` private?**
+A public `invoke` method would let callers bypass every governance layer the
+framework provides -- policy checks, human approval, idempotency guards, and
+budget enforcement. By keeping invocation internal, the only path to execute an
+MCP tool is through `register_tools`, which wires each tool into the normal
+`ToolRuntime._execute_tools` pipeline where all governance applies.
+
+### Schema fingerprinting
+
+At `refresh()` time, `MCPAdapter` computes a SHA-256 fingerprint of every
+tool's input and output schemas. Before each `_invoke` call, the fingerprint
+is recomputed and compared. If the remote server has altered its schemas
+mid-run (e.g., adding a dangerous parameter), the call is refused with a
+`RuntimeError` rather than executing against an unvalidated schema. To recover,
+call `refresh()` again to accept the new schemas explicitly.
+
 ## Security Considerations
-- Lughus takes a snapshot of the permitted tool definitions during discovery. If the remote server alters a tool signature mid-run, it will be rejected.
+- Lughus takes a snapshot of the permitted tool definitions during discovery. If the remote server alters a tool signature mid-run, it will be rejected via the schema fingerprint check.
 - Avoid passing sensitive Lughus tokens to the MCP layer. Treat all data returned from an MCP invocation as untrusted.
 - Server-Side Request Forgery (SSRF) and malicious redirects must be mitigated by the underlying `MCPClient` implementation.
 
