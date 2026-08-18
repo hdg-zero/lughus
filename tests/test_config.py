@@ -345,9 +345,44 @@ def test_tool_config_rejects_zero() -> None:
 
 def test_tool_config_rejects_negative() -> None:
     with pytest.raises(ValueError, match="must be positive"):
-        ToolExecutionConfig(max_global_tools=-1, runtime=_test_runtime())
+        ToolExecutionConfig(max_tool_args_chars=-1, runtime=_test_runtime())
 
 
 def test_tool_execution_config_requires_runtime():
     cfg = ToolExecutionConfig()
     assert cfg.runtime is None
+
+
+def test_tool_config_rejects_max_global_tools_kwarg() -> None:
+    """W2-13: max_global_tools is no longer a ToolExecutionConfig field."""
+    with pytest.raises(TypeError):
+        ToolExecutionConfig(max_global_tools=32)  # type: ignore[call-arg]
+
+
+def test_tool_config_rejects_max_sync_thread_workers_kwarg() -> None:
+    """W2-13: max_sync_thread_workers is no longer a ToolExecutionConfig field."""
+    with pytest.raises(TypeError):
+        ToolExecutionConfig(max_sync_thread_workers=4)  # type: ignore[call-arg]
+
+
+@pytest.mark.asyncio
+async def test_implicit_runtime_uses_module_defaults() -> None:
+    """W2-13: the implicit runtime uses module-level constants."""
+    from lughus.loop._config import DEFAULT_MAX_GLOBAL_TOOLS, DEFAULT_MAX_SYNC_THREAD_WORKERS
+    from lughus.loop._loop import _resolve_tool_config
+
+    cfg, owned_runtime = _resolve_tool_config(ToolExecutionConfig())
+    try:
+        assert cfg.runtime is not None
+        assert cfg.runtime.config.max_global_tools == DEFAULT_MAX_GLOBAL_TOOLS
+        assert cfg.runtime.config.max_sync_workers == DEFAULT_MAX_SYNC_THREAD_WORKERS
+    finally:
+        if owned_runtime is not None:
+            await owned_runtime.close()
+
+
+def test_injected_runtime_accepted_without_conflict() -> None:
+    """W2-13: an injected runtime imposes its capacities without error."""
+    runtime = _test_runtime()
+    cfg = ToolExecutionConfig(runtime=runtime)
+    assert cfg.runtime is runtime

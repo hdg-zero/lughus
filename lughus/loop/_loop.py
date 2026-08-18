@@ -345,15 +345,9 @@ async def agent_loop_stream(
                                         if tc_delta.function.name:
                                             tc_map[idx]["name"] += tc_delta.function.name
                                         if tc_delta.function.arguments:
-                                            tc_map[idx]["arguments"] += (
-                                                tc_delta.function.arguments
-                                            )
+                                            tc_map[idx]["arguments"] += tc_delta.function.arguments
 
-                            if (
-                                not _usage_recorded
-                                and hasattr(chunk, "usage")
-                                and chunk.usage
-                            ):
+                            if not _usage_recorded and hasattr(chunk, "usage") and chunk.usage:
                                 p, c, ca = _record_llm_usage(
                                     llm_span,
                                     chunk.usage,

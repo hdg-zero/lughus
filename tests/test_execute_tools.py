@@ -33,7 +33,7 @@ async def _execute_tools(
         runtime_to_close = _test_runtime()
         config = ToolExecutionConfig(runtime=runtime_to_close)
     elif config.runtime is None:
-        runtime_to_close = _test_runtime(config.max_sync_thread_workers)
+        runtime_to_close = _test_runtime()
         config = dataclasses.replace(config, runtime=runtime_to_close)
     try:
         return await _raw_execute_tools(tool_calls, registry, state, config=config)
@@ -402,7 +402,6 @@ async def test_max_global_tools_limits_process_concurrency() -> None:
     runtime = ExecutionRuntime(RuntimeConfig(max_global_tools=1, max_sync_workers=32))
     cfg = ToolExecutionConfig(
         max_parallel_tools=10,
-        max_global_tools=1,
         runtime=runtime,
     )
 
@@ -430,7 +429,6 @@ async def test_global_tool_queue_timeout_returns_error_json() -> None:
     runtime = ExecutionRuntime(RuntimeConfig(max_global_tools=1, max_sync_workers=32))
     cfg = ToolExecutionConfig(
         max_parallel_tools=1,
-        max_global_tools=1,
         tool_queue_timeout=0.01,
         runtime=runtime,
     )
@@ -506,7 +504,6 @@ async def test_async_partial_tool_executes_without_sync_worker() -> None:
         registry,
         state=None,
         config=ToolExecutionConfig(
-            max_sync_thread_workers=1,
             runtime=ExecutionRuntime(RuntimeConfig(max_sync_workers=1)),
         ),
     )
@@ -551,8 +548,6 @@ async def test_sync_tool_worker_pool_is_bounded() -> None:
         state=None,
         config=ToolExecutionConfig(
             max_parallel_tools=4,
-            max_global_tools=4,
-            max_sync_thread_workers=2,
             runtime=ExecutionRuntime(RuntimeConfig(max_global_tools=4, max_sync_workers=2)),
         ),
     )

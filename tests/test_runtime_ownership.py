@@ -1,11 +1,11 @@
-"""W1-02 / W1-03 / W1-05: runtime ownership, lifecycle and honoured limits.
+"""W1-02 / W1-03 / W1-05 / W2-13: runtime ownership, lifecycle and honoured limits.
 
 Three defects converge here:
 
 * N-03  the implicit ExecutionRuntime was never closed -> thread pool leak;
 * F-05  a thread pool was allocated by *constructing a configuration object*;
-* N-10  max_global_tools / max_sync_thread_workers on ToolExecutionConfig were
-        silently ignored whenever the runtime was implicit.
+* W2-13 max_global_tools / max_sync_thread_workers removed from ToolExecutionConfig;
+        they are capacities of the runtime, not per-loop guardrails.
 """
 
 from __future__ import annotations
@@ -152,8 +152,10 @@ async def test_execute_tools_refuses_a_config_without_runtime(
 # ── W1-03 / N-10: declared limits must take effect ────────────────────────────
 
 
-async def test_config_limits_reach_the_implicit_runtime(registry: ToolRegistry) -> None:
-    """Fails on 0.10.1: the implicit runtime used RuntimeConfig() defaults (32/64)."""
+async def test_implicit_runtime_uses_module_defaults(registry: ToolRegistry) -> None:
+    """W2-13: the implicit runtime uses the module-level constants."""
+    from lughus.loop._config import DEFAULT_MAX_GLOBAL_TOOLS, DEFAULT_MAX_SYNC_THREAD_WORKERS
+
     seen: list[RuntimeConfig] = []
     original = ExecutionRuntime.__init__
 
@@ -169,35 +171,22 @@ async def test_config_limits_reach_the_implicit_runtime(registry: ToolRegistry) 
             context="c",
             registry=registry,
             tool_names=[],
-            tool_config=ToolExecutionConfig(
-                max_sync_thread_workers=3,
-                max_global_tools=5,
-                tool_queue_timeout=7.0,
-            ),
+            tool_config=ToolExecutionConfig(tool_queue_timeout=7.0),
         )
     finally:
         ExecutionRuntime.__init__ = original  # type: ignore[method-assign]
 
     assert seen, "no runtime was created"
-    assert seen[0].max_sync_workers == 3
-    assert seen[0].max_global_tools == 5
+    assert seen[0].max_sync_workers == DEFAULT_MAX_SYNC_THREAD_WORKERS
+    assert seen[0].max_global_tools == DEFAULT_MAX_GLOBAL_TOOLS
     assert seen[0].queue_timeout == 7.0
 
 
-async def test_injected_runtime_with_conflicting_limits_is_rejected() -> None:
-    """Silently ignoring the conflict is exactly the defect being fixed (R7)."""
-    runtime = ExecutionRuntime(RuntimeConfig(max_global_tools=64, max_sync_workers=32))
-    try:
-        with pytest.raises(ValueError, match="max_sync_thread_workers"):
-            ToolExecutionConfig(runtime=runtime, max_sync_thread_workers=4)
-    finally:
-        await runtime.close()
-
-
-async def test_injected_runtime_with_matching_limits_is_accepted() -> None:
+async def test_injected_runtime_imposes_its_capacities() -> None:
+    """W2-13: an injected runtime is accepted without conflict checks."""
     runtime = ExecutionRuntime(RuntimeConfig(max_global_tools=8, max_sync_workers=4))
     try:
-        cfg = ToolExecutionConfig(runtime=runtime, max_global_tools=8, max_sync_thread_workers=4)
+        cfg = ToolExecutionConfig(runtime=runtime)
         assert cfg.runtime is runtime
     finally:
         await runtime.close()
