@@ -247,8 +247,6 @@ class {class_prefix}Gateway(BaseGateway):
     ) -> AsyncIterator[ProgressEvent | CompletionEvent]:
         tool_config = ToolExecutionConfig(
             max_parallel_tools=self.settings.max_parallel_tools,
-            max_global_tools=self.settings.max_global_tools,
-            max_sync_thread_workers=self.settings.max_sync_thread_workers,
             tool_timeout=self.settings.tool_timeout,
             tool_queue_timeout=self.settings.tool_queue_timeout,
             max_tool_args_chars=self.settings.max_tool_args_chars,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -50,6 +52,20 @@ class MCPAdapter:
         if client.origin.rstrip("/") != config.origin.rstrip("/"):
             raise ValueError("MCP client origin does not match the validated configuration")
         self._snapshot: dict[str, MCPToolDescriptor] = {}
+        self._schema_fingerprint: str | None = None
+
+    @staticmethod
+    def _compute_fingerprint(snapshot: Mapping[str, MCPToolDescriptor]) -> str:
+        """Compute a SHA-256 fingerprint of all tool schemas in the snapshot."""
+        schemas = {
+            name: {
+                "input_schema": dict(desc.input_schema),
+                "output_schema": dict(desc.output_schema) if desc.output_schema else None,
+            }
+            for name, desc in sorted(snapshot.items())
+        }
+        canonical = json.dumps(schemas, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return hashlib.sha256(canonical.encode()).hexdigest()
 
     async def refresh(self) -> tuple[MCPToolDescriptor, ...]:
         tools = tuple(await self.client.list_tools())
@@ -59,11 +75,18 @@ class MCPAdapter:
         if len({tool.name for tool in selected}) != len(selected):
             raise ValueError("MCP server advertised duplicate tool names")
         self._snapshot = {tool.name: tool for tool in selected}
+        self._schema_fingerprint = self._compute_fingerprint(self._snapshot)
         return selected
 
-    async def invoke(self, name: str, arguments: Mapping[str, Any]) -> Any:
+    async def _invoke(self, name: str, arguments: Mapping[str, Any]) -> Any:
         if name not in self._snapshot:
             raise PermissionError("MCP tool is not present in the approved snapshot")
+        current_fingerprint = self._compute_fingerprint(self._snapshot)
+        if current_fingerprint != self._schema_fingerprint:
+            raise RuntimeError(
+                "MCP tool schema fingerprint changed since last refresh; "
+                "refusing to execute against an unvalidated schema"
+            )
         result = await self.client.call_tool(name, arguments)
         if len(str(result)) > self.config.max_output_characters:
             raise ValueError("MCP tool result exceeds configured limit")
@@ -80,7 +103,7 @@ class MCPAdapter:
             def build_remote_tool(target_name: str) -> Any:
                 async def remote_tool_fn(*, state: dict, **kwargs: Any) -> Any:
                     del state
-                    return await self.invoke(target_name, kwargs)
+                    return await self._invoke(target_name, kwargs)
 
                 return remote_tool_fn
 
@@ -104,5 +127,5 @@ class MCPAdapter:
             "risk": ToolRisk.UNKNOWN,
             "idempotent": False,
             "requires_approval": True,
-            "concurrency": ConcurrencyMode.EXCLUSIVE,
+            "concurrency": ConcurrencyMode.SERIAL_PER_TOOL,
         }

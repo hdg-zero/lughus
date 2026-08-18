@@ -59,6 +59,7 @@ class ExecutionRuntime:
         )
         self._semaphore = asyncio.Semaphore(self.config.max_global_tools)
         self._resource_locks: dict[str, _LockEntry] = {}
+        self._global_exclusive_lock = asyncio.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._closed = False
 
@@ -71,6 +72,11 @@ class ExecutionRuntime:
         elif self._loop is not loop:
             raise RuntimeError("ExecutionRuntime cannot be shared across event loops")
         return loop
+
+    @property
+    def global_exclusive_lock(self) -> asyncio.Lock:
+        """Return the single process-wide lock used by GLOBAL_EXCLUSIVE tools."""
+        return self._global_exclusive_lock
 
     @asynccontextmanager
     async def tool_slot(self, timeout: float | None = None) -> AsyncIterator[None]:

@@ -17,6 +17,8 @@ from opentelemetry.trace import StatusCode
 from ..approval import ApprovalRequest, proposal_digest
 from ..budget import BudgetAmount
 from ..errors import (
+    ApprovalRequired,
+    ApprovalRequiredGroup,
     LoopLimitError,
     SafeToolError,
     ToolExecutionError,
@@ -26,7 +28,7 @@ from ..errors import (
 from ..idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey
 from ..policy import DecisionKind, ToolProposal
 from ..telemetry import meter, tracer
-from ..tools import ToolRegistry
+from ..tools import ConcurrencyMode, ToolRegistry
 from ._config import ToolExecutionConfig
 
 if TYPE_CHECKING:
@@ -299,6 +301,26 @@ async def _execute_tools(
                     validator=tool.validator,
                     max_tool_args_chars=cfg.max_tool_args_chars,
                 )
+                # ── Step 1: Policy ──────────────────────────────────
+                decision = None
+                if cfg.policy is not None:
+                    if cfg.principal is None:
+                        raise ToolExecutionError(
+                            "A principal is required when tool policy is enabled"
+                        )
+                    proposal = ToolProposal(
+                        run_id=cfg.run_id,
+                        tool_name=name,
+                        arguments=args,
+                        effects=frozenset(effect.value for effect in tool.effects),
+                        risk=tool.risk.value,
+                        required_scopes=tool.required_scopes,
+                    )
+                    decision = await cfg.policy.evaluate(proposal, cfg.principal)
+                    if decision.kind == DecisionKind.DENY:
+                        raise ToolExecutionError(f"Tool policy denied action: {decision.code}")
+
+                # ── Step 2: Receipt lookup ──────────────────────────
                 if cfg.idempotency_store is not None and tool.idempotent:
                     check_key = IdempotencyKey.from_args(cfg.run_id, name, args)
                     existing_completed = await cfg.idempotency_store.get(check_key)
@@ -322,53 +344,31 @@ async def _execute_tools(
                         )
                         return tc_id, output
 
+                # ── Step 3: Approval (check/create, WITHOUT consuming)
+                approval_to_consume: ApprovalRequest | None = None
                 if (
-                    cfg.policy is not None
-                    or tool.requires_approval
-                    or cfg.approval_store is not None
-                ):
-                    decision = None
-                    if cfg.policy is not None:
-                        if cfg.principal is None:
-                            raise ToolExecutionError(
-                                "A principal is required when tool policy is enabled"
+                    decision is not None and decision.kind == DecisionKind.REQUIRE_APPROVAL
+                ) or tool.requires_approval:
+                    if cfg.approval_store is None:
+                        raise ApprovalRequired("unknown", name)
+                    digest = proposal_digest(name, args)
+                    request = await cfg.approval_store.find(cfg.run_id, digest)
+                    if request is not None and request.status.value == "approved":
+                        approval_to_consume = request
+                    elif request is not None and request.status.value == "rejected":
+                        raise ToolExecutionError("Human approval was rejected")
+                    else:
+                        if request is None:
+                            request = ApprovalRequest(
+                                run_id=cfg.run_id,
+                                tool_name=name,
+                                proposal_hash=digest,
+                                risk=tool.risk.value,
                             )
-                        proposal = ToolProposal(
-                            run_id=cfg.run_id,
-                            tool_name=name,
-                            arguments=args,
-                            effects=frozenset(effect.value for effect in tool.effects),
-                            risk=tool.risk.value,
-                            required_scopes=tool.required_scopes,
-                        )
-                        decision = await cfg.policy.evaluate(proposal, cfg.principal)
-                        if decision.kind == DecisionKind.DENY:
-                            raise ToolExecutionError(f"Tool policy denied action: {decision.code}")
-                    if (
-                        decision is not None and decision.kind == DecisionKind.REQUIRE_APPROVAL
-                    ) or tool.requires_approval:
-                        if cfg.approval_store is None:
-                            raise SafeToolError("approval_required", "Human approval is required")
-                        digest = proposal_digest(name, args)
-                        request = await cfg.approval_store.find(cfg.run_id, digest)
-                        if request is not None and request.status.value == "approved":
-                            await cfg.approval_store.consume(request.request_id)
-                        elif request is not None and request.status.value == "rejected":
-                            raise ToolExecutionError("Human approval was rejected")
-                        else:
-                            if request is None:
-                                request = ApprovalRequest(
-                                    run_id=cfg.run_id,
-                                    tool_name=name,
-                                    proposal_hash=digest,
-                                    risk=tool.risk.value,
-                                )
-                                await cfg.approval_store.create(request)
-                            raise SafeToolError(
-                                "approval_required",
-                                f"Human approval is required (request_id={request.request_id})",
-                            )
+                            await cfg.approval_store.create(request)
+                        raise ApprovalRequired(request.request_id, name, request.expires_at)
 
+                # ── Step 4: Claim ───────────────────────────────────
                 if cfg.idempotency_store is not None and tool.idempotent:
                     idem_key = IdempotencyKey.from_args(cfg.run_id, name, args)
                     existing = await cfg.idempotency_store.claim(
@@ -393,17 +393,29 @@ async def _execute_tools(
                     if existing is not None:
                         raise ToolExecutionError("An idempotent execution is already in progress")
 
+                # ── Step 5: Slots ───────────────────────────────────
                 slot = _runtime_of(cfg).tool_slot(cfg.tool_queue_timeout)
-                if cfg.budget is not None:
-                    budget_reservation = await cfg.budget.reserve(BudgetAmount(tool_calls=1))
                 async with slot:
-                    resource_key = name
-                    if tool.resource_key is not None:
-                        resource_key = f"{name}:{tool.resource_key(args)}"
-                    if tool.concurrency.value != "parallel_safe":
-                        async with _runtime_of(cfg).resource_slot(resource_key):
+                    # ── Step 6: Budget ──────────────────────────────
+                    if cfg.budget is not None:
+                        budget_reservation = await cfg.budget.reserve(BudgetAmount(tool_calls=1))
+                    # ── Step 7: Consumption ─────────────────────────
+                    if approval_to_consume is not None and cfg.approval_store is not None:
+                        await cfg.approval_store.consume(approval_to_consume.request_id)
+                    # ── Step 8: Dispatch ────────────────────────────
+                    mode = tool.concurrency
+                    if mode == ConcurrencyMode.GLOBAL_EXCLUSIVE:
+                        async with _runtime_of(cfg).global_exclusive_lock:
+                            output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
+                    elif mode == ConcurrencyMode.SERIAL_PER_TOOL:
+                        async with _runtime_of(cfg).resource_slot(name):
+                            output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
+                    elif mode == ConcurrencyMode.SERIAL_PER_RESOURCE:
+                        rk = f"{name}:{tool.resource_key(args)}"  # type: ignore[misc]
+                        async with _runtime_of(cfg).resource_slot(rk):
                             output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
                     else:
+                        # PARALLEL_SAFE — no lock
                         output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
                 if tool.output_validator is not None:
                     validation_errors = sorted(
@@ -451,6 +463,8 @@ async def _execute_tools(
                         )
                     )
                 output, status, error_type = _error_payload(exc), "error", type(exc).__name__
+            except ApprovalRequired:
+                raise  # propagate to gather — not a tool error
             except Exception as exc:  # noqa: BLE001 — boundary guard: tools execute arbitrary user code; the exception spectrum is unbounded by design
                 wrapped = (
                     exc
@@ -494,5 +508,20 @@ async def _execute_tools(
             return await _run_unbounded(tc_id, name, raw_args)
 
     if len(tool_calls) == 1:
-        return [await _run(*tool_calls[0])]
-    return list(await asyncio.gather(*(_run(*tc) for tc in tool_calls)))
+        try:
+            return [await _run(*tool_calls[0])]
+        except ApprovalRequired as e:
+            raise ApprovalRequiredGroup([e]) from e
+
+    # Use return_exceptions=True so that tools already dispatched in the same
+    # turn complete normally even when other tools need approval.
+    results = await asyncio.gather(*(_run(*tc) for tc in tool_calls), return_exceptions=True)
+    approval_errors = [r for r in results if isinstance(r, ApprovalRequired)]
+    if approval_errors:
+        raise ApprovalRequiredGroup(approval_errors)
+    # Non-approval exceptions shouldn't reach here (they're caught inside
+    # _run_unbounded) but handle defensively.
+    for r in results:
+        if isinstance(r, Exception):
+            raise r
+    return list(results)  # type: ignore[arg-type]

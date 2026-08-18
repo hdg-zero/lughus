@@ -30,9 +30,9 @@ Every registered tool declares explicit execution metadata:
 - **`required_scopes`**: `frozenset[str]` required permission scopes.
 - **`idempotent`**: `bool` indicating whether retries are safe.
 - **`requires_approval`**: `bool` forcing human-in-the-loop validation.
-- **`concurrency`**: `ConcurrencyMode` (`PARALLEL_SAFE`, `EXCLUSIVE`, `SERIAL_PER_RESOURCE`).
+- **`concurrency`**: `ConcurrencyMode` (`PARALLEL_SAFE`, `SERIAL_PER_TOOL`, `SERIAL_PER_RESOURCE`, `GLOBAL_EXCLUSIVE`).
 
-Legacy v1 tools default conservatively to `risk=ToolRisk.UNKNOWN`, `concurrency=ConcurrencyMode.EXCLUSIVE`, and empty scopes.
+Legacy v1 tools default conservatively to `risk=ToolRisk.UNKNOWN`, `concurrency=ConcurrencyMode.SERIAL_PER_TOOL`, and empty scopes.
 
 ### B. Deterministic Policy Engine (`ToolPolicy`)
 Authorization decisions are evaluated before dispatch by a `ToolPolicy` implementation:

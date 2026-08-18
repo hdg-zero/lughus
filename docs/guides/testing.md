@@ -114,3 +114,86 @@ async def test_my_streaming_agent():
     assert chunks[-1].iterations == 1
     assert chunks[-1].prompt_tokens == 10
 ```
+
+---
+
+## CI Differential Test Scanning
+
+The CI pipeline includes a **differential check** that compares test results
+between the base branch and the pull-request head. It catches *new* test
+failures introduced by a PR, even when the overall failure count stays the same
+(e.g. one test fixed, one test broken).
+
+### How it works
+
+1. `pytest --junitxml=reports/junit.xml` produces a JUnit XML report.
+2. `scripts/diff_junit.py` parses two reports (base vs. head) and exits non-zero
+   if new failures appear.
+3. A separate **collect gate** step rejects any collection errors (import or
+   syntax errors that prevent pytest from discovering tests).
+
+### Running the differential check locally
+
+```bash
+# 1. Generate the base-branch report
+git stash
+uv run pytest tests/ -q --junitxml=reports/base.xml || true
+git stash pop
+
+# 2. Generate the head report
+uv run pytest tests/ -q --junitxml=reports/head.xml || true
+
+# 3. Compare
+python scripts/diff_junit.py reports/base.xml reports/head.xml
+```
+
+A zero exit code means no new failures were introduced.
+
+---
+
+## Rule R12 -- Single-Clock Ownership
+
+**Problem.**  An injectable clock (`now=`) can be purely decorative if
+timestamps are actually produced elsewhere.  The classic trap is a frozen
+dataclass whose `default_factory` calls `time.time()` while the store that
+holds the instance compares against its own `self._now()`.  In production the
+two clocks agree (both are `time.time`), so the defect is invisible.  In tests
+an injected clock diverges from the real wall clock, and TTL/expiry logic
+silently breaks.
+
+**Rule.**  The object that *compares* timestamps must also be the one that
+*writes* them.  When a store accepts `now=`, every timestamp it persists must
+come from `self._now()`, never from a dataclass default factory or the caller.
+
+### How lughus enforces R12
+
+| Store | Clock parameter | Stamping |
+|---|---|---|
+| `InMemoryIdempotencyStore` | `now: Callable[[], float]` | `save()` and `claim()` override `ExecutionAttempt.created_at` with `self._now()` via `dataclasses.replace()`. |
+| `BoundedInMemoryTaskStore` | `now: Callable[[], float] \| None` | `save()` timestamps with `self._now()` into an internal `_saved_at` dict; the task object itself is untouched. |
+
+Stores without temporal comparisons (`InMemoryApprovalStore`, `InMemoryRunStore`)
+do not need an injectable clock; their timestamps are purely informational.
+
+### Writing clock-ownership tests
+
+The contract test in `tests/contract/test_clock_ownership.py` is parameterised
+on every store that accepts `now=`.  The pattern for each:
+
+```python
+clock = FakeClock(start=1_000_000.0)
+store = SomeStore(ttl_seconds=100.0, now=clock)
+
+# Create entries WITHOUT specifying any timestamp.
+key = await insert_entry(store)
+
+# Advance the injected clock past the TTL.
+clock.advance(101)
+
+# The entry must be expired -- proof that the store's clock is authoritative.
+assert not await entry_alive(store, key)
+```
+
+The key constraint: **the test never supplies an explicit timestamp**.  If the
+test has to pass `created_at=clock.now` to make expiry work, the store is not
+stamping from its own clock and R12 is violated.

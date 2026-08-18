@@ -23,6 +23,7 @@ class ContextItem:
     trust: TrustLevel
     sensitive: bool = False
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    id: str = ""
 
     @property
     def size(self) -> int:

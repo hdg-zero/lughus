@@ -154,7 +154,7 @@ class BaseSettings:
     # Total retry delay budget in seconds. Set to 0 or a negative value to disable.
     # Env: LLM_RETRY_MAX_ELAPSED.
     retry_max_elapsed: float = field(
-        default_factory=lambda: _env_float("LLM_RETRY_MAX_ELAPSED", 0.0)
+        default_factory=lambda: _env_float("LLM_RETRY_MAX_ELAPSED", 60.0)
     )
 
     # Total agent timeout in seconds — applied to the entire handle() call in BaseGateway.
@@ -174,7 +174,7 @@ class BaseSettings:
 
     # Maximum number of tool calls to run concurrently inside one loop iteration.
     # Env: MAX_PARALLEL_TOOLS.
-    max_parallel_tools: int = field(default_factory=lambda: _env_int("MAX_PARALLEL_TOOLS", 8))
+    max_parallel_tools: int = field(default_factory=lambda: _env_int("MAX_PARALLEL_TOOLS", 4))
 
     # Maximum number of tool calls to run concurrently in this event loop / worker.
     # Env: MAX_GLOBAL_TOOLS.
@@ -188,7 +188,7 @@ class BaseSettings:
 
     # Per-tool timeout in seconds. Set to 0 or a negative value to disable.
     # Env: TOOL_TIMEOUT.
-    tool_timeout: float = field(default_factory=lambda: _env_float("TOOL_TIMEOUT", 120.0))
+    tool_timeout: float = field(default_factory=lambda: _env_float("TOOL_TIMEOUT", 30.0))
 
     # How long a tool waits for a worker-local global tool slot before returning
     # a structured timeout error. Set to 0 to fail immediately. Env: TOOL_QUEUE_TIMEOUT.
@@ -202,7 +202,7 @@ class BaseSettings:
         default_factory=lambda: _env_int("MAX_TOOL_ARGS_CHARS", 20_000)
     )
     max_tool_output_chars: int = field(
-        default_factory=lambda: _env_int("MAX_TOOL_OUTPUT_CHARS", 20_000)
+        default_factory=lambda: _env_int("MAX_TOOL_OUTPUT_CHARS", 8_192)
     )
     max_message_history_chars: int = field(
         default_factory=lambda: _env_int("MAX_MESSAGE_HISTORY_CHARS", 200_000)

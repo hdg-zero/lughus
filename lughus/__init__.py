@@ -37,9 +37,12 @@ from .delegation import (
 )
 from .domain import EventVisibility, Run, RunEvent, RunStatus, Usage
 from .errors import (
+    ApprovalRequired,
+    ApprovalRequiredGroup,
     IdempotencyCapacityError,
     LoopLimitError,
     LughusError,
+    RunSuspended,
     SafeToolError,
     ToolExecutionError,
     ToolTimeoutError,
@@ -132,6 +135,8 @@ __all__ = [
     "AgentRunner",
     "AgentRuntime",
     "ApprovalRequest",
+    "ApprovalRequired",
+    "ApprovalRequiredGroup",
     "ApprovalStatus",
     "Artifact",
     "AttemptStatus",
@@ -195,6 +200,7 @@ __all__ = [
     "RunEvent",
     "RunStatus",
     "RunStore",
+    "RunSuspended",
     "RunUnitOfWork",
     "RuntimeConfig",
     "SafeToolError",

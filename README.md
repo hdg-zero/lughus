@@ -694,7 +694,7 @@ registry = ToolRegistry()
     risk=ToolRisk.CRITICAL,
     required_scopes=frozenset(["deploy:prod"]),
     requires_approval=True,
-    concurrency=ConcurrencyMode.EXCLUSIVE,
+    concurrency=ConcurrencyMode.SERIAL_PER_TOOL,
 )
 def deploy_service(*, service: str, version: str, state) -> dict:
     return {"status": "deployed", "deployment_id": "dep_99"}

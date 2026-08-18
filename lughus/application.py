@@ -9,6 +9,7 @@ from typing import Any
 from .approval import ApprovalStore
 from .budget import BudgetLedger
 from .context import ContextItem, ContextManager
+from .errors import ApprovalRequiredGroup, RunSuspended
 from .event_stream import EventSink
 from .idempotency import IdempotencyStore
 from .loop import LoopResult, ToolExecutionConfig
@@ -65,24 +66,10 @@ class GovernedAgentRunner:
     ) -> LoopResult:
         from .budgeted_llm import BudgetedLLM
         from .coordinator import RunCoordinator
-        from .domain import RunStatus
+        from .domain import EventVisibility, RunEvent, RunStatus
         from .loop import agent_loop
-
-        # W1-14 / F-04. `context_items` was accepted, typed, and then thrown away.
-        # A user supplying context with explicit provenance and trust levels believed
-        # their agent received it; it did not. On a framework that sells context
-        # governance, a silent lie is the worst possible defect (R7).
-        #
-        # Proper injection lands in W2-06 (0.11.0) because correct truncation depends
-        # on the token budget and atomic message groups (W3-03). Until then this fails
-        # loudly: a NotImplementedError is honest, a UserWarning would still be silent
-        # in production -- exactly where the user needs to know.
-        if context_items:
-            raise NotImplementedError(
-                "context_items is accepted but not yet injected into the prompt "
-                "(tracked as W2-06, shipping in 0.11.0). Until then, fold the content "
-                "into `objective` yourself so that nothing is silently dropped."
-            )
+        from .loop._execute import collect_tool_events
+        from .persistence import Checkpoint
 
         if not isinstance(self.runtime.run_store, RunUnitOfWork):
             raise TypeError("AgentRuntime.run_store must implement RunUnitOfWork protocol")
@@ -92,22 +79,69 @@ class GovernedAgentRunner:
         )
         running = await coordinator.transition(run, RunStatus.RUNNING, "run.started")
         tool_names = list(registry.names())
+
+        tool_events: list[dict[str, Any]] = []
+
+        def _on_tool_event(event: dict[str, Any]) -> None:
+            tool_events.append(event)
+
         try:
-            result = await agent_loop(
-                BudgetedLLM(llm, self.runtime.budget),
-                system=system,
-                context=objective,
-                registry=registry,
-                tool_names=tool_names,
-                state=state,
-                max_iterations=max_iterations,
-                tool_config=self.runtime.tool_config(run_id=run.run_id, principal=principal),
+            with collect_tool_events(_on_tool_event):
+                result = await agent_loop(
+                    BudgetedLLM(llm, self.runtime.budget),
+                    system=system,
+                    context=objective,
+                    registry=registry,
+                    tool_names=tool_names,
+                    state=state,
+                    max_iterations=max_iterations,
+                    tool_config=self.runtime.tool_config(run_id=run.run_id, principal=principal),
+                    context_items=context_items,
+                )
+        except ApprovalRequiredGroup as e:
+            # Persist any tool events that completed before the suspension.
+            for te in tool_events:
+                seq = coordinator.next_sequence(run.run_id)
+                run_event = RunEvent(
+                    te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT
+                )
+                await self.runtime.event_store.append(run_event)
+            # Transition to WAITING — the run is suspended, not failed.
+            await coordinator.transition(
+                running,
+                RunStatus.WAITING,
+                "run.waiting",
+                {"pending_approvals": [r.request_id for r in e.requests]},
             )
+            raise RunSuspended(run.run_id, e.requests) from e
         except BaseException as exc:
             await coordinator.transition(
                 running, RunStatus.FAILED, "run.failed", {"error_code": type(exc).__name__}
             )
             raise
+
+        # Persist tool events with globally unique sequences.
+        last_event_seq = -1
+        for te in tool_events:
+            seq = coordinator.next_sequence(run.run_id)
+            last_event_seq = seq
+            run_event = RunEvent(te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT)
+            await self.runtime.event_store.append(run_event)
+
+        # Save a checkpoint capturing post-tool-execution state.
+        if tool_events:
+            checkpoint = Checkpoint(
+                run.run_id,
+                running.version,
+                last_event_seq,
+                {
+                    "status": running.status.value,
+                    "iterations": result.iterations,
+                    "total_tokens": result.total_tokens,
+                },
+            )
+            await self.runtime.checkpoint_store.save(checkpoint, expected_version=running.version)
+
         await coordinator.transition(
             running,
             RunStatus.COMPLETED,

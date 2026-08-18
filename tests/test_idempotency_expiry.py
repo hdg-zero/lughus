@@ -147,17 +147,22 @@ async def test_store_keeps_accepting_work_when_full_of_terminal_receipts() -> No
 
 
 async def test_eviction_is_fifo_on_created_at() -> None:
+    # The store stamps created_at from its own clock, so
+    # entries are always timestamped in insertion order.  Advance the clock
+    # between saves so each entry gets a distinct created_at.
     clock = FakeClock()
     store = InMemoryIdempotencyStore(max_entries=3, now=clock)
 
-    # Inserted out of chronological order on purpose.
-    await store.save(attempt(1, status=AttemptStatus.COMPLETED, created_at=clock.now + 30))
-    await store.save(attempt(2, status=AttemptStatus.COMPLETED, created_at=clock.now + 10))
-    await store.save(attempt(3, status=AttemptStatus.COMPLETED, created_at=clock.now + 20))
+    await store.save(attempt(1, status=AttemptStatus.COMPLETED))
+    clock.advance(10)
+    await store.save(attempt(2, status=AttemptStatus.COMPLETED))
+    clock.advance(10)
+    await store.save(attempt(3, status=AttemptStatus.COMPLETED))
 
-    await store.claim(attempt(4, created_at=clock.now + 40))
-    assert await store.get(key(2)) is None, "oldest created_at must go, not oldest insert"
-    assert await store.get(key(1)) is not None
+    clock.advance(10)
+    await store.claim(attempt(4))
+    assert await store.get(key(1)) is None, "oldest created_at must go first"
+    assert await store.get(key(2)) is not None
     assert await store.get(key(3)) is not None
 
 

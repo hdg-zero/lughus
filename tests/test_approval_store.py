@@ -74,7 +74,7 @@ async def test_consume_preserves_every_untouched_field() -> None:
 
 
 async def test_expires_at_survives_both_transitions() -> None:
-    """Specifically guarded: W2-04 will start enforcing this field."""
+    """Specifically guarded: expiry logic will enforce this field."""
     store = InMemoryApprovalStore()
     original = make_request()
     await store.create(original)

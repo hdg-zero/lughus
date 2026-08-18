@@ -40,7 +40,6 @@ def test_new_command_creates_agent_project(
     assert 'default_output_modes=["text/plain"]' in main_file
     assert "settings.public_url" in main_file
     assert "LLM.from_settings(settings)" in main_file
-    assert "max_sync_thread_workers=self.settings.max_sync_thread_workers" in gateway_file
     assert "tool_queue_timeout=self.settings.tool_queue_timeout" in gateway_file
     assert "max_message_history_chars=self.settings.max_message_history_chars" in gateway_file
     assert "compact_tool_schemas=self.settings.compact_tool_schemas" in gateway_file

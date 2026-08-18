@@ -134,16 +134,16 @@ def test_settings_default_values(monkeypatch) -> None:
     assert s.max_queue_backlog == 0
     assert s.request_queue_timeout == pytest.approx(5.0)
     assert s.llm_timeout == pytest.approx(120.0)
-    assert s.retry_max_elapsed == pytest.approx(0.0)
+    assert s.retry_max_elapsed == pytest.approx(60.0)
     assert s.task_store_ttl_seconds == pytest.approx(24 * 60 * 60)
     assert s.task_store_max_tasks == 10_000
-    assert s.max_parallel_tools == 8
+    assert s.max_parallel_tools == 4
     assert s.max_global_tools == 64
     assert s.max_sync_thread_workers == 32
-    assert s.tool_timeout == pytest.approx(120.0)
+    assert s.tool_timeout == pytest.approx(30.0)
     assert s.tool_queue_timeout == pytest.approx(30.0)
     assert s.max_tool_args_chars == 20_000
-    assert s.max_tool_output_chars == 20_000
+    assert s.max_tool_output_chars == 8_192
     assert s.max_message_history_chars == 200_000
     assert s.compact_tool_schemas is False
 
@@ -345,9 +345,44 @@ def test_tool_config_rejects_zero() -> None:
 
 def test_tool_config_rejects_negative() -> None:
     with pytest.raises(ValueError, match="must be positive"):
-        ToolExecutionConfig(max_global_tools=-1, runtime=_test_runtime())
+        ToolExecutionConfig(max_tool_args_chars=-1, runtime=_test_runtime())
 
 
 def test_tool_execution_config_requires_runtime():
     cfg = ToolExecutionConfig()
     assert cfg.runtime is None
+
+
+def test_tool_config_rejects_max_global_tools_kwarg() -> None:
+    """max_global_tools is no longer a ToolExecutionConfig field."""
+    with pytest.raises(TypeError):
+        ToolExecutionConfig(max_global_tools=32)  # type: ignore[call-arg]
+
+
+def test_tool_config_rejects_max_sync_thread_workers_kwarg() -> None:
+    """max_sync_thread_workers is no longer a ToolExecutionConfig field."""
+    with pytest.raises(TypeError):
+        ToolExecutionConfig(max_sync_thread_workers=4)  # type: ignore[call-arg]
+
+
+@pytest.mark.asyncio
+async def test_implicit_runtime_uses_module_defaults() -> None:
+    """The implicit runtime uses module-level constants."""
+    from lughus.loop._config import DEFAULT_MAX_GLOBAL_TOOLS, DEFAULT_MAX_SYNC_THREAD_WORKERS
+    from lughus.loop._loop import _resolve_tool_config
+
+    cfg, owned_runtime = _resolve_tool_config(ToolExecutionConfig())
+    try:
+        assert cfg.runtime is not None
+        assert cfg.runtime.config.max_global_tools == DEFAULT_MAX_GLOBAL_TOOLS
+        assert cfg.runtime.config.max_sync_workers == DEFAULT_MAX_SYNC_THREAD_WORKERS
+    finally:
+        if owned_runtime is not None:
+            await owned_runtime.close()
+
+
+def test_injected_runtime_accepted_without_conflict() -> None:
+    """An injected runtime imposes its capacities without error."""
+    runtime = _test_runtime()
+    cfg = ToolExecutionConfig(runtime=runtime)
+    assert cfg.runtime is runtime

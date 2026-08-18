@@ -37,7 +37,7 @@ def tool(
     required_scopes: frozenset[str] | None = None,
     idempotent: bool = False,
     requires_approval: bool = False,
-    concurrency: ConcurrencyMode = ConcurrencyMode.EXCLUSIVE,
+    concurrency: ConcurrencyMode = ConcurrencyMode.PARALLEL_SAFE,
 ) -> Callable:
 ```
 
@@ -52,7 +52,7 @@ def tool(
 *   `required_scopes`: Frozenset of required security scopes evaluated by policy engines.
 *   `idempotent`: Boolean indicating if repeated execution with identical arguments is side-effect safe.
 *   `requires_approval`: Boolean forcing a human approval request before execution.
-*   `concurrency`: `ConcurrencyMode` (`PARALLEL_SAFE`, `EXCLUSIVE`, `SERIAL_PER_RESOURCE`).
+*   `concurrency`: `ConcurrencyMode` (`PARALLEL_SAFE`, `SERIAL_PER_TOOL`, `SERIAL_PER_RESOURCE`, `GLOBAL_EXCLUSIVE`).
 
 Tool names must be unique in one registry. The callable must accept `state=...` as a keyword argument or through `**kwargs`; this catches signature mistakes when the tool is registered instead of during an LLM run. Positional-only parameters are rejected, and schema properties must match keyword-callable parameters unless the function accepts `**kwargs`.
 
@@ -83,7 +83,7 @@ registry = ToolRegistry()
     risk=ToolRisk.HIGH,
     required_scopes=frozenset(["finance:transfer"]),
     requires_approval=True,
-    concurrency=ConcurrencyMode.EXCLUSIVE,
+    concurrency=ConcurrencyMode.SERIAL_PER_TOOL,
 )
 def transfer_funds(*, account_id: str, amount: float, state) -> dict:
     return {"status": "completed", "tx_id": "tx_12345"}

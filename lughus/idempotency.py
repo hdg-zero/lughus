@@ -7,7 +7,7 @@ import hashlib
 import json
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any, Protocol
 
@@ -176,7 +176,10 @@ class InMemoryIdempotencyStore:
                         "Concurrent pending attempt for the same idempotency key"
                     )
             self._make_room(attempt.key)
-            self._store[attempt.key] = attempt
+            # The store's clock is authoritative.  Override the
+            # dataclass default_factory (time.time) so that created_at always
+            # comes from the same clock used for expiry comparisons.
+            self._store[attempt.key] = replace(attempt, created_at=self._now())
 
     async def get(self, key: IdempotencyKey) -> ExecutionAttempt | None:
         async with self._lock:
@@ -198,7 +201,8 @@ class InMemoryIdempotencyStore:
                 del self._store[attempt.key]
                 _evictions.add(1, {"reason": "expired"})
             self._make_room(attempt.key)
-            self._store[attempt.key] = attempt
+            # Stamp from the store's own clock (see save()).
+            self._store[attempt.key] = replace(attempt, created_at=self._now())
             return None
 
     async def expire(self, key: IdempotencyKey) -> None:
