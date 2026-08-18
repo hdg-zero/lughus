@@ -134,7 +134,7 @@ def test_settings_default_values(monkeypatch) -> None:
     assert s.max_queue_backlog == 0
     assert s.request_queue_timeout == pytest.approx(5.0)
     assert s.llm_timeout == pytest.approx(120.0)
-    assert s.retry_max_elapsed == pytest.approx(0.0)
+    assert s.retry_max_elapsed == pytest.approx(60.0)
     assert s.task_store_ttl_seconds == pytest.approx(24 * 60 * 60)
     assert s.task_store_max_tasks == 10_000
     assert s.max_parallel_tools == 8

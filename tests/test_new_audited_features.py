@@ -150,49 +150,37 @@ def test_resolve_and_validate_otel_url(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_retry_on_transient_error() -> None:
+async def test_stream_mid_stream_error_propagates() -> None:
+    """W2-02: single retry layer lives at LLM.astream() level, not in the loop.
+
+    Once streaming has begun and the first chunk is emitted, a mid-stream
+    error propagates to the caller instead of silently retrying.
+    """
     from lughus.loop import agent_loop_stream
-    from lughus.testing import _make_streaming_chunk, _make_streaming_text_response
+    from lughus.testing import _make_streaming_chunk
     from lughus.tools import ToolRegistry
 
     class FaultyStreamingLLM:
         model = "test/mock-model"
         timeout = 1.0
-        max_retries = 2
-        retry_base_delay = 0.01
-        retry_max_elapsed = None
 
-        def __init__(self):
-            self.calls = 0
+        async def astream(self, *, messages, tools=None):
+            async def faulty_iter():
+                yield _make_streaming_chunk(content="Partial")
+                raise TimeoutError("Simulated connection timeout during streaming")
 
-        async def astream(self, messages, tools=None):
-            self.calls += 1
-            if self.calls == 1:
-
-                async def faulty_iter():
-                    yield _make_streaming_chunk(content="Partial")
-                    raise TimeoutError("Simulated connection timeout during streaming")
-
-                return faulty_iter()
-            else:
-                return _make_streaming_text_response("Hello Success")
+            return faulty_iter()
 
     llm = FaultyStreamingLLM()
     registry = ToolRegistry()
-    chunks = []
 
-    async for chunk in agent_loop_stream(
-        llm,
-        system="You help.",
-        context="Hi",
-        registry=registry,
-        tool_names=[],
-        state=None,
-    ):
-        chunks.append(chunk)
-
-    # First stream fails, retry succeeds: it should yield "Hello Success" from the second attempt
-    assert len(chunks) >= 2
-    assert "Hello" in str(chunks[-1])
-    assert chunks[-1].iterations == 1
-    assert llm.calls == 2
+    with pytest.raises(TimeoutError, match="Simulated connection timeout"):
+        async for _ in agent_loop_stream(
+            llm,
+            system="You help.",
+            context="Hi",
+            registry=registry,
+            tool_names=[],
+            state=None,
+        ):
+            pass
