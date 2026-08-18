@@ -20,7 +20,7 @@ class BudgetLimit:
     tool_calls: int = 100
     tokens: int = 1_000_000
     bytes: int = 100_000_000
-    estimated_cost: float = 100.0
+    estimated_cost_micros: int = 100_000_000  # $100 in micros
     delegation_depth: int = 4
 
     def __post_init__(self) -> None:
@@ -34,7 +34,7 @@ class BudgetAmount:
     tool_calls: int = 0
     tokens: int = 0
     bytes: int = 0
-    estimated_cost: float = 0.0
+    estimated_cost_micros: int = 0
     delegation_depth: int = 0
 
     def __post_init__(self) -> None:
@@ -45,7 +45,7 @@ class BudgetAmount:
 class BudgetLedger:
     """Reserve before an external action, then settle actual consumption."""
 
-    _FIELDS = ("model_calls", "tool_calls", "tokens", "bytes", "estimated_cost", "delegation_depth")
+    _FIELDS = ("model_calls", "tool_calls", "tokens", "bytes", "estimated_cost_micros", "delegation_depth")
 
     def __init__(self, limit: BudgetLimit) -> None:
         self.limit = limit
@@ -70,6 +70,8 @@ class BudgetLedger:
 
     async def settle(self, reservation_id: str, actual: BudgetAmount) -> None:
         async with self._lock:
+            if reservation_id not in self._reserved:
+                return  # idempotent: already settled or released
             self._reserved.pop(reservation_id)
             for field in self._FIELDS:
                 if field == "delegation_depth":
@@ -89,6 +91,11 @@ class BudgetLedger:
         async with self._lock:
             self._reserved.pop(reservation_id, None)
 
-    async def snapshot(self) -> Mapping[str, float]:
+    async def outstanding(self) -> Mapping[str, BudgetAmount]:
+        """Return a snapshot of currently outstanding reservations."""
+        async with self._lock:
+            return dict(self._reserved)
+
+    async def snapshot(self) -> Mapping[str, int]:
         async with self._lock:
             return dict(self._consumed)
