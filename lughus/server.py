@@ -7,6 +7,7 @@ import hmac
 import logging
 import time
 from collections import OrderedDict
+from collections.abc import Callable
 from typing import Any, cast
 
 import uvicorn
@@ -233,10 +234,15 @@ class BoundedInMemoryTaskStore(InMemoryTaskStore):
         *,
         ttl_seconds: float | None = 24 * 60 * 60,
         max_tasks: int | None = 10_000,
+        now: Callable[[], float] | None = None,
     ) -> None:
         super().__init__()
         self.ttl_seconds = ttl_seconds if ttl_seconds and ttl_seconds > 0 else None
         self.max_tasks = max_tasks if max_tasks and max_tasks > 0 else None
+        # W2-15 / R12: injectable clock for testability.  Resolved at init
+        # time so that monkeypatch-based tests still work when ``now`` is not
+        # provided (they patch before construction).
+        self._now = now if now is not None else time.monotonic
         self._saved_at: OrderedDict[str, float] = OrderedDict()
 
     def _cleanup_locked(self, now: float) -> None:
@@ -255,7 +261,7 @@ class BoundedInMemoryTaskStore(InMemoryTaskStore):
 
     async def save(self, task: Any, context: Any | None = None) -> None:
         async with self.lock:
-            now = time.monotonic()
+            now = self._now()
             self._cleanup_locked(now)
             self.tasks[task.id] = task
             self._saved_at.pop(task.id, None)
@@ -264,7 +270,7 @@ class BoundedInMemoryTaskStore(InMemoryTaskStore):
 
     async def get(self, task_id: str, context: Any | None = None) -> Any | None:
         async with self.lock:
-            self._cleanup_locked(time.monotonic())
+            self._cleanup_locked(self._now())
             return self.tasks.get(task_id)
 
     async def delete(self, task_id: str, context: Any | None = None) -> None:
