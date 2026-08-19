@@ -5,6 +5,7 @@ from __future__ import annotations
 __all__ = [
     "ApprovalRequired",
     "ApprovalRequiredGroup",
+    "ContextBudgetExceeded",
     "LLMResponseError",
     "LoopLimitError",
     "LughusError",
@@ -36,6 +37,10 @@ class ToolTimeoutError(ToolExecutionError):
     """A tool exceeded its configured timeout."""
 
     retryable: bool = True
+
+
+class ContextBudgetExceeded(LughusError):
+    """A single atomic message group exceeds the entire context token budget."""
 
 
 class LoopLimitError(LughusError, RuntimeError):

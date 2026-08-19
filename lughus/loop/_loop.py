@@ -11,7 +11,7 @@ from opentelemetry.trace import StatusCode
 
 from ..errors import LoopLimitError
 from ..retry import retry_budget
-from ..telemetry import tracer
+from ..telemetry import meter, tracer
 from ..tools import ToolRegistry
 from ._config import (
     DEFAULT_MAX_GLOBAL_TOOLS,
@@ -26,10 +26,19 @@ from ._execute import (
     _loop_duration,
     _record_llm_usage,
 )
-from ._messages import MessageHistory, render_context_messages
+from ._messages import MessageHistory, _message_tokens, render_context_messages
 from ._result import LoopResult, StreamChunk
 
 _logger = logging.getLogger(__name__)
+
+_pruned_groups_counter = meter.create_counter(
+    "lughus.context.pruned_groups",
+    description="Number of atomic message groups pruned for context budget",
+)
+_estimated_tokens_histogram = meter.create_histogram(
+    "lughus.context.estimated_tokens",
+    description="Estimated token count of the message history after pruning",
+)
 
 if TYPE_CHECKING:
     from ..context import ContextItem
@@ -44,18 +53,46 @@ def _prepare_loop(
     tool_names: list[str],
     cfg: ToolExecutionConfig,
     context_items: Sequence[ContextItem] = (),
-) -> tuple[MessageHistory, list[dict]]:
+) -> tuple[MessageHistory, tuple[dict, ...], int]:
     history = MessageHistory()
     history.append({"role": "system", "content": system})
     # Context items go BEFORE the user objective so they are part of
     # the cacheable prefix (rule A1: byte-identical across turns).
     history.extend(render_context_messages(context_items))
     history.append({"role": "user", "content": context})
+    # W3-03: prefix_len = system + context items + user objective — never pruned.
+    prefix_len = len(history)
+    # W3-02: declarations are memoized and frozen — no deepcopy needed.
     tools = registry.declarations(
         tool_names,
         strict=True,
     )
-    return history, tools
+    return history, tools, prefix_len
+
+
+def _prune_if_needed(
+    history: MessageHistory,
+    cfg: ToolExecutionConfig,
+    prefix_len: int,
+    model: str,
+) -> None:
+    """Prune oldest atomic groups if estimated tokens exceed the budget.
+
+    Emits ``lughus.context.pruned_groups`` and ``lughus.context.estimated_tokens``
+    telemetry when pruning occurs.
+    """
+    max_tokens = cfg.max_context_tokens
+    pruned = history.prune(max_tokens, prefix_len)
+    if pruned > 0:
+        attrs = {"gen_ai.request.model": model}
+        _pruned_groups_counter.add(pruned, attrs)
+        estimated = sum(_message_tokens(m) for m in history.view)
+        _estimated_tokens_histogram.record(estimated, attrs)
+        _logger.info(
+            "Context budget: pruned %d group(s), ~%d tokens remaining",
+            pruned,
+            estimated,
+        )
 
 
 async def _run_tool_calls(
@@ -187,7 +224,7 @@ async def agent_loop(
                 loop_span.set_attribute("gen_ai.request.model", llm.model)
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
 
-                history, tools = _prepare_loop(
+                history, tools, prefix_len = _prepare_loop(
                     system, context, registry, tool_names, cfg, context_items,
                 )
 
@@ -202,6 +239,8 @@ async def agent_loop(
                         raise LoopLimitError(
                             f"Agent message history exceeded {limit} characters"
                         )
+                    # W3-03: prune oldest atomic groups before each LLM call.
+                    _prune_if_needed(history, cfg, prefix_len, llm.model)
                     with tracer.start_as_current_span("llm.generate") as llm_span:
                         llm_span.set_attribute("gen_ai.request.model", llm.model)
                         llm_span.set_attribute("lughus.iteration", iteration + 1)
@@ -301,7 +340,7 @@ async def agent_loop_stream(
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
                 loop_span.set_attribute("lughus.streaming", True)
 
-                history, tools = _prepare_loop(
+                history, tools, prefix_len = _prepare_loop(
                     system, context, registry, tool_names, cfg, context_items,
                 )
 
@@ -316,6 +355,8 @@ async def agent_loop_stream(
                         raise LoopLimitError(
                             f"Agent message history exceeded {limit} characters"
                         )
+                    # W3-03: prune oldest atomic groups before each LLM call.
+                    _prune_if_needed(history, cfg, prefix_len, llm.model)
                     content_parts: list[str] = []
                     tc_map: dict[int, dict[str, str]] = {}
 

@@ -78,6 +78,7 @@ from .domain import EventVisibility, Run, RunEvent, RunStatus, Usage
 from .errors import (
     ApprovalRequired,
     ApprovalRequiredGroup,
+    ContextBudgetExceeded,
     IdempotencyCapacityError,
     LoopLimitError,
     LughusError,
@@ -226,6 +227,7 @@ __all__ = [
     "CompositePolicy",
     "ConcurrencyMode",
     "ConcurrentUpdateError",
+    "ContextBudgetExceeded",
     "ContextItem",
     "ContextManager",
     "ContextWindow",

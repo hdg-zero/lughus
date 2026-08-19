@@ -1,4 +1,4 @@
-"""Message history with read-only view and XML context rendering.
+"""Message history with read-only view, XML context rendering, and token-budget pruning.
 
 Security decision: context items use role ``user``, never ``system``.
 Variable-trust content must not inherit system authority.
@@ -6,16 +6,22 @@ Variable-trust content must not inherit system authority.
 Sort order ``(trust, id)`` is deterministic — critical for prefix
 stability (rule A1: the cacheable prefix must be byte-identical across
 turns).
+
+W3-03: token-based context budgets with atomic groups.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterable, Iterator, Sequence
 from typing import Any, overload
 from xml.sax.saxutils import escape
 
 from ..context import ContextItem
+from ..errors import ContextBudgetExceeded
+
+_logger = logging.getLogger(__name__)
 
 
 # ── Read-only view ────────────────────────────────────────────────────────────
@@ -155,8 +161,141 @@ class MessageHistory:
     def __len__(self) -> int:
         return len(self._messages)
 
+    def prune(self, max_tokens: int, prefix_len: int) -> int:
+        """Drop oldest non-prefix atomic groups until estimated tokens fit *max_tokens*.
+
+        Returns the number of groups pruned.  Raises :class:`ContextBudgetExceeded`
+        if a single atomic group exceeds the entire budget.
+        """
+        pruned = prune_history(self._messages, max_tokens, prefix_len)
+        # Recompute char count from scratch after mutation.
+        self._char_count = 2
+        for i, msg in enumerate(self._messages):
+            if i > 0:
+                self._char_count += 1  # comma
+            self._char_count += self._msg_chars(msg)
+        return pruned
+
     def __repr__(self) -> str:
         return f"MessageHistory(len={len(self._messages)}, chars={self._char_count})"
+
+
+# ── Token estimation ────────────────────────────────────────────────────────
+
+
+def estimate_tokens(text: str) -> int:
+    """Return a conservative token estimate for *text*.
+
+    Uses ``len(text) // 3`` which slightly over-counts compared to real
+    tokenizers (1 token ~ 4 chars for English).  Over-counting is safe: it
+    means we prune a little earlier than necessary rather than risking a
+    provider 400 error.
+    """
+    if not text:
+        return 0
+    return max(1, len(text) // 3)
+
+
+def _message_tokens(msg: dict[str, Any]) -> int:
+    """Estimate the token cost of a single message dict."""
+    serialized = json.dumps(msg, ensure_ascii=False, separators=(",", ":"))
+    return estimate_tokens(serialized)
+
+
+# ── Atomic groups ────────────────────────────────────────────────────────────
+
+
+def _build_groups(
+    messages: list[dict[str, Any]], prefix_len: int
+) -> list[list[int]]:
+    """Identify atomic message groups in *messages* starting after *prefix_len*.
+
+    An assistant message with ``tool_calls`` plus all subsequent ``tool`` role
+    messages (matching those calls) form an **atomic group** that must never be
+    split during pruning.  A standalone assistant or user message is its own
+    group.
+
+    Returns a list of groups, each group being a list of message indices.
+    """
+    groups: list[list[int]] = []
+    i = prefix_len
+    while i < len(messages):
+        msg = messages[i]
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            # Start of an atomic group: assistant + all tool results
+            group = [i]
+            i += 1
+            while i < len(messages) and messages[i].get("role") == "tool":
+                group.append(i)
+                i += 1
+            groups.append(group)
+        else:
+            groups.append([i])
+            i += 1
+    return groups
+
+
+# ── Pruning ──────────────────────────────────────────────────────────────────
+
+
+def prune_history(
+    messages: list[dict[str, Any]],
+    max_tokens: int,
+    prefix_len: int,
+) -> int:
+    """Remove oldest non-prefix atomic groups from *messages* until under budget.
+
+    *messages* is mutated in-place.  *prefix_len* messages at the start are
+    never pruned (system prompt, context items, user objective).
+
+    Returns the number of groups pruned.
+
+    Raises :class:`ContextBudgetExceeded` if a single atomic group is larger
+    than the entire *max_tokens* budget.
+    """
+    total_tokens = sum(_message_tokens(m) for m in messages)
+    if total_tokens <= max_tokens:
+        return 0
+
+    groups = _build_groups(messages, prefix_len)
+    if not groups:
+        return 0
+
+    # Check if any single group exceeds the budget on its own
+    prefix_tokens = sum(_message_tokens(messages[i]) for i in range(prefix_len))
+    available = max_tokens - prefix_tokens
+    for group in groups:
+        group_tokens = sum(_message_tokens(messages[idx]) for idx in group)
+        if group_tokens > available:
+            raise ContextBudgetExceeded(
+                f"A single atomic group ({group_tokens} estimated tokens) "
+                f"exceeds the context budget ({available} tokens available "
+                f"after {prefix_tokens} prefix tokens)"
+            )
+
+    # Prune oldest groups first
+    pruned_count = 0
+    indices_to_remove: list[int] = []
+    for group in groups:
+        if total_tokens <= max_tokens:
+            break
+        group_tokens = sum(_message_tokens(messages[idx]) for idx in group)
+        indices_to_remove.extend(group)
+        total_tokens -= group_tokens
+        pruned_count += 1
+
+    # Remove indices in reverse order to preserve positions
+    for idx in sorted(indices_to_remove, reverse=True):
+        del messages[idx]
+
+    if pruned_count > 0:
+        _logger.debug(
+            "Pruned %d atomic group(s); estimated tokens now %d",
+            pruned_count,
+            total_tokens,
+        )
+
+    return pruned_count
 
 
 # ── Context rendering ────────────────────────────────────────────────────────
