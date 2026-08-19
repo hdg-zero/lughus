@@ -26,6 +26,7 @@ from ..errors import (
     ToolTimeoutError,
     ToolValidationError,
 )
+from ..artifacts import _summarize
 from ..idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey
 from ..policy import DecisionKind, ToolProposal
 from ..telemetry import meter, tracer
@@ -513,6 +514,23 @@ async def _execute_tools(
                 output = _success_payload(
                     text, truncated=truncated, original_bytes=original_bytes
                 )
+                # W3-05: artifact projection — large outputs replaced by reference
+                if (
+                    cfg.artifact_projection
+                    and cfg.artifact_store is not None
+                    and len(output) > cfg.artifact_projection_threshold
+                ):
+                    artifact_id = cfg.artifact_store.store_artifact(output)
+                    summary = _summarize(text)
+                    output = json.dumps(
+                        {
+                            "ok": True,
+                            "artifact_id": artifact_id,
+                            "summary": summary,
+                            "hint": "Use fetch_artifact to retrieve full content",
+                        },
+                        ensure_ascii=False,
+                    )
                 if idem_key is not None and cfg.idempotency_store is not None:
                     await cfg.idempotency_store.save(
                         ExecutionAttempt(

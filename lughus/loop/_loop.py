@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 import time
 from collections.abc import AsyncGenerator, AsyncIterator, Sequence
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from opentelemetry.trace import StatusCode
 
+from ..artifacts import ArtifactStore
 from ..errors import LoopLimitError
 from ..retry import retry_budget
 from ..telemetry import meter, tracer
@@ -44,6 +46,68 @@ if TYPE_CHECKING:
     from ..context import ContextItem
     from ..llm import GenerateLLM, StreamingLLM
     from ..runtime import ExecutionRuntime
+
+
+_FETCH_ARTIFACT_TOOL = "fetch_artifact"
+_FETCH_ARTIFACT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "artifact_id": {"type": "string"},
+        "offset": {"type": "integer", "default": 0},
+        "length": {"type": "integer"},
+    },
+    "required": ["artifact_id"],
+}
+
+_active_artifact_store: contextvars.ContextVar[ArtifactStore | None] = (
+    contextvars.ContextVar("_active_artifact_store", default=None)
+)
+
+
+async def _fetch_artifact_impl(
+    *,
+    state: Any,
+    artifact_id: str,
+    offset: int = 0,
+    length: int | None = None,
+) -> str:
+    """Built-in tool: retrieve a stored artifact by id."""
+    store = _active_artifact_store.get()
+    if store is None:
+        raise RuntimeError("No artifact store is active")
+    return store.fetch_artifact(artifact_id, offset, length)
+
+
+def _setup_artifact_projection(
+    registry: ToolRegistry,
+    tool_names: list[str],
+    cfg: ToolExecutionConfig,
+) -> ToolExecutionConfig:
+    """Wire up artifact projection when enabled.
+
+    Creates an :class:`ArtifactStore`, registers the ``fetch_artifact``
+    built-in tool on *registry* (idempotent), appends the tool name to
+    *tool_names*, and returns a new config carrying the store.
+
+    The store is exposed to the tool function via a :mod:`contextvars`
+    variable so that a registry shared across runs always resolves the
+    current run's store.
+    """
+    if not cfg.artifact_projection:
+        return cfg
+    store = ArtifactStore()
+
+    if _FETCH_ARTIFACT_TOOL not in registry:
+        registry.tool(
+            _FETCH_ARTIFACT_TOOL,
+            "Retrieve the full or partial content of a previously stored artifact.",
+            _FETCH_ARTIFACT_SCHEMA,
+        )(_fetch_artifact_impl)
+
+    if _FETCH_ARTIFACT_TOOL not in tool_names:
+        tool_names.append(_FETCH_ARTIFACT_TOOL)
+
+    return replace(cfg, artifact_store=store)
 
 
 def _prepare_loop(
@@ -218,6 +282,10 @@ async def agent_loop(
     ``completion_tokens``, ``cached_tokens``, ``total_tokens``).
     """
     cfg, _owned_runtime = _resolve_tool_config(tool_config)
+    # W3-05: artifact projection setup — copy tool_names to avoid mutating caller's list
+    effective_tool_names = list(tool_names)
+    cfg = _setup_artifact_projection(registry, effective_tool_names, cfg)
+    _artifact_token = _active_artifact_store.set(cfg.artifact_store)
     try:
         with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
             with retry_budget(getattr(llm, "retry_max_elapsed", None)):
@@ -225,7 +293,7 @@ async def agent_loop(
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
 
                 history, tools, prefix_len = _prepare_loop(
-                    system, context, registry, tool_names, cfg, context_items,
+                    system, context, registry, effective_tool_names, cfg, context_items,
                 )
 
                 t0 = time.perf_counter()
@@ -301,6 +369,7 @@ async def agent_loop(
                 loop_span.set_status(StatusCode.ERROR, "max iterations exceeded")
                 raise LoopLimitError(f"Agent loop exceeded {max_iterations} iterations")
     finally:
+        _active_artifact_store.reset(_artifact_token)
         # Only close what this call created; an injected runtime is the
         # caller's to manage (W1-02 / N-03: nothing used to close it at all).
         if _owned_runtime is not None:
@@ -333,6 +402,10 @@ async def agent_loop_stream(
         raise ValueError("streaming_mode must be 'buffered' or 'live'")
     streaming_mode_normalized = mode_str
     cfg, _owned_runtime = _resolve_tool_config(tool_config)
+    # W3-05: artifact projection setup — copy tool_names to avoid mutating caller's list
+    effective_tool_names = list(tool_names)
+    cfg = _setup_artifact_projection(registry, effective_tool_names, cfg)
+    _artifact_token = _active_artifact_store.set(cfg.artifact_store)
     try:
         with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
             with retry_budget(getattr(llm, "retry_max_elapsed", None)):
@@ -341,7 +414,7 @@ async def agent_loop_stream(
                 loop_span.set_attribute("lughus.streaming", True)
 
                 history, tools, prefix_len = _prepare_loop(
-                    system, context, registry, tool_names, cfg, context_items,
+                    system, context, registry, effective_tool_names, cfg, context_items,
                 )
 
                 t0 = time.perf_counter()
@@ -463,6 +536,7 @@ async def agent_loop_stream(
                 loop_span.set_status(StatusCode.ERROR, "max iterations exceeded")
                 raise LoopLimitError(f"Agent loop exceeded {max_iterations} iterations")
     finally:
+        _active_artifact_store.reset(_artifact_token)
         # Only close what this call created; an injected runtime is the
         # caller's to manage (W1-02 / N-03: nothing used to close it at all).
         if _owned_runtime is not None:

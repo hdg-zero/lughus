@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     # Keep every lazily-exported symbol resolvable for mypy and IDEs.
     from .application import AgentRuntime as AgentRuntime
     from .application import GovernedAgentRunner as GovernedAgentRunner
+    from .artifacts import ArtifactStore as ArtifactStore
     from .budget import BudgetAmount as BudgetAmount
     from .budget import BudgetExceeded as BudgetExceeded
     from .budget import BudgetLedger as BudgetLedger
@@ -113,6 +114,8 @@ from .replay import REPLAY_SCHEMA_VERSION, RecordedCall, ReplayBundle, ReplayCap
 #   * several modules pull in asyncio (~50 ms) transitively via budget,
 #     persistence, event_stream, etc.
 _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
+    # ── artifacts (stdlib-only) ────────────────────────────────────────
+    "ArtifactStore": (".artifacts", None),
     # ── litellm (heavy) ─────────────────────────────────────────────
     "LLM": (".llm", None),
     "GenerateLLM": (".llm", None),
@@ -212,6 +215,7 @@ __all__ = [
     "ApprovalRequiredGroup",
     "ApprovalStatus",
     "Artifact",
+    "ArtifactStore",
     "AttemptStatus",
     "BaseGateway",
     "BaseSettings",

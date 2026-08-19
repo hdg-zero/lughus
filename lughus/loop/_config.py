@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..approval import ApprovalStore
+    from ..artifacts import ArtifactStore
     from ..idempotency import IdempotencyStore
     from ..policy import Principal, ToolPolicy
     from ..runtime import ExecutionRuntime
@@ -26,6 +27,7 @@ DEFAULT_MAX_SYNC_THREAD_WORKERS = 32
 DEFAULT_MAX_MESSAGE_HISTORY_CHARS = 200_000
 DEFAULT_MAX_CONTEXT_TOKENS = 8_192
 DEFAULT_TOOL_QUEUE_TIMEOUT = 30.0
+DEFAULT_ARTIFACT_PROJECTION_THRESHOLD = 4096
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,9 @@ class ToolExecutionConfig:
     idempotency_store: IdempotencyStore | None = field(default=None, repr=False, compare=False)
     budget: Any = field(default=None, repr=False, compare=False)
     run_id: str = "untracked"
+    artifact_projection: bool = False
+    artifact_projection_threshold: int = DEFAULT_ARTIFACT_PROJECTION_THRESHOLD
+    artifact_store: ArtifactStore | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         positive = {
