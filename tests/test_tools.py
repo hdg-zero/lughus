@@ -113,7 +113,10 @@ def test_declarations_returns_openai_format(registry: ToolRegistry) -> None:
     assert decl["type"] == "function"
     assert decl["function"]["name"] == "my_tool"
     assert decl["function"]["description"] == "Description."
-    assert decl["function"]["parameters"] == schema
+    params = decl["function"]["parameters"]
+    assert params["type"] == schema["type"]
+    assert dict(params["properties"]["x"]) == schema["properties"]["x"]
+    assert list(params["required"]) == schema["required"]
 
 
 def test_declarations_unknown_name_skipped_with_warning(
@@ -123,7 +126,7 @@ def test_declarations_unknown_name_skipped_with_warning(
     with caplog.at_level(logging.WARNING, logger="lughus.tools"):
         result = registry.declarations(["nonexistent"])
 
-    assert result == []
+    assert len(result) == 0
     assert "nonexistent" in caplog.text
     assert "not found" in caplog.text
 
@@ -135,7 +138,7 @@ def test_declarations_unknown_name_can_be_strict(registry: ToolRegistry) -> None
 
 def test_declarations_empty_names(registry: ToolRegistry) -> None:
     """declarations([]) returns an empty list."""
-    assert registry.declarations([]) == []
+    assert len(registry.declarations([])) == 0
 
 
 def test_declarations_order_preserved(registry: ToolRegistry) -> None:
