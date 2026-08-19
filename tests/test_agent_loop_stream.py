@@ -18,7 +18,7 @@ from types import SimpleNamespace
 import pytest
 
 from lughus import ToolRegistry
-from lughus.loop import LoopResult, agent_loop_stream
+from lughus.loop import LoopResult, StreamChunk, agent_loop_stream
 from lughus.testing import MockStreamingLLM
 
 
@@ -88,7 +88,7 @@ async def test_stream_one_tool_call_then_text(registry: ToolRegistry) -> None:
             "Greeting done!",
         ]
     )
-    text_chunks: list[str] = []
+    text_chunks: list[StreamChunk] = []
     result: LoopResult | None = None
 
     async for chunk in agent_loop_stream(
@@ -102,12 +102,13 @@ async def test_stream_one_tool_call_then_text(registry: ToolRegistry) -> None:
         if isinstance(chunk, LoopResult):
             result = chunk
         else:
+            assert isinstance(chunk, StreamChunk)
             text_chunks.append(chunk)
 
     assert result is not None
     assert result.iterations == 2
     # All streamed chunks concatenated should form the final text
-    assert "".join(text_chunks) in str(result)
+    assert "".join(c.content for c in text_chunks) in str(result)
 
 
 @pytest.mark.asyncio
@@ -166,7 +167,7 @@ async def test_stream_buffers_content_from_tool_call_iterations(registry: ToolRe
             return self.streams.pop(0)
 
     llm = MixedStreamingLLM()
-    chunks: list[str | LoopResult] = []
+    chunks: list[StreamChunk | LoopResult] = []
 
     async for item in agent_loop_stream(
         llm,
@@ -179,10 +180,11 @@ async def test_stream_buffers_content_from_tool_call_iterations(registry: ToolRe
         chunks.append(item)
 
     streamed_text = "".join(
-        item for item in chunks if isinstance(item, str) and not isinstance(item, LoopResult)
+        item.content for item in chunks if isinstance(item, StreamChunk)
     )
     assert streamed_text == "Final answer."
-    assert chunks[-1] == "Final answer."
+    assert isinstance(chunks[-1], LoopResult)
+    assert str(chunks[-1]) == "Final answer."
     assistant_messages = [
         message
         for message in llm.calls[-1]["messages"]

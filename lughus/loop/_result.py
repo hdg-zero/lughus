@@ -1,6 +1,20 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Self
+
+
+@dataclass(frozen=True, slots=True)
+class StreamChunk:
+    """A provisional piece of streaming content.
+
+    Yielded by :func:`agent_loop_stream` for each text fragment before the
+    final :class:`LoopResult`.  ``final`` is always ``False``; its presence
+    lets consumers branch on a single attribute instead of ``isinstance``.
+    """
+
+    content: str
+    final: bool = False
 
 
 class LoopResult(str):

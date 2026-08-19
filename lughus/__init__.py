@@ -58,7 +58,7 @@ from .idempotency import (
     IdempotencyStore,
     InMemoryIdempotencyStore,
 )
-from .loop import LoopResult, StreamingMode, ToolExecutionConfig, agent_loop, agent_loop_stream
+from .loop import LoopResult, StreamChunk, StreamingMode, ToolExecutionConfig, agent_loop, agent_loop_stream
 from .mcp import MCPAdapter, MCPClient, MCPServerConfig, MCPToolDescriptor
 from .persistence import (
     Checkpoint,
@@ -205,6 +205,7 @@ __all__ = [
     "RuntimeConfig",
     "SafeToolError",
     "Scenario",
+    "StreamChunk",
     "StreamingLLM",
     "StreamingMode",
     "ToolDef",
