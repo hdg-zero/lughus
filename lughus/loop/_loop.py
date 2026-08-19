@@ -22,12 +22,11 @@ from ._config import (
 )
 from ._execute import (
     _assistant_tool_message,
-    _check_message_history_size,
     _execute_tools,
     _loop_duration,
     _record_llm_usage,
 )
-from ._messages import render_context_messages
+from ._messages import MessageHistory, render_context_messages
 from ._result import LoopResult, StreamChunk
 
 _logger = logging.getLogger(__name__)
@@ -45,29 +44,30 @@ def _prepare_loop(
     tool_names: list[str],
     cfg: ToolExecutionConfig,
     context_items: Sequence[ContextItem] = (),
-) -> tuple[list[dict], list[dict]]:
-    messages: list[dict] = [{"role": "system", "content": system}]
+) -> tuple[MessageHistory, list[dict]]:
+    history = MessageHistory()
+    history.append({"role": "system", "content": system})
     # Context items go BEFORE the user objective so they are part of
     # the cacheable prefix (rule A1: byte-identical across turns).
-    messages.extend(render_context_messages(context_items))
-    messages.append({"role": "user", "content": context})
+    history.extend(render_context_messages(context_items))
+    history.append({"role": "user", "content": context})
     tools = registry.declarations(
         tool_names,
         strict=True,
     )
-    return messages, tools
+    return history, tools
 
 
 async def _run_tool_calls(
     tool_calls: list[tuple[str, str, str]],
-    messages: list[dict],
+    history: MessageHistory,
     registry: ToolRegistry,
     state: Any,
     cfg: ToolExecutionConfig,
     assistant_tool_calls_payload: list[dict],
     content: str | None = None,
 ) -> None:
-    messages.append(
+    history.append(
         _assistant_tool_message(
             assistant_tool_calls_payload,
             content=content,
@@ -75,7 +75,7 @@ async def _run_tool_calls(
     )
     results = await _execute_tools(tool_calls, registry, state, cfg)
     for tc_id, output in results:
-        messages.append(
+        history.append(
             {
                 "role": "tool",
                 "tool_call_id": tc_id,
@@ -187,13 +187,8 @@ async def agent_loop(
                 loop_span.set_attribute("gen_ai.request.model", llm.model)
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
 
-                messages, tools = _prepare_loop(
-                    system,
-                    context,
-                    registry,
-                    tool_names,
-                    cfg,
-                    context_items,
+                history, tools = _prepare_loop(
+                    system, context, registry, tool_names, cfg, context_items,
                 )
 
                 t0 = time.perf_counter()
@@ -202,11 +197,17 @@ async def agent_loop(
                 cached_tokens = 0
 
                 for iteration in range(max_iterations):
-                    _check_message_history_size(messages, cfg)
+                    limit = cfg.max_message_history_chars
+                    if limit > 0 and history.char_count > limit:
+                        raise LoopLimitError(
+                            f"Agent message history exceeded {limit} characters"
+                        )
                     with tracer.start_as_current_span("llm.generate") as llm_span:
                         llm_span.set_attribute("gen_ai.request.model", llm.model)
                         llm_span.set_attribute("lughus.iteration", iteration + 1)
-                        response = await llm.generate(messages=messages, tools=tools)
+                        response = await llm.generate(
+                            messages=history.view, tools=tools,
+                        )
 
                         if hasattr(response, "usage") and response.usage:
                             p, c, ca = _record_llm_usage(
@@ -250,7 +251,7 @@ async def agent_loop(
 
                     await _run_tool_calls(
                         tc_inputs,
-                        messages,
+                        history,
                         registry,
                         state,
                         cfg,
@@ -300,13 +301,8 @@ async def agent_loop_stream(
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
                 loop_span.set_attribute("lughus.streaming", True)
 
-                messages, tools = _prepare_loop(
-                    system,
-                    context,
-                    registry,
-                    tool_names,
-                    cfg,
-                    context_items,
+                history, tools = _prepare_loop(
+                    system, context, registry, tool_names, cfg, context_items,
                 )
 
                 t0 = time.perf_counter()
@@ -315,7 +311,11 @@ async def agent_loop_stream(
                 cached_tokens = 0
 
                 for iteration in range(max_iterations):
-                    _check_message_history_size(messages, cfg)
+                    limit = cfg.max_message_history_chars
+                    if limit > 0 and history.char_count > limit:
+                        raise LoopLimitError(
+                            f"Agent message history exceeded {limit} characters"
+                        )
                     content_parts: list[str] = []
                     tc_map: dict[int, dict[str, str]] = {}
 
@@ -323,7 +323,7 @@ async def agent_loop_stream(
                         llm_span.set_attribute("gen_ai.request.model", llm.model)
                         llm_span.set_attribute("lughus.iteration", iteration + 1)
 
-                        stream = await llm.astream(messages=messages, tools=tools)
+                        stream = await llm.astream(messages=history.view, tools=tools)
                         timeout = getattr(llm, "timeout", None)
                         async for chunk in _stream_with_timeout(stream, timeout):
                             _usage_recorded = False
@@ -411,7 +411,7 @@ async def agent_loop_stream(
 
                     await _run_tool_calls(
                         tc_inputs,
-                        messages,
+                        history,
                         registry,
                         state,
                         cfg,
