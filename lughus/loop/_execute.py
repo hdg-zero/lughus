@@ -236,9 +236,9 @@ async def _execute_tools(
     state: Any,
     config: ToolExecutionConfig | None = None,
 ) -> list[tuple[str, str]]:
-    """Execute tool calls in parallel using ``asyncio.gather()``.
+    """Execute tool calls in parallel using ``asyncio.TaskGroup``.
 
-    For a single tool call, executes directly without ``gather`` overhead.
+    For a single tool call, executes directly without ``TaskGroup`` overhead.
 
     Each call is wrapped in an OTel span (``tool.{name}``).
 
@@ -464,7 +464,7 @@ async def _execute_tools(
                     )
                 output, status, error_type = _error_payload(exc), "error", type(exc).__name__
             except ApprovalRequired:
-                raise  # propagate to gather — not a tool error
+                raise  # propagate to task wrapper — not a tool error
             except Exception as exc:  # noqa: BLE001 — boundary guard: tools execute arbitrary user code; the exception spectrum is unbounded by design
                 wrapped = (
                     exc
@@ -513,15 +513,22 @@ async def _execute_tools(
         except ApprovalRequired as e:
             raise ApprovalRequiredGroup([e]) from e
 
-    # Use return_exceptions=True so that tools already dispatched in the same
-    # turn complete normally even when other tools need approval.
-    results = await asyncio.gather(*(_run(*tc) for tc in tool_calls), return_exceptions=True)
-    approval_errors = [r for r in results if isinstance(r, ApprovalRequired)]
+    results: list[tuple[str, str] | None] = [None] * len(tool_calls)
+    approval_errors: list[ApprovalRequired] = []
+
+    async def _task(idx: int, tc_id: str, name: str, raw_args: str) -> None:
+        try:
+            results[idx] = await _run(tc_id, name, raw_args)
+        except ApprovalRequired as e:
+            approval_errors.append(e)
+
+    try:
+        async with asyncio.TaskGroup() as tg:
+            for idx, (tc_id, name, raw_args) in enumerate(tool_calls):
+                tg.create_task(_task(idx, tc_id, name, raw_args))
+    except ExceptionGroup as eg:
+        raise eg.exceptions[0] from eg
+
     if approval_errors:
         raise ApprovalRequiredGroup(approval_errors)
-    # Non-approval exceptions shouldn't reach here (they're caught inside
-    # _run_unbounded) but handle defensively.
-    for r in results:
-        if isinstance(r, Exception):
-            raise r
-    return list(results)  # type: ignore[arg-type]
+    return [r for r in results if r is not None]
