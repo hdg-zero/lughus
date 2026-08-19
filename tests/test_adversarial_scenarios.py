@@ -15,7 +15,7 @@ def test_tool_output_injection_does_not_escalate():
     # The framework wraps tool outputs in tool-role messages, not system messages
     # This test verifies the error_payload function never produces system-role content
     payload = json.loads(_error_payload(SafeToolError("test", malicious_output)))
-    assert payload.get("error") == malicious_output  # safe because SafeToolError opted in
+    assert payload.get("message") == malicious_output  # safe because SafeToolError opted in
     assert "role" not in payload or payload.get("role") != "system"
 
 
@@ -23,8 +23,8 @@ def test_unknown_tool_returns_validation_error():
     """Agent requesting an unregistered tool gets a ToolValidationError, not a fallback."""
     exc = ToolValidationError("Unknown tool: hacker_tool")
     payload = json.loads(_error_payload(exc))
-    assert "Unknown tool" in payload["error"]
-    assert payload["error_code"] == "ToolValidationError"
+    assert "Unknown tool" in payload["message"]
+    assert payload["error"] == "ToolValidationError"
 
 
 @pytest.mark.asyncio
@@ -46,8 +46,8 @@ def test_secret_canary_redacted_from_error_payload():
     # ToolExecutionError wraps unknown exceptions
     wrapped = ToolExecutionError("Tool 'db_query' failed")
     payload = json.loads(_error_payload(wrapped))
-    assert secret not in payload["error"]
-    assert payload["error"] == "Tool execution failed"
+    assert secret not in payload["message"]
+    assert payload["message"] == "Tool execution failed"
 
 
 def test_secret_canary_not_in_safe_tool_error():
@@ -55,17 +55,17 @@ def test_secret_canary_not_in_safe_tool_error():
     # SafeToolError is opt-in: the tool author controls the message
     safe = SafeToolError("rate_limit", "Rate limit exceeded, retry after 60s")
     payload = json.loads(_error_payload(safe))
-    assert payload["error"] == "Rate limit exceeded, retry after 60s"
-    assert payload["error_code"] == "rate_limit"
+    assert payload["message"] == "Rate limit exceeded, retry after 60s"
+    assert payload["error"] == "rate_limit"
 
 
 def test_raw_exception_is_never_exposed():
     """Unknown exceptions must be redacted to a generic message."""
     exc = Exception("SELECT * FROM users WHERE password='admin123'")
     payload = json.loads(_error_payload(exc))
-    assert "admin123" not in payload["error"]
-    assert "SELECT" not in payload["error"]
-    assert payload["error"] == "Tool execution failed"
+    assert "admin123" not in payload["message"]
+    assert "SELECT" not in payload["message"]
+    assert payload["message"] == "Tool execution failed"
 
 
 @pytest.mark.asyncio

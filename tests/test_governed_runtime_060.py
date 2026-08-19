@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import pytest
 
@@ -82,7 +83,9 @@ async def test_approved_proposal_is_consumed_after_execution():
     )
     try:
         res = await _execute_tools([("tc_1", "charge", '{"amount": 100}')], registry, {}, cfg)
-        assert res[0][1] == "charged_100"
+        data = json.loads(res[0][1])
+        assert data["ok"] is True
+        assert data["result"] == "charged_100"
 
         consumed_request = await store.get(request.request_id)
         assert consumed_request is not None
@@ -223,7 +226,9 @@ async def test_governed_runtime_060_e2e_gate():
 
     # Re-dispatch tool execution
     results = await _execute_tools([("tc_1", "transfer_funds", args_json)], registry, {}, cfg)
-    assert results[0][1] == "transferred_500_to_bob"
+    data = json.loads(results[0][1])
+    assert data["ok"] is True
+    assert data["result"] == "transferred_500_to_bob"
     assert executed_count == 1
 
     # Verify receipt & consumed approval
@@ -236,7 +241,9 @@ async def test_governed_runtime_060_e2e_gate():
     receipt = await idempotency.get(idem_key)
     assert receipt is not None
     assert receipt.status == AttemptStatus.COMPLETED
-    assert receipt.result == "transferred_500_to_bob"
+    receipt_data = json.loads(receipt.result)
+    assert receipt_data["ok"] is True
+    assert receipt_data["result"] == "transferred_500_to_bob"
 
     # Save Checkpoint 2 (after dispatch)
     ckpt_2 = Checkpoint(
@@ -256,7 +263,9 @@ async def test_governed_runtime_060_e2e_gate():
     results_retry = await _execute_tools(
         [("tc_1_retry", "transfer_funds", args_json)], registry, {}, cfg
     )
-    assert results_retry[0][1] == "transferred_500_to_bob"
+    retry_data = json.loads(results_retry[0][1])
+    assert retry_data["ok"] is True
+    assert retry_data["result"] == "transferred_500_to_bob"
     # Ensure tool was NOT executed again (cached hit)
     assert executed_count == 1
 

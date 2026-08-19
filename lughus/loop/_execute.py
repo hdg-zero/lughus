@@ -7,6 +7,7 @@ import functools
 import inspect
 import json
 import logging
+import re
 import time
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, Any
@@ -15,6 +16,7 @@ from jsonschema import Draft202012Validator, ValidationError  # type: ignore[imp
 from opentelemetry.trace import StatusCode
 
 from ..approval import ApprovalRequest, proposal_digest
+from ..artifacts import _summarize
 from ..budget import BudgetAmount
 from ..errors import (
     ApprovalRequired,
@@ -51,6 +53,15 @@ _tool_errors = meter.create_counter(
     "lughus.tool.errors",
     description="Tool execution errors",
 )
+# cache-specific counters for provider prefix caching visibility.
+_cache_read_counter = meter.create_counter(
+    "lughus.loop.cache_read_tokens",
+    description="Cache-read input tokens reported by the LLM provider",
+)
+_cache_creation_counter = meter.create_counter(
+    "lughus.loop.cache_creation_tokens",
+    description="Cache-creation input tokens reported by the LLM provider",
+)
 
 _tool_event_sink: contextvars.ContextVar[Callable[[dict[str, Any]], None] | None] = (
     contextvars.ContextVar("lughus_tool_event_sink", default=None)
@@ -76,7 +87,12 @@ def _extract_usage(usage: Any) -> tuple[int, int, int]:
 
 
 def _record_llm_usage(span: Any, usage: Any, model: str) -> tuple[int, int, int]:
-    """Extract usage from an LLM response and record on span + metrics."""
+    """Extract usage from an LLM response and record on span + metrics.
+
+    Also records ``lughus.loop.cache_read_tokens`` and
+    ``lughus.loop.cache_creation_tokens`` counters and sets corresponding
+    span attributes when the provider reports cache-related fields.
+    """
     p, c, ca = _extract_usage(usage)
     span.set_attribute("gen_ai.usage.prompt_tokens", p)
     span.set_attribute("gen_ai.usage.completion_tokens", c)
@@ -87,6 +103,14 @@ def _record_llm_usage(span: Any, usage: Any, model: str) -> tuple[int, int, int]
     _token_counter.add(c, {**attrs, "token.type": "completion"})
     if ca:
         _token_counter.add(ca, {**attrs, "token.type": "cached"})
+    # cache-specific telemetry
+    if ca:
+        _cache_read_counter.add(ca, attrs)
+        span.set_attribute("gen_ai.usage.cache_read_input_tokens", ca)
+    cache_creation = _usage_get(usage, "cache_creation_input_tokens", 0) or 0
+    if cache_creation:
+        _cache_creation_counter.add(cache_creation, attrs)
+        span.set_attribute("gen_ai.usage.cache_creation_input_tokens", cache_creation)
     return p, c, ca
 
 
@@ -121,16 +145,64 @@ def _assistant_tool_message(
     return message
 
 
+_TRACEBACK_RE = re.compile(r"Traceback\b.*", re.DOTALL)
+_PATH_RE = re.compile(r"(?:[A-Za-z]:[/\\]|[/\\])[\w.\-]+(?:[/\\][\w.\-]+)+")
+_LUGHUS_RE = re.compile(r"lughus[/.][\w./]*")
+
+
+def _sanitize_message(msg: str) -> str:
+    """Strip stack traces, file paths, and internal module names from *msg*."""
+    msg = _TRACEBACK_RE.sub("", msg).strip()
+    msg = _PATH_RE.sub("<redacted>", msg)
+    msg = _LUGHUS_RE.sub("<internal>", msg)
+    return msg or "An error occurred"
+
+
+def _fix_hint(exc: Exception) -> tuple[bool, str]:
+    """Return ``(retryable, fix)`` per the tool-result error contract."""
+    if isinstance(exc, ToolTimeoutError):
+        return True, "Retry with simpler input or increase timeout"
+    if isinstance(exc, ToolValidationError):
+        return True, "Correct the arguments and retry"
+    if isinstance(exc, SafeToolError):
+        return (
+            bool(exc.retryable),
+            "Retry the operation" if exc.retryable else "Try an alternative approach",
+        )
+    if isinstance(exc, ToolExecutionError):
+        return False, "Try an alternative approach"
+    return False, "Report the error to the user"
+
+
 def _error_payload(exc: Exception) -> str:
-    """Return structured JSON error content for the LLM tool response."""
+    """Return structured JSON error envelope for the LLM tool response."""
     safe = isinstance(exc, (SafeToolError, ToolValidationError, ToolTimeoutError))
+    raw_message = str(exc) if safe else "Tool execution failed"
+    message = _sanitize_message(raw_message)
+    error_type = getattr(exc, "code", type(exc).__name__)
+    retryable, fix = _fix_hint(exc)
     return json.dumps(
         {
-            "error": str(exc) if safe else "Tool execution failed",
-            "error_code": getattr(exc, "code", type(exc).__name__),
-            "retryable": bool(getattr(exc, "retryable", False)),
+            "ok": False,
+            "error": error_type,
+            "message": message,
+            "retryable": retryable,
+            "fix": fix,
         }
     )
+
+
+def _success_payload(text: str, *, truncated: bool = False, original_bytes: int = 0) -> str:
+    """Wrap a successful tool output in the standard JSON envelope."""
+    try:
+        parsed: Any = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        parsed = text
+    envelope: dict[str, Any] = {"ok": True, "result": parsed}
+    if truncated:
+        envelope["truncated"] = True
+        envelope["original_bytes"] = original_bytes
+    return json.dumps(envelope, ensure_ascii=False)
 
 
 def _validate_tool_args(
@@ -161,15 +233,22 @@ def _validate_tool_args(
     return args
 
 
-def _validate_tool_output(name: str, output: Any, max_tool_output_chars: int) -> str:
+def _validate_tool_output(
+    name: str, output: Any, max_tool_output_chars: int
+) -> tuple[str, bool, int]:
+    """Validate and possibly truncate tool output.
+
+    Returns ``(text, truncated, original_bytes)`` where *truncated* is ``True``
+    when the output exceeded *max_tool_output_chars* and was sliced.
+    """
     text = (
         output if isinstance(output, str) else json.dumps(output, ensure_ascii=False, default=str)
     )
+    original_bytes = len(text.encode("utf-8"))
     if max_tool_output_chars > 0 and len(text) > max_tool_output_chars:
-        raise ToolValidationError(
-            f"Output from tool '{name}' exceeds {max_tool_output_chars} characters"
-        )
-    return text
+        text = text[:max_tool_output_chars]
+        return text, True, original_bytes
+    return text, False, original_bytes
 
 
 def _message_history_chars(messages: list[dict]) -> int:
@@ -203,7 +282,7 @@ def _is_async_callable(fn: Callable[..., Any]) -> bool:
 def _runtime_of(cfg: ToolExecutionConfig) -> ExecutionRuntime:
     """Return the config's runtime, relying on the invariant _execute_tools enforces.
 
-    W1-02: the runtime is guaranteed non-None from _execute_tools onwards. That is
+    The runtime is guaranteed non-None from _execute_tools onwards. That is
     why the two union-attr type-ignore markers and the redundant
     ``if cfg.runtime is not None`` guard could be removed outright rather than moved.
     """
@@ -236,9 +315,9 @@ async def _execute_tools(
     state: Any,
     config: ToolExecutionConfig | None = None,
 ) -> list[tuple[str, str]]:
-    """Execute tool calls in parallel using ``asyncio.gather()``.
+    """Execute tool calls in parallel using ``asyncio.TaskGroup``.
 
-    For a single tool call, executes directly without ``gather`` overhead.
+    For a single tool call, executes directly without ``TaskGroup`` overhead.
 
     Each call is wrapped in an OTel span (``tool.{name}``).
 
@@ -251,7 +330,7 @@ async def _execute_tools(
     - **Empty args**: ``raw_args=""`` is treated as an empty dict.
     """
 
-    # W1-02: _execute_tools no longer manufactures a config, because doing so used
+    # _execute_tools no longer manufactures a config, because doing so used
     # to allocate an ExecutionRuntime (and a thread pool) that nothing ever closed.
     # A missing runtime here is a programming error, not an opportunity to leak one.
     if config is None or config.runtime is None:
@@ -427,9 +506,27 @@ async def _execute_tools(
                             f"Tool '{name}' returned an invalid result: "
                             f"{validation_errors[0].message}"
                         )
-                output = _validate_tool_output(
+                text, truncated, original_bytes = _validate_tool_output(
                     name=name, output=output, max_tool_output_chars=cfg.max_tool_output_chars
                 )
+                output = _success_payload(text, truncated=truncated, original_bytes=original_bytes)
+                # artifact projection — large outputs replaced by reference
+                if (
+                    cfg.artifact_projection
+                    and cfg.artifact_store is not None
+                    and len(output) > cfg.artifact_projection_threshold
+                ):
+                    artifact_id = cfg.artifact_store.store_artifact(output)
+                    summary = _summarize(text)
+                    output = json.dumps(
+                        {
+                            "ok": True,
+                            "artifact_id": artifact_id,
+                            "summary": summary,
+                            "hint": "Use fetch_artifact to retrieve full content",
+                        },
+                        ensure_ascii=False,
+                    )
                 if idem_key is not None and cfg.idempotency_store is not None:
                     await cfg.idempotency_store.save(
                         ExecutionAttempt(
@@ -464,7 +561,7 @@ async def _execute_tools(
                     )
                 output, status, error_type = _error_payload(exc), "error", type(exc).__name__
             except ApprovalRequired:
-                raise  # propagate to gather — not a tool error
+                raise  # propagate to task wrapper — not a tool error
             except Exception as exc:  # noqa: BLE001 — boundary guard: tools execute arbitrary user code; the exception spectrum is unbounded by design
                 wrapped = (
                     exc
@@ -513,15 +610,22 @@ async def _execute_tools(
         except ApprovalRequired as e:
             raise ApprovalRequiredGroup([e]) from e
 
-    # Use return_exceptions=True so that tools already dispatched in the same
-    # turn complete normally even when other tools need approval.
-    results = await asyncio.gather(*(_run(*tc) for tc in tool_calls), return_exceptions=True)
-    approval_errors = [r for r in results if isinstance(r, ApprovalRequired)]
+    results: list[tuple[str, str] | None] = [None] * len(tool_calls)
+    approval_errors: list[ApprovalRequired] = []
+
+    async def _task(idx: int, tc_id: str, name: str, raw_args: str) -> None:
+        try:
+            results[idx] = await _run(tc_id, name, raw_args)
+        except ApprovalRequired as e:
+            approval_errors.append(e)
+
+    try:
+        async with asyncio.TaskGroup() as tg:
+            for idx, (tc_id, name, raw_args) in enumerate(tool_calls):
+                tg.create_task(_task(idx, tc_id, name, raw_args))
+    except ExceptionGroup as eg:
+        raise eg.exceptions[0] from eg
+
     if approval_errors:
         raise ApprovalRequiredGroup(approval_errors)
-    # Non-approval exceptions shouldn't reach here (they're caught inside
-    # _run_unbounded) but handle defensively.
-    for r in results:
-        if isinstance(r, Exception):
-            raise r
-    return list(results)  # type: ignore[arg-type]
+    return [r for r in results if r is not None]

@@ -23,9 +23,11 @@ def test_error_payload_redacts_unknown_exceptions() -> None:
     exc = ValueError("sensitive internal db string /var/secret")
     payload = json.loads(_error_payload(exc))
 
-    assert payload["error"] == "Tool execution failed"
-    assert payload["error_code"] == "ValueError"
+    assert payload["ok"] is False
+    assert payload["message"] == "Tool execution failed"
+    assert payload["error"] == "ValueError"
     assert payload["retryable"] is False
+    assert "fix" in payload
 
 
 def test_error_payload_preserves_safe_tool_error() -> None:
@@ -33,6 +35,8 @@ def test_error_payload_preserves_safe_tool_error() -> None:
     exc = SafeToolError(code="RATE_LIMIT", message="Quota exceeded", retryable=True)
     payload = json.loads(_error_payload(exc))
 
-    assert payload["error"] == "Quota exceeded"
-    assert payload["error_code"] == "RATE_LIMIT"
+    assert payload["ok"] is False
+    assert payload["message"] == "Quota exceeded"
+    assert payload["error"] == "RATE_LIMIT"
     assert payload["retryable"] is True
+    assert "fix" in payload

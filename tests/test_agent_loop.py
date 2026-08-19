@@ -245,7 +245,8 @@ async def test_usage_metadata_accumulated(registry: ToolRegistry) -> None:
 
 
 @pytest.mark.asyncio
-async def test_compact_tool_schema_removes_parameter_descriptions() -> None:
+async def test_tool_schemas_always_compacted() -> None:
+    """declarations always strip parameter descriptions."""
     r = ToolRegistry()
 
     @r.tool(
@@ -276,7 +277,6 @@ async def test_compact_tool_schema_removes_parameter_descriptions() -> None:
         tool_names=["describe"],
         state=None,
         tool_config=ToolExecutionConfig(
-            compact_tool_schemas=True,
             runtime=_test_runtime(),
         ),
     )
@@ -353,7 +353,9 @@ async def test_tool_can_return_dict(registry: ToolRegistry) -> None:
     )
 
     tool_messages = [m for m in llm.calls[-1]["messages"] if m["role"] == "tool"]
-    assert json.loads(tool_messages[0]["content"]) == {"ok": True}
+    data = json.loads(tool_messages[0]["content"])
+    assert data["ok"] is True
+    assert data["result"] == {"ok": True}
 
 
 @pytest.mark.asyncio

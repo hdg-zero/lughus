@@ -1,4 +1,4 @@
-"""Tests for the idempotency protocol (W3-04)."""
+"""Tests for the idempotency protocol."""
 
 import asyncio
 

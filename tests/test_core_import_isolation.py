@@ -1,4 +1,4 @@
-"""W1-01 / N-01: the core must import with base dependencies only.
+"""the core must import with base dependencies only.
 
 Regression guard for the defect that made `pip install lughus` unusable: the
 package eagerly imported `opentelemetry.sdk` (via telemetry.py), `a2a` (via

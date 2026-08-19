@@ -9,7 +9,7 @@ verify (reuses ci.yml)  ->  guard (tag == project.version)  ->  publish (environ
 ```
 
 Three properties matter, and each fixes a specific defect found in the 0.10.1
-audit (N-06):
+audit:
 
 1. **Verification precedes publication.** Publishing to PyPI is irreversible: a
    deleted version can never be republished under the same number. `verify`

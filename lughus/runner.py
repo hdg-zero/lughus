@@ -66,7 +66,7 @@ class AgentRunner:
                         "text.delta",
                         run.run_id,
                         sequence,
-                        {"delta": item},
+                        {"delta": item.content},
                         visibility=EventVisibility.PUBLIC,
                     )
                 await self.events.append(event)

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import copy
 import inspect
+import json
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 
 from jsonschema import Draft202012Validator, SchemaError  # type: ignore[import-untyped]
 
@@ -25,6 +26,63 @@ __all__ = [
 _logger = logging.getLogger(__name__)
 
 
+class _FrozenDict(dict):
+    """A ``dict`` subclass that raises on any mutation attempt.
+
+    Inherits from ``dict`` so that ``isinstance(x, dict)`` checks in
+    LLM SDKs (LiteLLM, OpenAI) remain satisfied, while structurally
+    preventing accidental mutations that would break byte-identity of
+    cached tool declarations.
+    """
+
+    __slots__ = ()
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        raise TypeError("FrozenDict does not support item assignment")
+
+    def __delitem__(self, key: Any) -> None:
+        raise TypeError("FrozenDict does not support item deletion")
+
+    def update(self, *args: Any, **kwargs: Any) -> None:  # type: ignore[override]
+        raise TypeError("FrozenDict does not support update")
+
+    def pop(self, *args: Any) -> Any:
+        raise TypeError("FrozenDict does not support pop")
+
+    def popitem(self) -> tuple:
+        raise TypeError("FrozenDict does not support popitem")  # type: ignore[return-value]
+
+    def clear(self) -> None:
+        raise TypeError("FrozenDict does not support clear")
+
+    def setdefault(self, key: Any, default: Any = None) -> Any:
+        raise TypeError("FrozenDict does not support setdefault")
+
+    def __ior__(self, other: Any) -> Any:  # type: ignore[misc]
+        raise TypeError("FrozenDict does not support |= operator")
+
+    def __copy__(self) -> dict:
+        return dict(self)
+
+    def __deepcopy__(self, memo: Any) -> dict:
+        import copy as _copy
+
+        return {_copy.deepcopy(k, memo): _copy.deepcopy(v, memo) for k, v in self.items()}
+
+
+def _deep_freeze(obj: Any) -> Any:
+    """Recursively freeze a JSON-like structure.
+
+    ``dict`` -> :class:`_FrozenDict`, ``list`` -> ``tuple``,
+    primitives pass through unchanged (already immutable).
+    """
+    if isinstance(obj, dict):
+        return _FrozenDict({k: _deep_freeze(v) for k, v in obj.items()})
+    if isinstance(obj, (list, tuple)):
+        return tuple(_deep_freeze(item) for item in obj)
+    return obj
+
+
 def _compact_schema(schema: Any) -> Any:
     """Return a schema copy without descriptive prose.
 
@@ -38,7 +96,7 @@ def _compact_schema(schema: Any) -> Any:
         }
     if isinstance(schema, list):
         return [_compact_schema(item) for item in schema]
-    return copy.deepcopy(schema)
+    return schema  # primitives (str, int, bool, None) are already immutable
 
 
 def _validate_tool_callable(name: str, fn: Callable[..., Any], parameters_schema: dict) -> None:
@@ -134,6 +192,9 @@ class ToolRegistry:
 
     def __init__(self) -> None:
         self._tools: dict[str, ToolDef] = {}
+        self._declarations_cache: dict[
+            tuple[tuple[str, ...], bool], tuple[tuple[dict, ...], str]
+        ] = {}
 
     def tool(
         self,
@@ -186,6 +247,7 @@ class ToolRegistry:
                 concurrency=concurrency,
                 resource_key=resource_key,
             )
+            self._declarations_cache.clear()
             return fn
 
         return decorator
@@ -193,12 +255,8 @@ class ToolRegistry:
     def names(self) -> tuple[str, ...]:
         """Return the registered tool names, in registration order.
 
-        W1-12: the framework itself was reaching into ``registry._tools.keys()``
-        (application.py). When the core violates its own encapsulation, users will
-        too -- and the signal sent is "an API is missing, help yourself".
-
         Deliberately NOT added: describe(), filter_by_risk(), groups(), iteration
-        over ToolDef. No demonstrated need today (R4/R9).
+        over ToolDef. No demonstrated need today.
         """
         return tuple(self._tools)
 
@@ -222,15 +280,25 @@ class ToolRegistry:
         names: list[str],
         *,
         strict: bool = False,
-        compact: bool = False,
-    ) -> list[dict]:
-        """Return OpenAI-format tool declarations for the given tool names.
+    ) -> tuple[dict, ...]:
+        """Return frozen OpenAI-format tool declarations for the given tool names.
 
-        Unknown names are skipped with a WARNING log. The returned list
-        preserves the order of ``names``. When ``compact`` is true, parameter
-        schema descriptions are stripped to reduce repeated prompt tokens.
+        The result is memoized and structurally immutable (``tuple`` of
+        :class:`_FrozenDict`).  Because mutation is impossible, no
+        ``deepcopy`` is needed in the hot loop -- the same object can be
+        reused across turns, preserving byte-identical prefix caching.
+
+        Unknown names are skipped with a WARNING log (or raise when
+        *strict* is ``True``).  The returned tuple preserves the order of
+        ``names``.  Parameter schema descriptions are always stripped to
+        reduce repeated prompt tokens.
         """
-        result = []
+        cache_key = (tuple(names), strict)
+        cached = self._declarations_cache.get(cache_key)
+        if cached is not None:
+            return cached[0]
+
+        result: list[dict] = []
         for n in names:
             td = self._tools.get(n)
             if td is None:
@@ -244,12 +312,36 @@ class ToolRegistry:
                     "function": {
                         "name": td.name,
                         "description": td.description,
-                        "parameters": (
-                            _compact_schema(td.parameters_schema)
-                            if compact
-                            else copy.deepcopy(td.parameters_schema)
-                        ),
+                        "parameters": _compact_schema(td.parameters_schema),
                     },
                 }
             )
-        return result
+
+        frozen = _deep_freeze(result)
+        canonical = json.dumps(
+            result,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        self._declarations_cache[cache_key] = (frozen, canonical)
+        return cast(tuple[dict[str, Any], ...], frozen)
+
+    def declarations_json(
+        self,
+        names: list[str],
+        *,
+        strict: bool = False,
+    ) -> str:
+        """Return the canonical JSON serialization of tool declarations.
+
+        Sorted keys, compact separators ``(",",":")``.  The returned
+        string is byte-identical across calls with the same *names*,
+        which is the foundation for provider-side prefix caching.
+        """
+        cache_key = (tuple(names), strict)
+        cached = self._declarations_cache.get(cache_key)
+        if cached is not None:
+            return cached[1]
+        # Populate the cache via declarations() and then retrieve.
+        self.declarations(names, strict=strict)
+        return self._declarations_cache[cache_key][1]

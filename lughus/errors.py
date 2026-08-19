@@ -5,6 +5,7 @@ from __future__ import annotations
 __all__ = [
     "ApprovalRequired",
     "ApprovalRequiredGroup",
+    "ContextBudgetExceeded",
     "LLMResponseError",
     "LoopLimitError",
     "LughusError",
@@ -23,13 +24,23 @@ class LughusError(Exception):
 class ToolValidationError(LughusError):
     """A tool schema, argument payload, or output failed validation."""
 
+    retryable: bool = True
+
 
 class ToolExecutionError(LughusError):
     """A tool raised an exception during execution."""
 
+    retryable: bool = False
+
 
 class ToolTimeoutError(ToolExecutionError):
     """A tool exceeded its configured timeout."""
+
+    retryable: bool = True
+
+
+class ContextBudgetExceeded(LughusError):
+    """A single atomic message group exceeds the entire context token budget."""
 
 
 class LoopLimitError(LughusError, RuntimeError):
@@ -88,7 +99,7 @@ class RunSuspended(LughusError):
 class IdempotencyCapacityError(LughusError):
     """The receipt store is saturated with non-expired in-flight attempts.
 
-    W1-04 / N-02. Distinct from a bare RuntimeError so callers can catch it, and
+    Distinct from a bare RuntimeError so callers can catch it, and
     distinct from "the store is full of old receipts", which is now handled by
     eviction instead of by refusing work.
     """

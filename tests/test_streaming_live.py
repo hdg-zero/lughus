@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from lughus import ToolRegistry
-from lughus.loop import LoopResult, StreamingMode, agent_loop_stream
+from lughus.loop import LoopResult, StreamChunk, StreamingMode, agent_loop_stream
 from lughus.testing import MockStreamingLLM
 
 
@@ -45,9 +45,12 @@ async def test_live_streaming_yields_chunks_immediately(registry: ToolRegistry) 
     ):
         chunks.append(chunk)
 
-    # 2 text chunks ('Hello', ' world') + 1 final LoopResult
+    # 2 provisional StreamChunks ('Hello', ' world') + 1 final LoopResult
     assert len(chunks) == 3
-    assert chunks[:2] == ["Hello", " world"]
+    assert isinstance(chunks[0], StreamChunk)
+    assert isinstance(chunks[1], StreamChunk)
+    assert chunks[0] == StreamChunk(content="Hello")
+    assert chunks[1] == StreamChunk(content=" world")
     assert isinstance(chunks[2], LoopResult)
     assert str(chunks[2]) == "Hello world"
 
@@ -67,7 +70,8 @@ async def test_live_at_most_once_alias(registry: ToolRegistry) -> None:
         chunks.append(chunk)
 
     assert len(chunks) == 3
-    assert chunks[:2] == ["Live", " stream"]
+    assert chunks[0] == StreamChunk(content="Live")
+    assert chunks[1] == StreamChunk(content=" stream")
     assert isinstance(chunks[2], LoopResult)
 
 
@@ -108,4 +112,4 @@ async def test_live_mode_no_retry_after_first_emitted_chunk(registry: ToolRegist
             emitted.append(chunk)
 
     # First chunk was yielded before exception, no duplicate retries
-    assert emitted == ["Partial text"]
+    assert emitted == [StreamChunk(content="Partial text")]

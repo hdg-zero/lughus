@@ -1,6 +1,6 @@
-"""W1-04: receipt expiry by status, graceful eviction, wall-clock timestamps.
+"""receipt expiry by status, graceful eviction, wall-clock timestamps.
 
-Three interlocking defects (F-13 / C-05 / N-02):
+Three interlocking defects:
 
 * ``_is_expired`` only ever returned True for PENDING, so COMPLETED, FAILED and
   OUTCOME_UNKNOWN receipts never expired;
@@ -124,11 +124,11 @@ async def test_expired_pending_is_reclaimable() -> None:
     )
 
 
-# ── N-02: the store must not deadlock itself ──────────────────────────────────
+# ── the store must not deadlock itself ──────────────────────────────────
 
 
 async def test_store_keeps_accepting_work_when_full_of_terminal_receipts() -> None:
-    """The regression test for N-02.
+    """Regression test: the store keeps accepting work when full of terminal receipts.
 
     On 0.10.1 this raises RuntimeError("Idempotency store capacity reached") and
     every subsequent idempotent tool execution fails for the life of the process.

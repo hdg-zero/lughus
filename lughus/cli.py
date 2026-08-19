@@ -252,7 +252,6 @@ class {class_prefix}Gateway(BaseGateway):
             max_tool_args_chars=self.settings.max_tool_args_chars,
             max_tool_output_chars=self.settings.max_tool_output_chars,
             max_message_history_chars=self.settings.max_message_history_chars,
-            compact_tool_schemas=self.settings.compact_tool_schemas,
         )
         workspace = Workspace(objective, self.llm, tool_config)
         async for event in workspace.run():

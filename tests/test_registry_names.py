@@ -1,4 +1,4 @@
-"""W1-12: the registry exposes its tool names publicly."""
+"""the registry exposes its tool names publicly."""
 
 from __future__ import annotations
 

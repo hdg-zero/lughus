@@ -17,7 +17,7 @@ from .errors import ToolTimeoutError
 class _LockEntry:
     """A resource lock plus the number of tasks currently interested in it.
 
-    W1-05 / F-17. ``_resource_locks`` used ``setdefault`` and never removed an
+    ``_resource_locks`` used ``setdefault`` and never removed an
     entry, so the dict grew with every distinct resource key ever seen -- and keys
     are derived from tool arguments (``f"{name}:{tool.resource_key(args)}"``),
     i.e. potentially from model-controlled data. Reference counting bounds the dict
@@ -124,7 +124,7 @@ class ExecutionRuntime:
     async def close(self, *, wait: bool = True) -> None:
         """Shut the thread pool down. Idempotent.
 
-        W1-05 / N-09: ``wait`` used to be ignored -- ``shutdown(wait=False)`` ran
+        ``wait`` used to be ignored -- ``shutdown(wait=False)`` ran
         whatever the caller asked, so ``await runtime.close(wait=True)`` could
         return while synchronous tools were still executing side effects.
 

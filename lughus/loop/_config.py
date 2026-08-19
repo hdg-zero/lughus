@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..approval import ApprovalStore
+    from ..artifacts import ArtifactStore
     from ..idempotency import IdempotencyStore
     from ..policy import Principal, ToolPolicy
     from ..runtime import ExecutionRuntime
@@ -24,7 +25,9 @@ DEFAULT_MAX_TOOL_ARGS_CHARS = 20_000
 DEFAULT_MAX_TOOL_OUTPUT_CHARS = 8_192
 DEFAULT_MAX_SYNC_THREAD_WORKERS = 32
 DEFAULT_MAX_MESSAGE_HISTORY_CHARS = 200_000
+DEFAULT_MAX_CONTEXT_TOKENS = 8_192
 DEFAULT_TOOL_QUEUE_TIMEOUT = 30.0
+DEFAULT_ARTIFACT_PROJECTION_THRESHOLD = 4096
 
 
 @dataclass(frozen=True)
@@ -48,9 +51,9 @@ class ToolExecutionConfig:
     max_tool_args_chars: int = DEFAULT_MAX_TOOL_ARGS_CHARS
     max_tool_output_chars: int = DEFAULT_MAX_TOOL_OUTPUT_CHARS
     max_message_history_chars: int = DEFAULT_MAX_MESSAGE_HISTORY_CHARS
+    max_context_tokens: int = DEFAULT_MAX_CONTEXT_TOKENS
     tool_queue_timeout: float | None = DEFAULT_TOOL_QUEUE_TIMEOUT
-    compact_tool_schemas: bool = False
-    # W1-02 / R5: stays None. A configuration is a value and must never allocate
+    # Stays None. A configuration is a value and must never allocate
     # a system resource -- __post_init__ used to build an ExecutionRuntime here,
     # so merely constructing a config spawned 32 threads that nothing closed.
     # agent_loop()/agent_loop_stream() now create and close a runtime when this is
@@ -62,6 +65,9 @@ class ToolExecutionConfig:
     idempotency_store: IdempotencyStore | None = field(default=None, repr=False, compare=False)
     budget: Any = field(default=None, repr=False, compare=False)
     run_id: str = "untracked"
+    artifact_projection: bool = False
+    artifact_projection_threshold: int = DEFAULT_ARTIFACT_PROJECTION_THRESHOLD
+    artifact_store: ArtifactStore | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         positive = {
@@ -69,6 +75,7 @@ class ToolExecutionConfig:
             "max_tool_args_chars": self.max_tool_args_chars,
             "max_tool_output_chars": self.max_tool_output_chars,
             "max_message_history_chars": self.max_message_history_chars,
+            "max_context_tokens": self.max_context_tokens,
         }
         invalid = [name for name, value in positive.items() if value <= 0]
         if invalid:

@@ -6,6 +6,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-08-19
+
+### Added
+- **Benchmark harness** (`benchmarks/`) with four scenarios (short, long, large_outputs, many_tools), no-network replay provider, JSON output, and baseline.
+- **Incremental history** — `MessageHistory` class extends messages in place with a read-only view instead of rebuilding each turn, eliminating O(n²) allocation growth.
+- **Precalculated frozen tool declarations** — `declarations()` returns memoized, frozen tuples with canonical JSON serialization; deepcopy removed.
+- **Token-based context budget** — `max_context_tokens` replaces character counting; atomic groups prevent tool_call/tool_result split during pruning; `ContextBudgetExceeded` error for oversized groups.
+- **Stable prefix and provider caching** — byte-identical prefix guaranteed across turns; cache hit/creation metrics forwarded to OTel counters; `prefix_reuse_pct` benchmark metric.
+- **Artifact projection** (behind `artifact_projection=False` flag) — large tool outputs stored as artifacts with short reference + summary in history; `fetch_artifact` built-in tool for model retrieval.
+- **TaskGroup for parallel tool execution** — `asyncio.gather` replaced with `asyncio.TaskGroup` for proper cancellation on failure.
+- **Provisional and final stream chunks** — `StreamChunk` dataclass distinguishes provisional content from final `LoopResult`.
+- **Tool result contract** — uniform JSON envelope (`ok`/`error`/`retryable`/`fix`), truncation declaration, anti-leak sanitization of error messages.
+
+### Changed
+- **Import time optimized** — heavy dependencies (jsonschema, opentelemetry, asyncio) lazy-loaded; `import lughus` under 100ms.
+- Tool schemas always compacted (option removed).
+
+### Removed
+- `compact_tool_schemas` option from `ToolExecutionConfig` and `BaseSettings`.
+
 ## [0.11.0] — 2026-08-18
 
 Governance contracts and integrity wave. **Breaking changes** — this is a beta
@@ -14,46 +34,45 @@ approval error handling.
 
 ### Added
 
-- **Approval suspends run** (W2-05). `ApprovalRequired`, `ApprovalRequiredGroup`,
+- **Approval suspends run**. `ApprovalRequired`, `ApprovalRequiredGroup`,
   and `RunSuspended` exceptions derive from `LughusError` (not
   `ToolExecutionError`). The model never sees "approval_required" in tool results;
   the governed runner transitions to `WAITING` and raises `RunSuspended`.
-- **Real context_items injection** (W2-06). `GovernedAgentRunner.run()` now renders
+- **Real context_items injection**. `GovernedAgentRunner.run()` now renders
   context items as `<context>` XML-tagged user messages, sorted by `(trust, id)`
   for deterministic prefix stability. Removes the `NotImplementedError` guard.
-- **Honest concurrency modes** (W2-10). `ConcurrencyMode` enum: `PARALLEL_SAFE`
+- **Honest concurrency modes**. `ConcurrencyMode` enum: `PARALLEL_SAFE`
   (new default), `SERIAL_PER_TOOL`, `SERIAL_PER_RESOURCE`, `GLOBAL_EXCLUSIVE`.
-- **Generation parameters** (W2-11). `LLM(params=...)` spreads user-supplied
+- **Generation parameters**. `LLM(params=...)` spreads user-supplied
   parameters into provider calls, with reserved-key validation.
-- **Cost in integer micros** (W2-12). `estimated_cost_micros` is now `int`,
+- **Cost in integer micros**. `estimated_cost_micros` is now `int`,
   `BudgetLedger` settles idempotently on aborted streams.
-- **CI collect gate** (W2-14). Differential test scanning and collection gate.
-- **AllowAllPolicy** (W2-07). Governed vertical slice with tool event persistence,
+- **CI collect gate**. Differential test scanning and collection gate.
+- **AllowAllPolicy**. Governed vertical slice with tool event persistence,
   sequence integrity, and checkpoint tests.
-- **MCPAdapter governance bypass fix** (W2-08). Schema fingerprinting prevents
+- **MCPAdapter governance bypass fix**. Schema fingerprinting prevents
   tool schema drift between refresh and invocation.
-- **Governance order integration tests** (W2-03). Seven tests verifying the
+- **Governance order integration tests**. Seven tests verifying the
   eight-step governance pipeline order.
-- **Single clock audit** (W2-15). All timestamps use a single injectable clock.
+- **Single clock audit**. All timestamps use a single injectable clock.
 
 ### Changed
 
-- **Tightened defaults** (W2-09). `max_iterations` 50→12, `tool_timeout` None→30s,
+- **Tightened defaults**. `max_iterations` 50→12, `tool_timeout` None→30s,
   `max_tool_output_chars` 20000→8192, `max_parallel_tools` 8→4.
-- **Single retry layer** (W2-02). Stream-level retry removed; only LLM-level retry
+- **Single retry layer**. Stream-level retry removed; only LLM-level retry
   via `retry_max_elapsed=60s` remains. Mid-stream errors propagate.
-- **Capacity options removed from ToolExecutionConfig** (W2-13). `max_global_tools`
+- **Capacity options removed from ToolExecutionConfig**. `max_global_tools`
   and `max_sync_thread_workers` are runtime-level constants, not per-loop config.
 
 ## [0.10.2] — 2026-08-17
 
 Correctness and packaging release. **No breaking API change**: it can be adopted
-without any migration. Derived from the 0.10.1 audit and counter-audit; each item
-names the finding it closes and the ticket that implements it.
+without any migration. Derived from the 0.10.1 audit and counter-audit.
 
 ### Fixed
 
-- **`pip install lughus` produced an unusable package** (N-01, P0, W1-01). The core
+- **`pip install lughus` produced an unusable package**. The core
   eagerly imported `opentelemetry.sdk` (via `telemetry.py`, reached from `llm.py`
   and `loop/_execute.py`), `a2a` (via `gateway.py`) and `starlette`/`uvicorn` (via
   `server.py`) — all optional extras. `opentelemetry-api` is now a base dependency
@@ -61,40 +80,40 @@ names the finding it closes and the ticket that implements it.
   SDK imports moved inside `setup_telemetry()`, and `.gateway`/`.server` resolve
   lazily. Accessing an unavailable symbol now raises `ImportError` naming the extra
   to install.
-- **The idempotency store saturated permanently** (N-02, P0, W1-04). `_is_expired`
+- **The idempotency store saturated permanently**. `_is_expired`
   only ever returned `True` for `PENDING`, so terminal receipts never expired; once
   10 000 had accumulated, every idempotent tool execution failed for the remaining
   life of the process. Receipts now have two TTLs (`pending_ttl_seconds` for
   orphaned in-flight attempts, `ttl_seconds` for terminal receipts), saturation
   evicts the oldest terminal receipt instead of refusing work, and
   `IdempotencyCapacityError` replaces the bare `RuntimeError`.
-- **Constructing a `ToolExecutionConfig` leaked 32 threads** (F-05, N-03, W1-02).
+- **Constructing a `ToolExecutionConfig` leaked 32 threads**.
   `__post_init__` allocated an `ExecutionRuntime`, and nothing ever closed it.
   Configuration is now inert; `agent_loop`/`agent_loop_stream` own and close the
   runtime they create, and never close an injected one.
-- **`max_global_tools` and `max_sync_thread_workers` had no effect** (N-10, W1-03).
+- **`max_global_tools` and `max_sync_thread_workers` had no effect**.
   The implicit runtime was built with `RuntimeConfig()` defaults. They are now
   derived from the configuration, and a conflict with an injected runtime raises
   `ValueError` instead of being ignored.
-- **`ExecutionRuntime.close(wait=True)` did not wait** (N-09, W1-05). `wait` was
+- **`ExecutionRuntime.close(wait=True)` did not wait**. `wait` was
   ignored, so `close(wait=True)` could return while synchronous tools were still
   producing side effects.
-- **Resource locks accumulated without bound** (F-17, W1-05). `resource_slot` never
+- **Resource locks accumulated without bound**. `resource_slot` never
   removed an entry, and keys derive from tool arguments — i.e. from potentially
   model-controlled data. Now reference-counted.
-- **`InMemoryEventSink._last_sequence` grew forever** (N-04, W1-06). The event
+- **`InMemoryEventSink._last_sequence` grew forever**. The event
   buffer was bounded; the per-run sequence tracker was not.
-- **`ApprovalRequest` transitions were rebuilt from nine positional arguments**
-  (N-13, W1-11). Adding or reordering a field would have silently shifted values on
+- **`ApprovalRequest` transitions were rebuilt from nine positional arguments**.
+  Adding or reordering a field would have silently shifted values on
   a tamper-evident record. Now `dataclasses.replace()`.
-- **`InMemoryApprovalStore` was unbounded** (W1-11). Bounded, evicting terminal
+- **`InMemoryApprovalStore` was unbounded**. Bounded, evicting terminal
   requests only; a live pending decision is never dropped silently.
-- **`context_items` was accepted and silently discarded** (F-04, W1-14). It now
+- **`context_items` was accepted and silently discarded**. It now
   raises `NotImplementedError` pending full support in 0.11.0.
   A silent lie is worse than a loud gap.
-- **`registry._tools` was accessed privately by the framework itself** (W1-12).
+- **`registry._tools` was accessed privately by the framework itself**.
   `ToolRegistry.names()`, `__contains__` and `__len__` added.
-- **Mypy targeted 3.12 while `requires-python` is `>=3.11`** (N-17, W1-10), so the
+- **Mypy targeted 3.12 while `requires-python` is `>=3.11`**, so the
   lowest supported interpreter was never type-checked.
 
 ### Added
@@ -105,16 +124,15 @@ names the finding it closes and the ticket that implements it.
 - `lughus.idempotency.evictions` counter (`reason=expired|capacity`). Eviction
   weakens the exactly-once guarantee, so it must be observable.
 - Eleven strict `Fake*` dataclasses in `lughus.testing`, exported: they are the
-  executable specification of the provider response shape Lughus expects (W1-13).
+  executable specification of the provider response shape Lughus expects.
 - CI jobs `dist`, `dist-core` and `extras`: the distribution is built, installed in
-  a base-dependency-only environment, imported, and functionally smoke-tested
-  (N-07, W1-08). This is the control whose absence let N-01 ship.
+  a base-dependency-only environment, imported, and functionally smoke-tested.
 - `docs/architecture/ADR-010-core-import-surface.md`,
   `docs/architecture/ADR-013-runtime-ownership.md`, `docs/guides/release.md`.
 
 ### Changed
 
-- `lughus.testing` no longer uses `MagicMock` (N-14, W1-13). A `MagicMock` answers
+- `lughus.testing` no longer uses `MagicMock`. A `MagicMock` answers
   every attribute access, so the doubles could not fail — the root cause of a
   261-test suite missing a P0. Response shapes are now strict frozen dataclasses;
   a misspelled attribute raises `AttributeError`.
@@ -125,12 +143,12 @@ names the finding it closes and the ticket that implements it.
   stays in CI. A hook slow enough to be bypassed protects nothing.
 - `publish.yml`: verification before publication, protected `pypi` environment,
   tag/version guard, every action pinned by SHA, and the published artefact is the
-  one CI tested (N-06, F-19, W1-09).
+  one CI tested.
 
 ### Removed
 
-- `orjson` from the base dependencies: it was declared and never imported (N-05,
-  W1-07). **Run `uv lock` before merging** — the lockfile still pins it and could
+- `orjson` from the base dependencies: it was declared and never imported.
+  **Run `uv lock` before merging** — the lockfile still pins it and could
   not be regenerated offline. `uv lock --check` fails until then, deliberately.
 
 ### Deprecated
@@ -139,12 +157,12 @@ names the finding it closes and the ticket that implements it.
 
 ### Known gaps, shipping in 0.11.0
 
-- `BudgetedLLM` + streaming still raises `TypeError` (F-02): the `astream` contract
+- `BudgetedLLM` + streaming still raises `TypeError`: the `astream` contract
   fix is a breaking change and belongs in a minor release.
 - `context_items` raises instead of being injected.
-- Approval is still consumed before the tool dispatches (F-12), approval
+- Approval is still consumed before the tool dispatches, approval
   expiry is still not enforced, and a missing approval is still returned to
-  the model as a tool error rather than suspending the run (N-16).
+  the model as a tool error rather than suspending the run.
 
 
 ## [0.10.1] — 2026-08-03
@@ -275,7 +293,7 @@ names the finding it closes and the ticket that implements it.
 - Added context selection and provenance management (`lughus.context`): `ContextManager`, `ContextItem`, `ContextWindow`, and `TrustLevel`.
 - Added safe resume decision engine (`lughus.resume`): `decide_resume`, `ResumeAction`, and `ResumeDecision`.
 - Added architecture contracts and ADR documentation: `docs/architecture/ADR-006-persistence.md`, `docs/contracts/budgets.md`, and `docs/contracts/context.md`.
-- Added unit test suite for Wave 4 durability and budget features (`tests/test_durability_budget_v4.py`).
+- Added unit test suite for durability and budget features (`tests/test_durability_budget_v4.py`).
 
 ### Fixed
 
