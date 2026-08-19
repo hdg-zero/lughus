@@ -32,3 +32,5 @@ async def test_scenario_metrics_are_positive(name: str) -> None:
     assert result["wall_time_s"] >= 0
     assert result["cpu_time_s"] >= 0
     assert result["prefix_size_bytes"] > 0
+    # W3-04: prefix must be 100% reused across all turns.
+    assert result["prefix_reuse_pct"] == 100.0

@@ -22,6 +22,35 @@ def _measure_prefix(system: str, context: str) -> int:
     return len(system.encode("utf-8")) + len(context.encode("utf-8"))
 
 
+def _compute_prefix_reuse(llm: Any) -> float:
+    """Return the percentage of turns whose prefix was byte-identical to turn 1.
+
+    W3-04: measures prefix stability across LLM calls.  The prefix is the
+    first two messages (system + user objective) for benchmark scenarios that
+    do not use context_items.
+    """
+    calls = getattr(llm, "calls", None)
+    if not calls or len(calls) < 2:
+        return 100.0
+
+    prefix_len = 2  # system + user objective (no context_items in benchmarks)
+    first_prefix = json.dumps(
+        calls[0]["messages"][:prefix_len],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    matching = 1  # turn 1 matches itself
+    for call in calls[1:]:
+        prefix = json.dumps(
+            call["messages"][:prefix_len],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        if prefix == first_prefix:
+            matching += 1
+    return round(100.0 * matching / len(calls), 1)
+
+
 async def _run_scenario(
     name: str,
     llm: Any,
@@ -50,6 +79,9 @@ async def _run_scenario(
     wall_end = time.perf_counter()
     cpu_end = time.process_time()
 
+    # W3-04: measure prefix reuse across turns.
+    prefix_reuse_pct = _compute_prefix_reuse(llm)
+
     return {
         "scenario": name,
         "tokens_in": result.prompt_tokens,
@@ -58,6 +90,7 @@ async def _run_scenario(
         "wall_time_s": round(wall_end - wall_start, 6),
         "cpu_time_s": round(cpu_end - cpu_start, 6),
         "prefix_size_bytes": prefix_size_bytes,
+        "prefix_reuse_pct": prefix_reuse_pct,
     }
 
 
@@ -163,5 +196,5 @@ ALL_SCENARIOS = {
 
 EXPECTED_METRIC_KEYS = frozenset(
     ["scenario", "tokens_in", "tokens_out", "provider_calls",
-     "wall_time_s", "cpu_time_s", "prefix_size_bytes"]
+     "wall_time_s", "cpu_time_s", "prefix_size_bytes", "prefix_reuse_pct"]
 )

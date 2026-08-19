@@ -52,6 +52,15 @@ _tool_errors = meter.create_counter(
     "lughus.tool.errors",
     description="Tool execution errors",
 )
+# W3-04: cache-specific counters for provider prefix caching visibility.
+_cache_read_counter = meter.create_counter(
+    "lughus.loop.cache_read_tokens",
+    description="Cache-read input tokens reported by the LLM provider",
+)
+_cache_creation_counter = meter.create_counter(
+    "lughus.loop.cache_creation_tokens",
+    description="Cache-creation input tokens reported by the LLM provider",
+)
 
 _tool_event_sink: contextvars.ContextVar[Callable[[dict[str, Any]], None] | None] = (
     contextvars.ContextVar("lughus_tool_event_sink", default=None)
@@ -77,7 +86,12 @@ def _extract_usage(usage: Any) -> tuple[int, int, int]:
 
 
 def _record_llm_usage(span: Any, usage: Any, model: str) -> tuple[int, int, int]:
-    """Extract usage from an LLM response and record on span + metrics."""
+    """Extract usage from an LLM response and record on span + metrics.
+
+    W3-04: also records ``lughus.loop.cache_read_tokens`` and
+    ``lughus.loop.cache_creation_tokens`` counters and sets corresponding
+    span attributes when the provider reports cache-related fields.
+    """
     p, c, ca = _extract_usage(usage)
     span.set_attribute("gen_ai.usage.prompt_tokens", p)
     span.set_attribute("gen_ai.usage.completion_tokens", c)
@@ -88,6 +102,14 @@ def _record_llm_usage(span: Any, usage: Any, model: str) -> tuple[int, int, int]
     _token_counter.add(c, {**attrs, "token.type": "completion"})
     if ca:
         _token_counter.add(ca, {**attrs, "token.type": "cached"})
+    # W3-04: cache-specific telemetry
+    if ca:
+        _cache_read_counter.add(ca, attrs)
+        span.set_attribute("gen_ai.usage.cache_read_input_tokens", ca)
+    cache_creation = _usage_get(usage, "cache_creation_input_tokens", 0) or 0
+    if cache_creation:
+        _cache_creation_counter.add(cache_creation, attrs)
+        span.set_attribute("gen_ai.usage.cache_creation_input_tokens", cache_creation)
     return p, c, ca
 
 

@@ -52,12 +52,16 @@ class FakeUsage:
     ``cache_read_input_tokens`` is exposed under both its plain name and the
     underscore-prefixed alias ``_cache_read_input_tokens`` that Anthropic-style
     payloads use and that ``_extract_usage`` reads.
+
+    W3-04: ``cache_creation_input_tokens`` mirrors the Anthropic field that
+    reports how many tokens were written to the provider-side prompt cache.
     """
 
     prompt_tokens: int = 10
     completion_tokens: int = 5
     prompt_tokens_details: FakePromptTokensDetails | None = None
     cache_read_input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
 
     @property
     def _cache_read_input_tokens(self) -> int:
