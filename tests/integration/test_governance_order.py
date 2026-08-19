@@ -287,7 +287,7 @@ async def test_approval_not_consumed_when_slot_timeout():
         )
         data = json.loads(results[0][1])
         assert "error" in data
-        assert data["error_code"] == "ToolTimeoutError"
+        assert data["error"] == "ToolTimeoutError"
     finally:
         release.set()
         await asyncio.wait_for(blocker_task, timeout=2.0)
@@ -335,7 +335,9 @@ async def test_approval_consumed_on_successful_dispatch():
             state=None,
             config=cfg,
         )
-        assert json.loads(results[0][1]) == {"result": "ok"}
+        data = json.loads(results[0][1])
+        assert data["ok"] is True
+        assert data["result"] == {"result": "ok"}
     finally:
         await cfg.runtime.close()
 
@@ -503,13 +505,13 @@ async def test_completed_receipt_replayed_without_new_approval():
 
     idem_store = InMemoryIdempotencyStore()
 
-    # Write a COMPLETED receipt directly
+    # Write a COMPLETED receipt directly (wrapped in the tool-result envelope)
     key = IdempotencyKey.from_args(RUN_ID, "replay_tool", {})
     await idem_store.save(
         ExecutionAttempt(
             key=key,
             status=AttemptStatus.COMPLETED,
-            result=json.dumps({"replayed": True}),
+            result=json.dumps({"ok": True, "result": {"replayed": True}}),
         )
     )
 
@@ -526,7 +528,9 @@ async def test_completed_receipt_replayed_without_new_approval():
             state=None,
             config=cfg_allow,
         )
-        assert json.loads(results[0][1]) == {"replayed": True}
+        data = json.loads(results[0][1])
+        assert data["ok"] is True
+        assert data["result"] == {"replayed": True}
     finally:
         await cfg_allow.runtime.close()
 

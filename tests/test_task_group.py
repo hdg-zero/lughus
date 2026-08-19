@@ -108,11 +108,12 @@ async def test_failure_cancels_remaining_tasks() -> None:
     # _run_unbounded), while the slow tool runs to completion.
     assert len(results) == 2
     crash_output = json.loads(results[0][1])
-    assert "error" in crash_output
-    assert crash_output["error_code"] == "ToolExecutionError"
+    assert crash_output["ok"] is False
+    assert crash_output["error"] == "ToolExecutionError"
 
     slow_output = json.loads(results[1][1])
-    assert slow_output == {"done": True}
+    assert slow_output["ok"] is True
+    assert slow_output["result"] == {"done": True}
     assert side_effects == ["completed"]
 
 
@@ -207,7 +208,9 @@ async def test_normal_parallel_execution() -> None:
     assert len(results) == 5
     for idx, (tc_id, output) in enumerate(results):
         assert tc_id == f"call_{idx}"
-        assert json.loads(output) == {"result": idx + 10}
+        data = json.loads(output)
+        assert data["ok"] is True
+        assert data["result"] == {"result": idx + 10}
 
     # 5 tools * 10ms each: ~10ms parallel, not ~50ms sequential
     assert elapsed < 0.15, f"Expected parallel execution but took {elapsed:.3f}s"

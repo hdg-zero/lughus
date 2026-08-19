@@ -353,7 +353,9 @@ async def test_tool_can_return_dict(registry: ToolRegistry) -> None:
     )
 
     tool_messages = [m for m in llm.calls[-1]["messages"] if m["role"] == "tool"]
-    assert json.loads(tool_messages[0]["content"]) == {"ok": True}
+    data = json.loads(tool_messages[0]["content"])
+    assert data["ok"] is True
+    assert data["result"] == {"ok": True}
 
 
 @pytest.mark.asyncio

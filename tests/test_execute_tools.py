@@ -116,7 +116,9 @@ async def test_sync_tool_executes(registry_with_tools) -> None:
     assert len(results) == 1
     tc_id, output = results[0]
     assert tc_id == "call_1"
-    assert json.loads(output) == {"result": "HELLO"}
+    data = json.loads(output)
+    assert data["ok"] is True
+    assert data["result"] == {"result": "HELLO"}
 
 
 @pytest.mark.asyncio
@@ -142,7 +144,9 @@ async def test_tool_events_are_collected(registry_with_tools) -> None:
     assert events[1]["tool_call_id"] == "call_1"
     assert events[1]["tool_name"] == "sync_tool"
     assert events[1]["status"] == "ok"
-    assert json.loads(events[1]["output"]) == {"result": "HELLO"}
+    evt_data = json.loads(events[1]["output"])
+    assert evt_data["ok"] is True
+    assert evt_data["result"] == {"result": "HELLO"}
     assert events[1]["elapsed_ms"] >= 0
 
 
@@ -156,7 +160,9 @@ async def test_async_tool_executes(registry_with_tools) -> None:
         state=None,
     )
     _, output = results[0]
-    assert json.loads(output) == {"result": 42}
+    data = json.loads(output)
+    assert data["ok"] is True
+    assert data["result"] == {"result": 42}
 
 
 @pytest.mark.asyncio
@@ -170,9 +176,11 @@ async def test_unknown_tool_returns_error_json(registry_with_tools) -> None:
     )
     _, output = results[0]
     data = json.loads(output)
-    assert "error" in data
-    assert data["error_code"] == "ToolValidationError"
-    assert "no_such_tool" in data["error"]
+    assert data["ok"] is False
+    assert data["error"] == "ToolValidationError"
+    assert "no_such_tool" in data["message"]
+    assert data["retryable"] is True
+    assert "fix" in data
 
 
 @pytest.mark.asyncio
@@ -186,9 +194,11 @@ async def test_failing_tool_returns_error_json(registry_with_tools) -> None:
     )
     _, output = results[0]
     data = json.loads(output)
-    assert "error" in data
-    assert data["error_code"] == "ToolExecutionError"
-    assert data["error"] == "Tool execution failed"
+    assert data["ok"] is False
+    assert data["error"] == "ToolExecutionError"
+    assert data["message"] == "Tool execution failed"
+    assert data["retryable"] is False
+    assert data["fix"] == "Try an alternative approach"
 
 
 @pytest.mark.asyncio
@@ -217,7 +227,9 @@ async def test_empty_args_handled(registry_with_tools) -> None:
         state=None,
     )
     _, output = results[0]
-    assert json.loads(output) == {"slow": True}
+    data = json.loads(output)
+    assert data["ok"] is True
+    assert data["result"] == {"slow": True}
 
 
 @pytest.mark.asyncio
@@ -244,7 +256,9 @@ async def test_sync_blocking_tool_does_not_block_event_loop() -> None:
 
     assert len(results) == n
     for _, output in results:
-        assert json.loads(output) == {"done": True}
+        data = json.loads(output)
+        assert data["ok"] is True
+        assert data["result"] == {"done": True}
     # Must run in ~50ms (parallel), not ~150ms (sequential)
     assert elapsed < 0.25, (
         f"Expected parallel execution (~50ms) but took {elapsed:.3f}s — "
@@ -303,9 +317,10 @@ async def test_tool_timeout_returns_error_json() -> None:
     )
 
     data = json.loads(results[0][1])
-    assert "error" in data
-    assert data["error_code"] == "ToolTimeoutError"
-    assert "timed out" in data["error"]
+    assert data["ok"] is False
+    assert data["error"] == "ToolTimeoutError"
+    assert "timed out" in data["message"]
+    assert data["retryable"] is True
 
 
 @pytest.mark.asyncio
@@ -337,8 +352,10 @@ async def test_tool_args_schema_validation() -> None:
 
     data = json.loads(results[0][1])
     assert called is False
-    assert data["error_code"] == "ToolValidationError"
-    assert "Invalid arguments" in data["error"]
+    assert data["ok"] is False
+    assert data["error"] == "ToolValidationError"
+    assert "Invalid arguments" in data["message"]
+    assert data["retryable"] is True
 
 
 @pytest.mark.asyncio
@@ -358,13 +375,15 @@ async def test_tool_args_size_limit() -> None:
     )
 
     data = json.loads(results[0][1])
-    assert data["error_code"] == "ToolValidationError"
-    assert "exceed" in data["error"]
+    assert data["ok"] is False
+    assert data["error"] == "ToolValidationError"
+    assert "exceed" in data["message"]
+    assert data["retryable"] is True
 
 
 @pytest.mark.asyncio
 async def test_tool_output_size_limit() -> None:
-    """Oversized tool output is replaced with a structured error."""
+    """Oversized tool output is truncated with explicit metadata."""
     registry = ToolRegistry()
 
     @registry.tool("big", "Big output.", {"type": "object", "properties": {}})
@@ -379,8 +398,10 @@ async def test_tool_output_size_limit() -> None:
     )
 
     data = json.loads(results[0][1])
-    assert data["error_code"] == "ToolValidationError"
-    assert "Output from tool" in data["error"]
+    assert data["ok"] is True
+    assert data["truncated"] is True
+    assert data["original_bytes"] == 50
+    assert data["result"] == "x" * 10
 
 
 @pytest.mark.asyncio
@@ -447,8 +468,10 @@ async def test_global_tool_queue_timeout_returns_error_json() -> None:
     release.set()
     await asyncio.wait_for(first, timeout=2.0)
     data = json.loads(results[0][1])
-    assert data["error_code"] == "ToolTimeoutError"
-    assert "global tool slot" in data["error"]
+    assert data["ok"] is False
+    assert data["error"] == "ToolTimeoutError"
+    assert "global tool slot" in data["message"]
+    assert data["retryable"] is True
 
 
 @pytest.mark.asyncio
@@ -477,7 +500,9 @@ async def test_async_callable_tool_executes() -> None:
         state=None,
     )
 
-    assert json.loads(results[0][1]) == {"value": "ok"}
+    data = json.loads(results[0][1])
+    assert data["ok"] is True
+    assert data["result"] == {"value": "ok"}
 
 
 @pytest.mark.asyncio
@@ -508,7 +533,9 @@ async def test_async_partial_tool_executes_without_sync_worker() -> None:
         ),
     )
 
-    assert json.loads(results[0][1]) == {"value": "ok:yes"}
+    data = json.loads(results[0][1])
+    assert data["ok"] is True
+    assert data["result"] == {"value": "ok:yes"}
 
 
 @pytest.mark.asyncio

@@ -23,13 +23,19 @@ class LughusError(Exception):
 class ToolValidationError(LughusError):
     """A tool schema, argument payload, or output failed validation."""
 
+    retryable: bool = True
+
 
 class ToolExecutionError(LughusError):
     """A tool raised an exception during execution."""
 
+    retryable: bool = False
+
 
 class ToolTimeoutError(ToolExecutionError):
     """A tool exceeded its configured timeout."""
+
+    retryable: bool = True
 
 
 class LoopLimitError(LughusError, RuntimeError):

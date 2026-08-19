@@ -7,6 +7,7 @@ import functools
 import inspect
 import json
 import logging
+import re
 import time
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, Any
@@ -121,16 +122,66 @@ def _assistant_tool_message(
     return message
 
 
+_TRACEBACK_RE = re.compile(r"Traceback\b.*", re.DOTALL)
+_PATH_RE = re.compile(r"(?:[A-Za-z]:[/\\]|[/\\])[\w.\-]+(?:[/\\][\w.\-]+)+")
+_LUGHUS_RE = re.compile(r"lughus[/.][\w./]*")
+
+
+def _sanitize_message(msg: str) -> str:
+    """Strip stack traces, file paths, and internal module names from *msg*."""
+    msg = _TRACEBACK_RE.sub("", msg).strip()
+    msg = _PATH_RE.sub("<redacted>", msg)
+    msg = _LUGHUS_RE.sub("<internal>", msg)
+    return msg or "An error occurred"
+
+
+def _fix_hint(exc: Exception) -> tuple[bool, str]:
+    """Return ``(retryable, fix)`` per the tool-result error contract."""
+    if isinstance(exc, ToolTimeoutError):
+        return True, "Retry with simpler input or increase timeout"
+    if isinstance(exc, ToolValidationError):
+        return True, "Correct the arguments and retry"
+    if isinstance(exc, SafeToolError):
+        return (
+            bool(exc.retryable),
+            "Retry the operation" if exc.retryable else "Try an alternative approach",
+        )
+    if isinstance(exc, ToolExecutionError):
+        return False, "Try an alternative approach"
+    return False, "Report the error to the user"
+
+
 def _error_payload(exc: Exception) -> str:
-    """Return structured JSON error content for the LLM tool response."""
+    """Return structured JSON error envelope for the LLM tool response."""
     safe = isinstance(exc, (SafeToolError, ToolValidationError, ToolTimeoutError))
+    raw_message = str(exc) if safe else "Tool execution failed"
+    message = _sanitize_message(raw_message)
+    error_type = getattr(exc, "code", type(exc).__name__)
+    retryable, fix = _fix_hint(exc)
     return json.dumps(
         {
-            "error": str(exc) if safe else "Tool execution failed",
-            "error_code": getattr(exc, "code", type(exc).__name__),
-            "retryable": bool(getattr(exc, "retryable", False)),
+            "ok": False,
+            "error": error_type,
+            "message": message,
+            "retryable": retryable,
+            "fix": fix,
         }
     )
+
+
+def _success_payload(
+    text: str, *, truncated: bool = False, original_bytes: int = 0
+) -> str:
+    """Wrap a successful tool output in the standard JSON envelope."""
+    try:
+        parsed: Any = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        parsed = text
+    envelope: dict[str, Any] = {"ok": True, "result": parsed}
+    if truncated:
+        envelope["truncated"] = True
+        envelope["original_bytes"] = original_bytes
+    return json.dumps(envelope, ensure_ascii=False)
 
 
 def _validate_tool_args(
@@ -161,15 +212,22 @@ def _validate_tool_args(
     return args
 
 
-def _validate_tool_output(name: str, output: Any, max_tool_output_chars: int) -> str:
+def _validate_tool_output(
+    name: str, output: Any, max_tool_output_chars: int
+) -> tuple[str, bool, int]:
+    """Validate and possibly truncate tool output.
+
+    Returns ``(text, truncated, original_bytes)`` where *truncated* is ``True``
+    when the output exceeded *max_tool_output_chars* and was sliced.
+    """
     text = (
         output if isinstance(output, str) else json.dumps(output, ensure_ascii=False, default=str)
     )
+    original_bytes = len(text.encode("utf-8"))
     if max_tool_output_chars > 0 and len(text) > max_tool_output_chars:
-        raise ToolValidationError(
-            f"Output from tool '{name}' exceeds {max_tool_output_chars} characters"
-        )
-    return text
+        text = text[:max_tool_output_chars]
+        return text, True, original_bytes
+    return text, False, original_bytes
 
 
 def _message_history_chars(messages: list[dict]) -> int:
@@ -427,8 +485,11 @@ async def _execute_tools(
                             f"Tool '{name}' returned an invalid result: "
                             f"{validation_errors[0].message}"
                         )
-                output = _validate_tool_output(
+                text, truncated, original_bytes = _validate_tool_output(
                     name=name, output=output, max_tool_output_chars=cfg.max_tool_output_chars
+                )
+                output = _success_payload(
+                    text, truncated=truncated, original_bytes=original_bytes
                 )
                 if idem_key is not None and cfg.idempotency_store is not None:
                     await cfg.idempotency_store.save(
