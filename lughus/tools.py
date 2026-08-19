@@ -222,13 +222,12 @@ class ToolRegistry:
         names: list[str],
         *,
         strict: bool = False,
-        compact: bool = False,
     ) -> list[dict]:
         """Return OpenAI-format tool declarations for the given tool names.
 
         Unknown names are skipped with a WARNING log. The returned list
-        preserves the order of ``names``. When ``compact`` is true, parameter
-        schema descriptions are stripped to reduce repeated prompt tokens.
+        preserves the order of ``names``. Parameter schema descriptions are
+        always stripped to reduce repeated prompt tokens.
         """
         result = []
         for n in names:
@@ -244,11 +243,7 @@ class ToolRegistry:
                     "function": {
                         "name": td.name,
                         "description": td.description,
-                        "parameters": (
-                            _compact_schema(td.parameters_schema)
-                            if compact
-                            else copy.deepcopy(td.parameters_schema)
-                        ),
+                        "parameters": _compact_schema(td.parameters_schema),
                     },
                 }
             )

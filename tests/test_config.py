@@ -145,7 +145,6 @@ def test_settings_default_values(monkeypatch) -> None:
     assert s.max_tool_args_chars == 20_000
     assert s.max_tool_output_chars == 8_192
     assert s.max_message_history_chars == 200_000
-    assert s.compact_tool_schemas is False
 
 
 def test_settings_custom_port(monkeypatch) -> None:
@@ -203,7 +202,6 @@ def test_settings_tool_execution_limits(monkeypatch) -> None:
     monkeypatch.setenv("MAX_TOOL_ARGS_CHARS", "100")
     monkeypatch.setenv("MAX_TOOL_OUTPUT_CHARS", "200")
     monkeypatch.setenv("MAX_MESSAGE_HISTORY_CHARS", "300")
-    monkeypatch.setenv("COMPACT_TOOL_SCHEMAS", "true")
     s = BaseSettings()
     assert s.max_parallel_tools == 3
     assert s.max_global_tools == 9
@@ -213,7 +211,6 @@ def test_settings_tool_execution_limits(monkeypatch) -> None:
     assert s.max_tool_args_chars == 100
     assert s.max_tool_output_chars == 200
     assert s.max_message_history_chars == 300
-    assert s.compact_tool_schemas is True
 
 
 def test_settings_subclass(monkeypatch) -> None:

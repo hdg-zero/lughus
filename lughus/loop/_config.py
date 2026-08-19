@@ -49,7 +49,6 @@ class ToolExecutionConfig:
     max_tool_output_chars: int = DEFAULT_MAX_TOOL_OUTPUT_CHARS
     max_message_history_chars: int = DEFAULT_MAX_MESSAGE_HISTORY_CHARS
     tool_queue_timeout: float | None = DEFAULT_TOOL_QUEUE_TIMEOUT
-    compact_tool_schemas: bool = False
     # W1-02 / R5: stays None. A configuration is a value and must never allocate
     # a system resource -- __post_init__ used to build an ExecutionRuntime here,
     # so merely constructing a config spawned 32 threads that nothing closed.

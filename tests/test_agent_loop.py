@@ -245,7 +245,8 @@ async def test_usage_metadata_accumulated(registry: ToolRegistry) -> None:
 
 
 @pytest.mark.asyncio
-async def test_compact_tool_schema_removes_parameter_descriptions() -> None:
+async def test_tool_schemas_always_compacted() -> None:
+    """W3-06: declarations always strip parameter descriptions."""
     r = ToolRegistry()
 
     @r.tool(
@@ -276,7 +277,6 @@ async def test_compact_tool_schema_removes_parameter_descriptions() -> None:
         tool_names=["describe"],
         state=None,
         tool_config=ToolExecutionConfig(
-            compact_tool_schemas=True,
             runtime=_test_runtime(),
         ),
     )

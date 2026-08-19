@@ -42,7 +42,7 @@ def test_new_command_creates_agent_project(
     assert "LLM.from_settings(settings)" in main_file
     assert "tool_queue_timeout=self.settings.tool_queue_timeout" in gateway_file
     assert "max_message_history_chars=self.settings.max_message_history_chars" in gateway_file
-    assert "compact_tool_schemas=self.settings.compact_tool_schemas" in gateway_file
+    assert "compact_tool_schemas" not in gateway_file
     assert "BoundedInMemoryTaskStore" in task_store_file
     assert "from a2a.server.tasks import InMemoryTaskStore" not in task_store_file
     assert "PUBLIC_URL=" in env_file
@@ -54,7 +54,7 @@ def test_new_command_creates_agent_project(
     assert "MAX_CONCURRENT_REQUESTS=0" in env_file
     assert "MAX_QUEUE_BACKLOG=0" in env_file
     assert "TOOL_QUEUE_TIMEOUT=30" in env_file
-    assert "COMPACT_TOOL_SCHEMAS=false" in env_file
+    assert "COMPACT_TOOL_SCHEMAS" not in env_file
     assert "Created lughus agent" in capsys.readouterr().out
 
 

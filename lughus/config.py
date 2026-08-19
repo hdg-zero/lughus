@@ -197,7 +197,7 @@ class BaseSettings:
     )
 
     # Size limits that protect the LLM message history from tool payload blowups.
-    # Env: MAX_TOOL_ARGS_CHARS / MAX_TOOL_OUTPUT_CHARS / COMPACT_TOOL_SCHEMAS.
+    # Env: MAX_TOOL_ARGS_CHARS / MAX_TOOL_OUTPUT_CHARS.
     max_tool_args_chars: int = field(
         default_factory=lambda: _env_int("MAX_TOOL_ARGS_CHARS", 20_000)
     )
@@ -206,9 +206,6 @@ class BaseSettings:
     )
     max_message_history_chars: int = field(
         default_factory=lambda: _env_int("MAX_MESSAGE_HISTORY_CHARS", 200_000)
-    )
-    compact_tool_schemas: bool = field(
-        default_factory=lambda: _env_bool("COMPACT_TOOL_SCHEMAS", False)
     )
 
     cors_allow_credentials: bool = field(

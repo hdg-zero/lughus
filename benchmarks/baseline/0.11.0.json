@@ -1,0 +1,38 @@
+[
+  {
+    "scenario": "short",
+    "tokens_in": 40,
+    "tokens_out": 21,
+    "provider_calls": 3,
+    "wall_time_s": 0.002504,
+    "cpu_time_s": 0.0,
+    "prefix_size_bytes": 53
+  },
+  {
+    "scenario": "long",
+    "tokens_in": 175,
+    "tokens_out": 93,
+    "provider_calls": 12,
+    "wall_time_s": 0.002709,
+    "cpu_time_s": 0.0,
+    "prefix_size_bytes": 53
+  },
+  {
+    "scenario": "large_outputs",
+    "tokens_in": 40,
+    "tokens_out": 21,
+    "provider_calls": 3,
+    "wall_time_s": 0.000915,
+    "cpu_time_s": 0.0,
+    "prefix_size_bytes": 53
+  },
+  {
+    "scenario": "many_tools",
+    "tokens_in": 25,
+    "tokens_out": 13,
+    "provider_calls": 2,
+    "wall_time_s": 0.002207,
+    "cpu_time_s": 0.0,
+    "prefix_size_bytes": 53
+  }
+]
