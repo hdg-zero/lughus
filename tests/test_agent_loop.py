@@ -246,7 +246,7 @@ async def test_usage_metadata_accumulated(registry: ToolRegistry) -> None:
 
 @pytest.mark.asyncio
 async def test_tool_schemas_always_compacted() -> None:
-    """W3-06: declarations always strip parameter descriptions."""
+    """declarations always strip parameter descriptions."""
     r = ToolRegistry()
 
     @r.tool(

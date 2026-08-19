@@ -1,4 +1,4 @@
-"""Tests for W3-01: incremental message history with read-only view."""
+"""Tests for incremental message history with read-only view."""
 
 from __future__ import annotations
 

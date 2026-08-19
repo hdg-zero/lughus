@@ -25,7 +25,7 @@ repos:
         types: [python]
         pass_filenames: false
 
-      # W1-10: fast subset only. The full suite with coverage runs in CI.
+      # fast subset only. The full suite with coverage runs in CI.
       # A pre-commit hook slow enough to be bypassed with --no-verify protects nothing.
       - id: pytest-fast
         name: pytest (fast subset)

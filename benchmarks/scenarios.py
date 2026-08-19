@@ -25,7 +25,7 @@ def _measure_prefix(system: str, context: str) -> int:
 def _compute_prefix_reuse(llm: Any) -> float:
     """Return the percentage of turns whose prefix was byte-identical to turn 1.
 
-    W3-04: measures prefix stability across LLM calls.  The prefix is the
+    Measures prefix stability across LLM calls.  The prefix is the
     first two messages (system + user objective) for benchmark scenarios that
     do not use context_items.
     """
@@ -79,7 +79,7 @@ async def _run_scenario(
     wall_end = time.perf_counter()
     cpu_end = time.process_time()
 
-    # W3-04: measure prefix reuse across turns.
+    # measure prefix reuse across turns.
     prefix_reuse_pct = _compute_prefix_reuse(llm)
 
     return {

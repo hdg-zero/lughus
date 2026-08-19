@@ -255,12 +255,8 @@ class ToolRegistry:
     def names(self) -> tuple[str, ...]:
         """Return the registered tool names, in registration order.
 
-        W1-12: the framework itself was reaching into ``registry._tools.keys()``
-        (application.py). When the core violates its own encapsulation, users will
-        too -- and the signal sent is "an API is missing, help yourself".
-
         Deliberately NOT added: describe(), filter_by_risk(), groups(), iteration
-        over ToolDef. No demonstrated need today (R4/R9).
+        over ToolDef. No demonstrated need today.
         """
         return tuple(self._tools)
 

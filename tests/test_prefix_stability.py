@@ -1,4 +1,4 @@
-"""W3-04: stable prefix guarantee — byte-identical across turns.
+"""stable prefix guarantee — byte-identical across turns.
 
 Verifies that the cacheable prefix (system + context items + user objective)
 and the frozen tool declarations remain byte-identical across every LLM call

@@ -106,7 +106,7 @@ from .replay import REPLAY_SCHEMA_VERSION, RecordedCall, ReplayBundle, ReplayCap
 #
 #   name -> (module, extra that provides its dependencies or None for base deps)
 #
-# Reasons to defer (W1-01 / W3-09):
+# Reasons to defer:
 #   * .llm pulls in litellm (very heavy);
 #   * .gateway / .server need the optional `server` extra;
 #   * .tools and .loop pull in jsonschema;

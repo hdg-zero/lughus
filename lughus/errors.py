@@ -99,7 +99,7 @@ class RunSuspended(LughusError):
 class IdempotencyCapacityError(LughusError):
     """The receipt store is saturated with non-expired in-flight attempts.
 
-    W1-04 / N-02. Distinct from a bare RuntimeError so callers can catch it, and
+    Distinct from a bare RuntimeError so callers can catch it, and
     distinct from "the store is full of old receipts", which is now handled by
     eviction instead of by refusing work.
     """

@@ -88,7 +88,7 @@ TERMINAL_APPROVAL_STATUSES = frozenset(
 class InMemoryApprovalStore:
     """In-memory reference implementation of ApprovalStore.
 
-    Bounded (W1-11): the store used to keep every request for the life of the
+    Bounded: the store used to keep every request for the life of the
     process. Only *terminal* requests are ever evicted; a PENDING or APPROVED
     request is a live decision and is never dropped silently. If only live requests
     remain, creation fails loudly rather than losing one.
@@ -149,7 +149,7 @@ class InMemoryApprovalStore:
             raise ValueError("Approval request is already terminal")
         if status not in {ApprovalStatus.APPROVED, ApprovalStatus.REJECTED}:
             raise ValueError("Decision must approve or reject")
-        # W1-11 / N-13: dataclasses.replace() instead of re-listing nine positional
+        # dataclasses.replace() instead of re-listing nine positional
         # arguments. The previous form broke -- or worse, silently shifted values --
         # the moment a field was added or reordered, on an object whose entire
         # purpose is to be a tamper-evident record.

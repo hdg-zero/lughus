@@ -7,7 +7,7 @@ Sort order ``(trust, id)`` is deterministic — critical for prefix
 stability (rule A1: the cacheable prefix must be byte-identical across
 turns).
 
-W3-03: token-based context budgets with atomic groups.
+token-based context budgets with atomic groups.
 """
 
 from __future__ import annotations
@@ -113,8 +113,7 @@ class MessageHistory:
     The char count tracks the exact value that ``json.dumps(messages,
     ensure_ascii=False, separators=(",",":"))`` would produce, but is
     maintained incrementally so that callers never pay O(n) to recompute
-    it from scratch.  This is the preparation step for W3-03 token
-    budgets.
+    it from scratch.  This is the preparation step for token budgets.
 
     The :attr:`view` property returns a :class:`~collections.abc.Sequence`
     that shares the backing list but raises ``TypeError`` on any mutation

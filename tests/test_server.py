@@ -15,7 +15,7 @@ from lughus import Artifact, BaseSettings, CompletionEvent, ProgressEvent, build
 from lughus.gateway import BaseGateway
 from lughus.server import BoundedInMemoryTaskStore, ProductionGuardMiddleware, _test_ui_routes
 
-# W1-08: this module exercises code that needs the 'server' extra.
+# this module exercises code that needs the 'server' extra.
 pytestmark = pytest.mark.extra_server
 
 

@@ -119,7 +119,7 @@ async def test_injected_runtime_is_not_closed_by_the_loop(registry: ToolRegistry
 
 
 async def test_repeated_loops_do_not_leak_threads(registry: ToolRegistry) -> None:
-    """The regression test for N-03. Fails on 0.10.1: one pool leaked per loop."""
+    """Regression test: repeated loops must not leak threads. Fails on 0.10.1."""
     before = threading.active_count()
     for _ in range(40):
         await agent_loop(
@@ -148,7 +148,7 @@ async def test_execute_tools_refuses_a_config_without_runtime(
         )
 
 
-# ── W1-03 / N-10: declared limits must take effect ────────────────────────────
+# ── declared limits must take effect ────────────────────────────
 
 
 async def test_implicit_runtime_uses_module_defaults(registry: ToolRegistry) -> None:
@@ -191,11 +191,11 @@ async def test_injected_runtime_imposes_its_capacities() -> None:
         await runtime.close()
 
 
-# ── W1-05 / N-09 / F-17: lifecycle and resource locks ─────────────────────────
+# ── lifecycle and resource locks ─────────────────────────
 
 
 async def test_resource_locks_do_not_accumulate() -> None:
-    """The regression test for F-17.
+    """Regression test: resource locks must not accumulate without bound.
 
     Resource keys are derived from tool arguments, so an unbounded dict is fed by
     potentially model-controlled data.

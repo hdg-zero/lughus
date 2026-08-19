@@ -1,4 +1,4 @@
-"""W3-05: Artifact projection — large tool outputs stored as artifacts,
+"""Artifact projection — large tool outputs stored as artifacts,
 replaced in history by a short reference + summary.  ``fetch_artifact``
 built-in tool retrieves full content.  Disabled by default.
 """

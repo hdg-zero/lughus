@@ -2,8 +2,6 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-17
-- **Tickets:** W1-02, W1-03
-- **Findings:** F-05, N-03, C-03, N-10
 - **Relates to:** ADR-003 "Runtime"
 
 ## Context
@@ -60,7 +58,7 @@ them only on `RuntimeConfig`. Conceptually cleaner -- capacity belongs to the
 runtime, not to the tool-execution policy -- but it forces any user who wants to
 tune concurrency to construct and manage an `ExecutionRuntime`, which makes the
 simple case heavier. Both surfaces are kept, with a single junction and a detected
-conflict. Flagged for re-examination in W4-02 once there is usage data.
+conflict. Flagged for re-examination once there is usage data.
 
 ## Consequences
 

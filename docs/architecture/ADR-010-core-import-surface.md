@@ -2,8 +2,6 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-17
-- **Ticket:** W1-01
-- **Findings:** N-01 (P0)
 - **Supersedes in part:** ADR-008 "Compatibility" section
 
 ## Context
@@ -67,13 +65,13 @@ an agent loop is not an accessory.
 
 - `pip install lughus` yields a working package. `lughus[server]` and
   `lughus[otel]` add capability; they are no longer required for basic use.
-- Base dependency count is unchanged: `orjson` left (W1-07), `opentelemetry-api`
+- Base dependency count is unchanged: `orjson` left, `opentelemetry-api`
   arrived.
 - Accessing an unavailable optional symbol raises `ImportError` naming the extra,
   instead of a bare `ModuleNotFoundError` about a third-party module the user has
   never heard of.
 - `import lughus` no longer imports `litellm` either, since `.llm` was already
-  lazy. Startup cost is measured in W3-09.
+  lazy. Startup cost is measured separately.
 
 ## Enforcement
 

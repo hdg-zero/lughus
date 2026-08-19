@@ -1,4 +1,4 @@
-"""W1-06 / N-04: both structures of InMemoryEventSink must be bounded."""
+"""both structures of InMemoryEventSink must be bounded."""
 
 from __future__ import annotations
 

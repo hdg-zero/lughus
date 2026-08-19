@@ -1,6 +1,6 @@
 """Artifact projection -- store large tool outputs and replace them with references.
 
-W3-05: When artifact projection is enabled, tool outputs exceeding a configurable
+When artifact projection is enabled, tool outputs exceeding a configurable
 threshold are stored in an in-memory ``ArtifactStore`` and replaced in the message
 history by a short reference containing a summary.  The model can retrieve the full
 content via the ``fetch_artifact`` built-in tool.

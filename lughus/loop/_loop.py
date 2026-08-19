@@ -124,9 +124,9 @@ def _prepare_loop(
     # the cacheable prefix (rule A1: byte-identical across turns).
     history.extend(render_context_messages(context_items))
     history.append({"role": "user", "content": context})
-    # W3-03: prefix_len = system + context items + user objective — never pruned.
+    # prefix_len = system + context items + user objective — never pruned.
     prefix_len = len(history)
-    # W3-02: declarations are memoized and frozen — no deepcopy needed.
+    # declarations are memoized and frozen — no deepcopy needed.
     tools = registry.declarations(
         tool_names,
         strict=True,
@@ -282,7 +282,7 @@ async def agent_loop(
     ``completion_tokens``, ``cached_tokens``, ``total_tokens``).
     """
     cfg, _owned_runtime = _resolve_tool_config(tool_config)
-    # W3-05: artifact projection setup — copy tool_names to avoid mutating caller's list
+    # artifact projection setup — copy tool_names to avoid mutating caller's list
     effective_tool_names = list(tool_names)
     cfg = _setup_artifact_projection(registry, effective_tool_names, cfg)
     _artifact_token = _active_artifact_store.set(cfg.artifact_store)
@@ -307,7 +307,7 @@ async def agent_loop(
                         raise LoopLimitError(
                             f"Agent message history exceeded {limit} characters"
                         )
-                    # W3-03: prune oldest atomic groups before each LLM call.
+                    # prune oldest atomic groups before each LLM call.
                     _prune_if_needed(history, cfg, prefix_len, llm.model)
                     with tracer.start_as_current_span("llm.generate") as llm_span:
                         llm_span.set_attribute("gen_ai.request.model", llm.model)
@@ -371,7 +371,7 @@ async def agent_loop(
     finally:
         _active_artifact_store.reset(_artifact_token)
         # Only close what this call created; an injected runtime is the
-        # caller's to manage (W1-02 / N-03: nothing used to close it at all).
+        # caller's to manage.
         if _owned_runtime is not None:
             await _owned_runtime.close()
 
@@ -402,7 +402,7 @@ async def agent_loop_stream(
         raise ValueError("streaming_mode must be 'buffered' or 'live'")
     streaming_mode_normalized = mode_str
     cfg, _owned_runtime = _resolve_tool_config(tool_config)
-    # W3-05: artifact projection setup — copy tool_names to avoid mutating caller's list
+    # artifact projection setup — copy tool_names to avoid mutating caller's list
     effective_tool_names = list(tool_names)
     cfg = _setup_artifact_projection(registry, effective_tool_names, cfg)
     _artifact_token = _active_artifact_store.set(cfg.artifact_store)
@@ -428,7 +428,7 @@ async def agent_loop_stream(
                         raise LoopLimitError(
                             f"Agent message history exceeded {limit} characters"
                         )
-                    # W3-03: prune oldest atomic groups before each LLM call.
+                    # prune oldest atomic groups before each LLM call.
                     _prune_if_needed(history, cfg, prefix_len, llm.model)
                     content_parts: list[str] = []
                     tc_map: dict[int, dict[str, str]] = {}
@@ -538,6 +538,6 @@ async def agent_loop_stream(
     finally:
         _active_artifact_store.reset(_artifact_token)
         # Only close what this call created; an injected runtime is the
-        # caller's to manage (W1-02 / N-03: nothing used to close it at all).
+        # caller's to manage.
         if _owned_runtime is not None:
             await _owned_runtime.close()

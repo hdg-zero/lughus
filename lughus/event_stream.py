@@ -31,7 +31,7 @@ class InMemoryEventSink:
             raise ValueError("max_tracked_runs must be positive")
         self._max_events = max_events
         self._events: list[tuple[int, RunEvent]] = []
-        # W1-06 / N-04: `_events` was bounded but `_last_sequence` was not, so one
+        # `_events` was bounded but `_last_sequence` was not, so one
         # entry per run_id accumulated for the life of the process. Both structures
         # are now bounded, with a retention aligned on the event bound.
         self._max_tracked_runs = max_tracked_runs or max(64, max_events // 16)

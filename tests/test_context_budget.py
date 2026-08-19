@@ -1,4 +1,4 @@
-"""W3-03: token context budget with atomic groups."""
+"""token context budget with atomic groups."""
 
 from __future__ import annotations
 

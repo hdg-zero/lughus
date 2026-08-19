@@ -53,7 +53,7 @@ _tool_errors = meter.create_counter(
     "lughus.tool.errors",
     description="Tool execution errors",
 )
-# W3-04: cache-specific counters for provider prefix caching visibility.
+# cache-specific counters for provider prefix caching visibility.
 _cache_read_counter = meter.create_counter(
     "lughus.loop.cache_read_tokens",
     description="Cache-read input tokens reported by the LLM provider",
@@ -89,7 +89,7 @@ def _extract_usage(usage: Any) -> tuple[int, int, int]:
 def _record_llm_usage(span: Any, usage: Any, model: str) -> tuple[int, int, int]:
     """Extract usage from an LLM response and record on span + metrics.
 
-    W3-04: also records ``lughus.loop.cache_read_tokens`` and
+    Also records ``lughus.loop.cache_read_tokens`` and
     ``lughus.loop.cache_creation_tokens`` counters and sets corresponding
     span attributes when the provider reports cache-related fields.
     """
@@ -103,7 +103,7 @@ def _record_llm_usage(span: Any, usage: Any, model: str) -> tuple[int, int, int]
     _token_counter.add(c, {**attrs, "token.type": "completion"})
     if ca:
         _token_counter.add(ca, {**attrs, "token.type": "cached"})
-    # W3-04: cache-specific telemetry
+    # cache-specific telemetry
     if ca:
         _cache_read_counter.add(ca, attrs)
         span.set_attribute("gen_ai.usage.cache_read_input_tokens", ca)
@@ -284,7 +284,7 @@ def _is_async_callable(fn: Callable[..., Any]) -> bool:
 def _runtime_of(cfg: ToolExecutionConfig) -> ExecutionRuntime:
     """Return the config's runtime, relying on the invariant _execute_tools enforces.
 
-    W1-02: the runtime is guaranteed non-None from _execute_tools onwards. That is
+    The runtime is guaranteed non-None from _execute_tools onwards. That is
     why the two union-attr type-ignore markers and the redundant
     ``if cfg.runtime is not None`` guard could be removed outright rather than moved.
     """
@@ -332,7 +332,7 @@ async def _execute_tools(
     - **Empty args**: ``raw_args=""`` is treated as an empty dict.
     """
 
-    # W1-02: _execute_tools no longer manufactures a config, because doing so used
+    # _execute_tools no longer manufactures a config, because doing so used
     # to allocate an ExecutionRuntime (and a thread pool) that nothing ever closed.
     # A missing runtime here is a programming error, not an opportunity to leak one.
     if config is None or config.runtime is None:
@@ -514,7 +514,7 @@ async def _execute_tools(
                 output = _success_payload(
                     text, truncated=truncated, original_bytes=original_bytes
                 )
-                # W3-05: artifact projection — large outputs replaced by reference
+                # artifact projection — large outputs replaced by reference
                 if (
                     cfg.artifact_projection
                     and cfg.artifact_store is not None

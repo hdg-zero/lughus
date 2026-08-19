@@ -1,4 +1,4 @@
-"""W3-09: import-time budget for ``import lughus``.
+"""import-time budget for ``import lughus``.
 
 A cold subprocess import must complete well under a generous CI threshold
 (500 ms) to avoid penalising CLI start-up, serverless cold starts, and

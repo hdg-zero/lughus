@@ -53,7 +53,7 @@ class ToolExecutionConfig:
     max_message_history_chars: int = DEFAULT_MAX_MESSAGE_HISTORY_CHARS
     max_context_tokens: int = DEFAULT_MAX_CONTEXT_TOKENS
     tool_queue_timeout: float | None = DEFAULT_TOOL_QUEUE_TIMEOUT
-    # W1-02 / R5: stays None. A configuration is a value and must never allocate
+    # Stays None. A configuration is a value and must never allocate
     # a system resource -- __post_init__ used to build an ExecutionRuntime here,
     # so merely constructing a config spawned 32 threads that nothing closed.
     # agent_loop()/agent_loop_stream() now create and close a runtime when this is

@@ -4,7 +4,7 @@ NOT imported by the main lughus package. Import explicitly::
 
     from lughus.testing import MockLLM, MockStreamingLLM
 
-Why strict dataclasses instead of ``MagicMock`` (W1-13 / N-14)
+Why strict dataclasses instead of ``MagicMock``
 -------------------------------------------------------------
 This module used to build its fake responses with ``unittest.mock.MagicMock``.
 A ``MagicMock`` answers *every* attribute access, which means:
@@ -15,7 +15,7 @@ A ``MagicMock`` answers *every* attribute access, which means:
 
 Tests therefore passed even when the loop read a field that does not exist, or
 when an implementation violated its contract. That is the root cause of the
-budget-x-streaming P0 (F-02) going unnoticed across several releases despite a
+budget-x-streaming P0 going unnoticed across several releases despite a
 261-test suite: the doubles could not fail.
 
 The ``Fake*`` dataclasses below reproduce *exactly* the response shape the loop
@@ -53,7 +53,7 @@ class FakeUsage:
     underscore-prefixed alias ``_cache_read_input_tokens`` that Anthropic-style
     payloads use and that ``_extract_usage`` reads.
 
-    W3-04: ``cache_creation_input_tokens`` mirrors the Anthropic field that
+    ``cache_creation_input_tokens`` mirrors the Anthropic field that
     reports how many tokens were written to the provider-side prompt cache.
     """
 

@@ -9,7 +9,7 @@ import threading
 # Only the OpenTelemetry *API* is imported at module level. It is a base
 # dependency: without an SDK installed it returns no-op tracers and meters at
 # near-zero cost, which is exactly the contract a library needs.
-# The SDK (otel extra) is imported inside setup_telemetry() -- see W1-01 / N-01.
+# The SDK (otel extra) is imported inside setup_telemetry().
 from opentelemetry import metrics, trace
 
 _INITIALIZED = False

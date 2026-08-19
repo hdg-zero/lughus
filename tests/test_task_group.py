@@ -1,4 +1,4 @@
-"""W3-07: Tests for TaskGroup-based parallel tool execution.
+"""Tests for TaskGroup-based parallel tool execution.
 
 Validates that _execute_tools() correctly uses asyncio.TaskGroup:
 - A failure in one task cancels remaining tasks

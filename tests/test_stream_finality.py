@@ -1,4 +1,4 @@
-"""Tests for W3-08: provisional and final stream chunk distinction.
+"""Tests for provisional and final stream chunk distinction.
 
 Verifies that ``agent_loop_stream()`` yields ``StreamChunk`` for provisional
 content and ``LoopResult`` as the single final marker.

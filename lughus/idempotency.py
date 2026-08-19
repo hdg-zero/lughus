@@ -61,7 +61,7 @@ class ExecutionAttempt:
     status: AttemptStatus
     result: str | None = None
     error: str | None = None
-    # W1-04 / C-05: wall clock, not time.monotonic(). A monotonic value has an
+    # wall clock, not time.monotonic(). A monotonic value has an
     # arbitrary, process-local origin, so it is meaningless once a receipt is
     # serialised or compared across processes -- which makes TTLs unusable for any
     # durable store derived from this one.
@@ -88,7 +88,7 @@ class InMemoryIdempotencyStore:
     ``lughus.idempotency.evictions`` counter. A production guarantee requires a
     durable store.
 
-    Two TTLs, because one value was serving two contradictory purposes (W1-04):
+    Two TTLs, because one value was serving two contradictory purposes:
 
     ``pending_ttl_seconds``
         How long an in-flight attempt may stay PENDING before it is treated as
@@ -128,7 +128,7 @@ class InMemoryIdempotencyStore:
 
         The previous implementation only ever returned True for PENDING, so
         COMPLETED, FAILED and OUTCOME_UNKNOWN receipts never expired and the store
-        filled up permanently (N-02).
+        filled up permanently.
         """
         return (self._now() - attempt.created_at) > self._ttl_for(attempt.status)
 

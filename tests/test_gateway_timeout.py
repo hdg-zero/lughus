@@ -11,7 +11,7 @@ from lughus.config import BaseSettings
 from lughus.gateway import BaseGateway
 from lughus.llm import LLM
 
-# W1-08: this module exercises code that needs the 'server' extra.
+# this module exercises code that needs the 'server' extra.
 pytestmark = pytest.mark.extra_server
 
 

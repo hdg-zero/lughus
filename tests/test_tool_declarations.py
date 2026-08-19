@@ -1,4 +1,4 @@
-"""W3-02: precalculated frozen tool declarations."""
+"""precalculated frozen tool declarations."""
 
 from __future__ import annotations
 

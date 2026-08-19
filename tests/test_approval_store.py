@@ -1,6 +1,6 @@
-"""W1-11: approval transitions must preserve every field, and the store is bounded.
+"""approval transitions must preserve every field, and the store is bounded.
 
-N-13: `decide` and `consume` rebuilt ApprovalRequest by passing nine *positional*
+`decide` and `consume` rebuilt ApprovalRequest by passing nine *positional*
 arguments in field order. Adding, removing or reordering a field produced either a
 TypeError or -- far worse -- a silent shift where `decided_by` received a
 timestamp. On an object whose entire purpose is to be a tamper-evident record,
@@ -31,7 +31,7 @@ def make_request(index: int = 0, run_id: str = "run-1") -> ApprovalRequest:
     )
 
 
-# ── N-13: field preservation ──────────────────────────────────────────────────
+# ── field preservation ──────────────────────────────────────────────────
 
 # Fields each transition is allowed to change. Anything else must be carried over.
 DECIDE_MUTATES = {"status", "decided_by", "decided_at"}

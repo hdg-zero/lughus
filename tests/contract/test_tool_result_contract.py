@@ -1,4 +1,4 @@
-"""W3-10: Tool result contract — uniform JSON envelope, retryable mapping,
+"""Tool result contract — uniform JSON envelope, retryable mapping,
 truncation declaration, and anti-leak protection.
 """
 
