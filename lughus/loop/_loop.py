@@ -28,7 +28,7 @@ from ._execute import (
     _record_llm_usage,
 )
 from ._messages import render_context_messages
-from ._result import LoopResult
+from ._result import LoopResult, StreamChunk
 
 _logger = logging.getLogger(__name__)
 
@@ -54,7 +54,6 @@ def _prepare_loop(
     tools = registry.declarations(
         tool_names,
         strict=True,
-        compact=cfg.compact_tool_schemas,
     )
     return messages, tools
 
@@ -280,11 +279,12 @@ async def agent_loop_stream(
     tool_config: ToolExecutionConfig | None = None,
     streaming_mode: str | StreamingMode = StreamingMode.BUFFERED,
     context_items: Sequence[ContextItem] = (),
-) -> AsyncGenerator[str | LoopResult, None]:
+) -> AsyncGenerator[StreamChunk | LoopResult, None]:
     """Streaming variant of :func:`agent_loop`.
 
-    Yields text chunks as the LLM generates them. The **last** yielded value
-    is always a :class:`LoopResult` (a ``str`` subclass with usage metadata).
+    Yields :class:`StreamChunk` objects for provisional content and a single
+    :class:`LoopResult` as the final value.  Consumers can distinguish the two
+    with ``isinstance`` or by checking ``chunk.final``.
     """
     mode_str = str(streaming_mode)
     if mode_str == "live_at_most_once":
@@ -348,7 +348,7 @@ async def agent_loop_stream(
                             if delta.content:
                                 content_parts.append(delta.content)
                                 if streaming_mode_normalized == "live":
-                                    yield delta.content
+                                    yield StreamChunk(content=delta.content)
 
                             if delta.tool_calls:
                                 for tc_delta in delta.tool_calls:
@@ -382,7 +382,7 @@ async def agent_loop_stream(
                     if not tc_map:
                         if streaming_mode_normalized == "buffered":
                             for content in content_parts:
-                                yield content
+                                yield StreamChunk(content=content)
                         yield _finalize_loop(
                             loop_span,
                             full_content,
