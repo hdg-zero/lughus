@@ -179,9 +179,7 @@ async def test_stream_buffers_content_from_tool_call_iterations(registry: ToolRe
     ):
         chunks.append(item)
 
-    streamed_text = "".join(
-        item.content for item in chunks if isinstance(item, StreamChunk)
-    )
+    streamed_text = "".join(item.content for item in chunks if isinstance(item, StreamChunk))
     assert streamed_text == "Final answer."
     assert isinstance(chunks[-1], LoopResult)
     assert str(chunks[-1]) == "Final answer."

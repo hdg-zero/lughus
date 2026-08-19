@@ -22,7 +22,6 @@ from lughus.loop._loop import (
 )
 from lughus.runtime import ExecutionRuntime, RuntimeConfig
 
-
 # ── helpers ──────────────────────────────────────────────────────────
 
 
@@ -195,7 +194,7 @@ async def test_above_threshold_projects_artifact() -> None:
         _active_artifact_store.reset(token)
 
     assert len(results) == 1
-    tc_id, output = results[0]
+    _tc_id, output = results[0]
     parsed = json.loads(output)
 
     assert parsed["ok"] is True
@@ -240,7 +239,7 @@ async def test_below_threshold_no_projection() -> None:
         _active_artifact_store.reset(token)
 
     assert len(results) == 1
-    tc_id, output = results[0]
+    _tc_id, output = results[0]
     parsed = json.loads(output)
 
     # Should be a normal result, no artifact reference
@@ -270,7 +269,7 @@ async def test_disabled_full_output() -> None:
     )
 
     assert len(results) == 1
-    tc_id, output = results[0]
+    _tc_id, output = results[0]
     parsed = json.loads(output)
 
     # Full result present, no artifact reference
@@ -311,7 +310,7 @@ async def test_fetch_artifact_tool_returns_content() -> None:
     finally:
         _active_artifact_store.reset(token)
 
-    tc_id, output = results[0]
+    _tc_id, output = results[0]
     parsed = json.loads(output)
     assert parsed["ok"] is True
     assert parsed["result"] == content
@@ -334,18 +333,20 @@ async def test_fetch_artifact_tool_with_offset_and_length() -> None:
     token = _active_artifact_store.set(store)
     try:
         results = await _execute_tools(
-            [(
-                "tc1",
-                "fetch_artifact",
-                json.dumps({"artifact_id": aid, "offset": 5, "length": 10}),
-            )],
+            [
+                (
+                    "tc1",
+                    "fetch_artifact",
+                    json.dumps({"artifact_id": aid, "offset": 5, "length": 10}),
+                )
+            ],
             registry,
             config=cfg,
         )
     finally:
         _active_artifact_store.reset(token)
 
-    tc_id, output = results[0]
+    _tc_id, output = results[0]
     parsed = json.loads(output)
     assert parsed["ok"] is True
     assert parsed["result"] == "fghijklmno"

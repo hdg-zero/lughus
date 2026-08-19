@@ -16,6 +16,7 @@ from jsonschema import Draft202012Validator, ValidationError  # type: ignore[imp
 from opentelemetry.trace import StatusCode
 
 from ..approval import ApprovalRequest, proposal_digest
+from ..artifacts import _summarize
 from ..budget import BudgetAmount
 from ..errors import (
     ApprovalRequired,
@@ -26,7 +27,6 @@ from ..errors import (
     ToolTimeoutError,
     ToolValidationError,
 )
-from ..artifacts import _summarize
 from ..idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey
 from ..policy import DecisionKind, ToolProposal
 from ..telemetry import meter, tracer
@@ -192,9 +192,7 @@ def _error_payload(exc: Exception) -> str:
     )
 
 
-def _success_payload(
-    text: str, *, truncated: bool = False, original_bytes: int = 0
-) -> str:
+def _success_payload(text: str, *, truncated: bool = False, original_bytes: int = 0) -> str:
     """Wrap a successful tool output in the standard JSON envelope."""
     try:
         parsed: Any = json.loads(text)
@@ -511,9 +509,7 @@ async def _execute_tools(
                 text, truncated, original_bytes = _validate_tool_output(
                     name=name, output=output, max_tool_output_chars=cfg.max_tool_output_chars
                 )
-                output = _success_payload(
-                    text, truncated=truncated, original_bytes=original_bytes
-                )
+                output = _success_payload(text, truncated=truncated, original_bytes=original_bytes)
                 # artifact projection — large outputs replaced by reference
                 if (
                     cfg.artifact_projection

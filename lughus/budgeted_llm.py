@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
-from typing import Any
+from collections.abc import AsyncIterator, Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
 from .budget import BudgetAmount, BudgetLedger
+
+if TYPE_CHECKING:
+    import litellm
 
 
 def _usage(value: Any) -> BudgetAmount:
@@ -24,10 +27,17 @@ class BudgetedLLM:
         self.model = inner.model
         self.timeout = getattr(inner, "timeout", None)
 
-    async def generate(self, *, messages: list[dict], tools: list[dict] | None = None) -> Any:
+    async def generate(
+        self,
+        *,
+        messages: Sequence[Mapping[str, Any]] | list[dict],
+        tools: Sequence[Mapping[str, Any]] | list[dict] | None = None,
+    ) -> litellm.ModelResponse:
         reservation = await self.ledger.reserve(BudgetAmount(model_calls=1))
         try:
-            response = await self.inner.generate(messages=messages, tools=tools)
+            response: litellm.ModelResponse = await self.inner.generate(
+                messages=messages, tools=tools
+            )
             await self.ledger.settle(reservation, _usage(response))
             return response
         except BaseException:
@@ -35,7 +45,10 @@ class BudgetedLLM:
             raise
 
     async def astream(
-        self, *, messages: list[dict], tools: list[dict] | None = None
+        self,
+        *,
+        messages: Sequence[Mapping[str, Any]] | list[dict],
+        tools: Sequence[Mapping[str, Any]] | list[dict] | None = None,
     ) -> AsyncIterator[Any]:
         reservation = await self.ledger.reserve(BudgetAmount(model_calls=1))
         actual = BudgetAmount(model_calls=1)

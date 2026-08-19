@@ -6,7 +6,7 @@ import asyncio
 import logging
 import random
 import time
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from typing import Any, Protocol, cast
 
 import litellm
@@ -28,8 +28,8 @@ class GenerateLLM(Protocol):
     async def generate(
         self,
         *,
-        messages: list[dict],
-        tools: list[dict] | None = None,
+        messages: Sequence[Mapping[str, Any]] | list[dict],
+        tools: Sequence[Mapping[str, Any]] | list[dict] | None = None,
     ) -> litellm.ModelResponse: ...
 
 
@@ -42,8 +42,8 @@ class StreamingLLM(Protocol):
     async def astream(
         self,
         *,
-        messages: list[dict],
-        tools: list[dict] | None = None,
+        messages: Sequence[Mapping[str, Any]] | list[dict],
+        tools: Sequence[Mapping[str, Any]] | list[dict] | None = None,
     ) -> AsyncIterator[Any]: ...
 
 
@@ -202,8 +202,8 @@ class LLM:
     async def generate(
         self,
         *,
-        messages: list[dict],
-        tools: list[dict] | None = None,
+        messages: Sequence[Mapping[str, Any]] | list[dict],
+        tools: Sequence[Mapping[str, Any]] | list[dict] | None = None,
     ) -> litellm.ModelResponse:
         """Send messages (and optional tool declarations) to the LLM."""
 
@@ -227,8 +227,8 @@ class LLM:
     async def astream(
         self,
         *,
-        messages: list[dict],
-        tools: list[dict] | None = None,
+        messages: Sequence[Mapping[str, Any]] | list[dict],
+        tools: Sequence[Mapping[str, Any]] | list[dict] | None = None,
     ) -> Any:
         """Streaming variant — returns an async iterable of response chunks."""
 

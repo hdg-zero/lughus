@@ -7,7 +7,6 @@ Each scenario function returns a dict with metrics:
 from __future__ import annotations
 
 import json
-import sys
 import time
 from typing import Any
 
@@ -106,6 +105,7 @@ def _make_echo_registry(count: int = 1, output_size: int = 32) -> tuple[ToolRegi
     for i in range(count):
         tool_name = f"echo_{i}"
         names.append(tool_name)
+
         # The output payload is generated at call time based on output_size.
         # We capture output_size via default arg to avoid late-binding issues.
         @r.tool(
@@ -142,7 +142,13 @@ async def scenario_short() -> dict[str, Any]:
     ]
     llm = build_mock_llm(responses)
     return await _run_scenario(
-        "short", llm, SYSTEM, CONTEXT, registry, tool_names, max_iterations=12,
+        "short",
+        llm,
+        SYSTEM,
+        CONTEXT,
+        registry,
+        tool_names,
+        max_iterations=12,
     )
 
 
@@ -150,13 +156,18 @@ async def scenario_long() -> dict[str, Any]:
     """12-turn run: 11 tool calls then a text response."""
     registry, tool_names = _make_echo_registry(count=1)
     responses: list[Any] = [
-        [{"id": f"c{i}", "name": "echo_0", "arguments": {"input": f"turn_{i}"}}]
-        for i in range(11)
+        [{"id": f"c{i}", "name": "echo_0", "arguments": {"input": f"turn_{i}"}}] for i in range(11)
     ]
     responses.append("Long benchmark complete.")
     llm = build_mock_llm(responses)
     return await _run_scenario(
-        "long", llm, SYSTEM, CONTEXT, registry, tool_names, max_iterations=12,
+        "long",
+        llm,
+        SYSTEM,
+        CONTEXT,
+        registry,
+        tool_names,
+        max_iterations=12,
     )
 
 
@@ -170,7 +181,13 @@ async def scenario_large_outputs() -> dict[str, Any]:
     ]
     llm = build_mock_llm(responses)
     return await _run_scenario(
-        "large_outputs", llm, SYSTEM, CONTEXT, registry, tool_names, max_iterations=12,
+        "large_outputs",
+        llm,
+        SYSTEM,
+        CONTEXT,
+        registry,
+        tool_names,
+        max_iterations=12,
     )
 
 
@@ -183,7 +200,13 @@ async def scenario_many_tools() -> dict[str, Any]:
     ]
     llm = build_mock_llm(responses)
     return await _run_scenario(
-        "many_tools", llm, SYSTEM, CONTEXT, registry, tool_names, max_iterations=12,
+        "many_tools",
+        llm,
+        SYSTEM,
+        CONTEXT,
+        registry,
+        tool_names,
+        max_iterations=12,
     )
 
 
@@ -195,6 +218,14 @@ ALL_SCENARIOS = {
 }
 
 EXPECTED_METRIC_KEYS = frozenset(
-    ["scenario", "tokens_in", "tokens_out", "provider_calls",
-     "wall_time_s", "cpu_time_s", "prefix_size_bytes", "prefix_reuse_pct"]
+    [
+        "scenario",
+        "tokens_in",
+        "tokens_out",
+        "provider_calls",
+        "wall_time_s",
+        "cpu_time_s",
+        "prefix_size_bytes",
+        "prefix_reuse_pct",
+    ]
 )

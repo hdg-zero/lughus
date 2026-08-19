@@ -9,7 +9,7 @@ import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 
 from jsonschema import Draft202012Validator, SchemaError  # type: ignore[import-untyped]
 
@@ -58,7 +58,7 @@ class _FrozenDict(dict):
     def setdefault(self, key: Any, default: Any = None) -> Any:
         raise TypeError("FrozenDict does not support setdefault")
 
-    def __ior__(self, other: Any) -> Any:
+    def __ior__(self, other: Any) -> Any:  # type: ignore[misc]
         raise TypeError("FrozenDict does not support |= operator")
 
     def __copy__(self) -> dict:
@@ -319,10 +319,12 @@ class ToolRegistry:
 
         frozen = _deep_freeze(result)
         canonical = json.dumps(
-            result, sort_keys=True, separators=(",", ":"),
+            result,
+            sort_keys=True,
+            separators=(",", ":"),
         )
         self._declarations_cache[cache_key] = (frozen, canonical)
-        return frozen
+        return cast(tuple[dict[str, Any], ...], frozen)
 
     def declarations_json(
         self,

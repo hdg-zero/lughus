@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 
 from lughus import ToolRegistry
-from lughus.errors import ApprovalRequired, ApprovalRequiredGroup
+from lughus.errors import ApprovalRequiredGroup
 from lughus.loop import ToolExecutionConfig
 from lughus.loop import _execute_tools as _raw_execute_tools
 from lughus.runtime import ExecutionRuntime, RuntimeConfig

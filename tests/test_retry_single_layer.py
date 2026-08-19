@@ -172,6 +172,7 @@ async def test_no_retry_after_emission_through_loop(monkeypatch: pytest.MonkeyPa
             emitted.append(chunk)
 
     from lughus.loop import StreamChunk
+
     assert emitted == [StreamChunk(content="partial")]
     assert llm.call_count == 1  # no retry at loop level
 

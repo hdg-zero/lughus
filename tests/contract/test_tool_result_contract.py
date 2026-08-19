@@ -23,7 +23,6 @@ from lughus.loop import _execute_tools as _raw_execute_tools
 from lughus.loop._execute import _error_payload, _success_payload
 from lughus.runtime import ExecutionRuntime, RuntimeConfig
 
-
 # ── helpers ──────────────────────────────────────────────────────────
 
 
@@ -62,11 +61,15 @@ async def test_success_output_is_valid_json_with_expected_keys() -> None:
     """A successful tool result is valid JSON containing 'ok' and 'result'."""
     registry = ToolRegistry()
 
-    @registry.tool("echo", "Echo input.", {
-        "type": "object",
-        "properties": {"msg": {"type": "string"}},
-        "required": ["msg"],
-    })
+    @registry.tool(
+        "echo",
+        "Echo input.",
+        {
+            "type": "object",
+            "properties": {"msg": {"type": "string"}},
+            "required": ["msg"],
+        },
+    )
     def echo(*, msg: str, state: Any) -> str:
         return json.dumps({"echo": msg})
 
@@ -300,9 +303,7 @@ def test_anti_leak_sanitizes_paths_in_safe_error() -> None:
 
 def test_anti_leak_sanitizes_lughus_references() -> None:
     """Internal 'lughus.' and 'lughus/' references are scrubbed."""
-    exc = ToolValidationError(
-        "Error in lughus.loop._execute: schema mismatch"
-    )
+    exc = ToolValidationError("Error in lughus.loop._execute: schema mismatch")
     payload = json.loads(_error_payload(exc))
     assert "lughus." not in payload["message"]
     assert "lughus/" not in payload["message"]
@@ -310,9 +311,7 @@ def test_anti_leak_sanitizes_lughus_references() -> None:
 
 def test_anti_leak_traceback_keyword_stripped() -> None:
     """The word 'Traceback' and everything after it is removed."""
-    exc = ToolValidationError(
-        "Validation failed. Traceback (most recent call last): ..."
-    )
+    exc = ToolValidationError("Validation failed. Traceback (most recent call last): ...")
     payload = json.loads(_error_payload(exc))
     assert "Traceback" not in payload["message"]
     assert payload["message"] == "Validation failed."
@@ -323,9 +322,7 @@ def test_anti_leak_no_path_in_any_error_field() -> None:
     exc = ToolTimeoutError("Tool 'db' at /opt/tools/db timed out after 30s")
     payload = json.loads(_error_payload(exc))
     serialized = json.dumps(payload)
-    assert not _PATH_RE.search(serialized), (
-        f"Path pattern found in error envelope: {serialized}"
-    )
+    assert not _PATH_RE.search(serialized), f"Path pattern found in error envelope: {serialized}"
 
 
 # ── 5. success_payload unit tests ───────────────────────────────────
@@ -345,9 +342,7 @@ def test_success_payload_embeds_plain_text() -> None:
 
 def test_success_payload_truncation_metadata() -> None:
     """_success_payload includes truncation fields when flagged."""
-    result = json.loads(
-        _success_payload("abc", truncated=True, original_bytes=1000)
-    )
+    result = json.loads(_success_payload("abc", truncated=True, original_bytes=1000))
     assert result["ok"] is True
     assert result["truncated"] is True
     assert result["original_bytes"] == 1000

@@ -59,8 +59,8 @@ _FETCH_ARTIFACT_SCHEMA: dict[str, Any] = {
     "required": ["artifact_id"],
 }
 
-_active_artifact_store: contextvars.ContextVar[ArtifactStore | None] = (
-    contextvars.ContextVar("_active_artifact_store", default=None)
+_active_artifact_store: contextvars.ContextVar[ArtifactStore | None] = contextvars.ContextVar(
+    "_active_artifact_store", default=None
 )
 
 
@@ -293,7 +293,12 @@ async def agent_loop(
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
 
                 history, tools, prefix_len = _prepare_loop(
-                    system, context, registry, effective_tool_names, cfg, context_items,
+                    system,
+                    context,
+                    registry,
+                    effective_tool_names,
+                    cfg,
+                    context_items,
                 )
 
                 t0 = time.perf_counter()
@@ -304,16 +309,15 @@ async def agent_loop(
                 for iteration in range(max_iterations):
                     limit = cfg.max_message_history_chars
                     if limit > 0 and history.char_count > limit:
-                        raise LoopLimitError(
-                            f"Agent message history exceeded {limit} characters"
-                        )
+                        raise LoopLimitError(f"Agent message history exceeded {limit} characters")
                     # prune oldest atomic groups before each LLM call.
                     _prune_if_needed(history, cfg, prefix_len, llm.model)
                     with tracer.start_as_current_span("llm.generate") as llm_span:
                         llm_span.set_attribute("gen_ai.request.model", llm.model)
                         llm_span.set_attribute("lughus.iteration", iteration + 1)
                         response = await llm.generate(
-                            messages=history.view, tools=tools,
+                            messages=history.view,
+                            tools=tools,
                         )
 
                         if hasattr(response, "usage") and response.usage:
@@ -414,7 +418,12 @@ async def agent_loop_stream(
                 loop_span.set_attribute("lughus.streaming", True)
 
                 history, tools, prefix_len = _prepare_loop(
-                    system, context, registry, effective_tool_names, cfg, context_items,
+                    system,
+                    context,
+                    registry,
+                    effective_tool_names,
+                    cfg,
+                    context_items,
                 )
 
                 t0 = time.perf_counter()
@@ -425,9 +434,7 @@ async def agent_loop_stream(
                 for iteration in range(max_iterations):
                     limit = cfg.max_message_history_chars
                     if limit > 0 and history.char_count > limit:
-                        raise LoopLimitError(
-                            f"Agent message history exceeded {limit} characters"
-                        )
+                        raise LoopLimitError(f"Agent message history exceeded {limit} characters")
                     # prune oldest atomic groups before each LLM call.
                     _prune_if_needed(history, cfg, prefix_len, llm.model)
                     content_parts: list[str] = []

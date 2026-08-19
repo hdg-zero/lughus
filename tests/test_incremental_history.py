@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import json
-import sys
 import tracemalloc
 
 import pytest
 
-from lughus.loop._messages import MessageHistory, _ReadOnlyMessageView, render_context_messages
-from lughus.loop import ToolExecutionConfig, agent_loop
-from lughus.testing import MockLLM
 from lughus import ToolRegistry
-
+from lughus.loop import agent_loop
+from lughus.loop._messages import MessageHistory, _ReadOnlyMessageView, render_context_messages
+from lughus.testing import MockLLM
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -330,13 +328,12 @@ class TestLinearGrowth:
         We measure memory growth for two sizes.  If growth were quadratic,
         doubling N would quadruple memory; linear growth doubles it.
         """
+
         def _measure(n: int) -> int:
             tracemalloc.start()
             history = MessageHistory()
             for i in range(n):
-                history.append(
-                    {"role": "user", "content": f"message number {i}"}
-                )
+                history.append({"role": "user", "content": f"message number {i}"})
             _, peak = tracemalloc.get_traced_memory()
             tracemalloc.stop()
             return peak
@@ -368,7 +365,6 @@ class TestLinearGrowth:
 
 
 class TestMessageHistoryMisc:
-
     def test_len(self) -> None:
         history = MessageHistory()
         assert len(history) == 0

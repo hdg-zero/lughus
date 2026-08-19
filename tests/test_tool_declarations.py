@@ -13,7 +13,11 @@ from lughus import ToolRegistry
 def registry() -> ToolRegistry:
     r = ToolRegistry()
 
-    @r.tool("alpha", "Alpha tool.", {"type": "object", "properties": {"x": {"type": "string"}}, "required": ["x"]})
+    @r.tool(
+        "alpha",
+        "Alpha tool.",
+        {"type": "object", "properties": {"x": {"type": "string"}}, "required": ["x"]},
+    )
     def alpha(*, x: str, state) -> str:
         return x
 

@@ -20,7 +20,6 @@ from lughus.context import ContextItem, TrustLevel
 from lughus.loop import agent_loop
 from lughus.testing import MockLLM
 
-
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
 
@@ -118,9 +117,7 @@ async def test_prefix_byte_identical_across_5_turns(registry: ToolRegistry) -> N
     prefix_turn_1 = _serialize_prefix(llm.calls[0]["messages"], prefix_len)
     for i in range(1, len(llm.calls)):
         prefix_turn_i = _serialize_prefix(llm.calls[i]["messages"], prefix_len)
-        assert prefix_turn_1 == prefix_turn_i, (
-            f"Prefix diverged between turn 1 and turn {i + 1}"
-        )
+        assert prefix_turn_1 == prefix_turn_i, f"Prefix diverged between turn 1 and turn {i + 1}"
 
 
 @pytest.mark.asyncio
@@ -179,11 +176,15 @@ async def test_tools_identical_across_turns(registry: ToolRegistry) -> None:
 
     assert len(llm.calls) == 3
     tools_turn_1 = json.dumps(
-        llm.calls[0]["tools"], sort_keys=True, separators=(",", ":"),
+        llm.calls[0]["tools"],
+        sort_keys=True,
+        separators=(",", ":"),
     )
     for i in range(1, len(llm.calls)):
         tools_turn_i = json.dumps(
-            llm.calls[i]["tools"], sort_keys=True, separators=(",", ":"),
+            llm.calls[i]["tools"],
+            sort_keys=True,
+            separators=(",", ":"),
         )
         assert tools_turn_1 == tools_turn_i, (
             f"Tool declarations diverged between turn 1 and turn {i + 1}"
@@ -229,9 +230,7 @@ async def test_adding_tool_changes_declarations() -> None:
 
     decl_after = r2.declarations_json(["echo", "greet"])
 
-    assert decl_before != decl_after, (
-        "Declarations did not change after adding a tool"
-    )
+    assert decl_before != decl_after, "Declarations did not change after adding a tool"
 
 
 # ── PYTHONHASHSEED independence ─────────────────────────────────────────────
@@ -291,8 +290,10 @@ def test_prefix_stable_under_different_pythonhashseed(seed: str) -> None:
         [sys.executable, "-c", _HASHSEED_SCRIPT],
         capture_output=True,
         text=True,
-        env={**{"PYTHONHASHSEED": seed, "SYSTEMROOT": "C:\\Windows"},
-             "PATH": subprocess.os.environ.get("PATH", "")},
+        env={
+            **{"PYTHONHASHSEED": seed, "SYSTEMROOT": "C:\\Windows"},
+            "PATH": subprocess.os.environ.get("PATH", ""),
+        },
         timeout=30,
     )
     assert result.returncode == 0, (
@@ -301,12 +302,8 @@ def test_prefix_stable_under_different_pythonhashseed(seed: str) -> None:
     lines = result.stdout.strip().split("\n")
     assert len(lines) == 4, f"Expected 4 lines, got {len(lines)}"
     prefix_1, prefix_3, tools_1, tools_3 = lines
-    assert prefix_1 == prefix_3, (
-        f"Prefix diverged under PYTHONHASHSEED={seed}"
-    )
-    assert tools_1 == tools_3, (
-        f"Tool declarations diverged under PYTHONHASHSEED={seed}"
-    )
+    assert prefix_1 == prefix_3, f"Prefix diverged under PYTHONHASHSEED={seed}"
+    assert tools_1 == tools_3, f"Tool declarations diverged under PYTHONHASHSEED={seed}"
 
 
 def test_prefix_identical_across_two_hashseeds() -> None:
@@ -317,13 +314,13 @@ def test_prefix_identical_across_two_hashseeds() -> None:
             [sys.executable, "-c", _HASHSEED_SCRIPT],
             capture_output=True,
             text=True,
-            env={**{"PYTHONHASHSEED": seed, "SYSTEMROOT": "C:\\Windows"},
-                 "PATH": subprocess.os.environ.get("PATH", "")},
+            env={
+                **{"PYTHONHASHSEED": seed, "SYSTEMROOT": "C:\\Windows"},
+                "PATH": subprocess.os.environ.get("PATH", ""),
+            },
             timeout=30,
         )
-        assert result.returncode == 0, (
-            f"Subprocess failed (seed={seed}):\n{result.stderr}"
-        )
+        assert result.returncode == 0, f"Subprocess failed (seed={seed}):\n{result.stderr}"
         outputs[seed] = result.stdout.strip().split("\n")
 
     # Prefix and tools from seed=0 must match seed=99999

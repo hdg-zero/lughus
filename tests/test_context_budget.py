@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from lughus.errors import ContextBudgetExceeded
 from lughus.loop._messages import (
     MessageHistory,
     _build_groups,
-    _message_tokens,
     estimate_tokens,
     prune_history,
 )
-
 
 # ── Token estimation ──────────────────────────────────────────────────────────
 
@@ -47,7 +43,9 @@ def _make_history() -> list[dict]:
         {
             "role": "assistant",
             "content": "",
-            "tool_calls": [{"id": "tc1", "type": "function", "function": {"name": "a", "arguments": "{}"}}],
+            "tool_calls": [
+                {"id": "tc1", "type": "function", "function": {"name": "a", "arguments": "{}"}}
+            ],
         },
         {"role": "tool", "tool_call_id": "tc1", "content": '{"ok":true,"result":"r1"}'},
         # Group 2: assistant + 2 tools
@@ -70,9 +68,9 @@ def test_build_groups_identifies_atomic_groups() -> None:
     msgs = _make_history()
     groups = _build_groups(msgs, prefix_len=2)
     assert len(groups) == 3
-    assert groups[0] == [2, 3]      # assistant + 1 tool
-    assert groups[1] == [4, 5, 6]   # assistant + 2 tools
-    assert groups[2] == [7]         # standalone
+    assert groups[0] == [2, 3]  # assistant + 1 tool
+    assert groups[1] == [4, 5, 6]  # assistant + 2 tools
+    assert groups[2] == [7]  # standalone
 
 
 def test_pruning_never_splits_tool_pairs() -> None:
@@ -120,7 +118,9 @@ def test_single_group_exceeds_budget_raises() -> None:
         {
             "role": "assistant",
             "content": "",
-            "tool_calls": [{"id": "tc1", "type": "function", "function": {"name": "a", "arguments": "{}"}}],
+            "tool_calls": [
+                {"id": "tc1", "type": "function", "function": {"name": "a", "arguments": "{}"}}
+            ],
         },
         {"role": "tool", "tool_call_id": "tc1", "content": big_content},
     ]
@@ -167,12 +167,26 @@ def test_many_tool_pairs_no_split() -> None:
     ]
     for i in range(20):
         tc_id = f"tc{i}"
-        msgs.append({
-            "role": "assistant",
-            "content": "",
-            "tool_calls": [{"id": tc_id, "type": "function", "function": {"name": f"t{i}", "arguments": "{}"}}],
-        })
-        msgs.append({"role": "tool", "tool_call_id": tc_id, "content": f'{{"ok":true,"result":"result_{i}"}}'})
+        msgs.append(
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": tc_id,
+                        "type": "function",
+                        "function": {"name": f"t{i}", "arguments": "{}"},
+                    }
+                ],
+            }
+        )
+        msgs.append(
+            {
+                "role": "tool",
+                "tool_call_id": tc_id,
+                "content": f'{{"ok":true,"result":"result_{i}"}}',
+            }
+        )
 
     prune_history(msgs, max_tokens=200, prefix_len=2)
     # Verify integrity: every remaining assistant with tool_calls has its tool results

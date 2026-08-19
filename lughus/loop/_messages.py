@@ -120,7 +120,7 @@ class MessageHistory:
     attempt, protecting the canonical history from accidental corruption.
     """
 
-    __slots__ = ("_messages", "_char_count", "_view")
+    __slots__ = ("_char_count", "_messages", "_view")
 
     def __init__(self, initial: Iterable[dict[str, Any]] | None = None) -> None:
         self._messages: list[dict[str, Any]] = []
@@ -204,9 +204,7 @@ def _message_tokens(msg: dict[str, Any]) -> int:
 # ── Atomic groups ────────────────────────────────────────────────────────────
 
 
-def _build_groups(
-    messages: list[dict[str, Any]], prefix_len: int
-) -> list[list[int]]:
+def _build_groups(messages: list[dict[str, Any]], prefix_len: int) -> list[list[int]]:
     """Identify atomic message groups in *messages* starting after *prefix_len*.
 
     An assistant message with ``tool_calls`` plus all subsequent ``tool`` role
