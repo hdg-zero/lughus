@@ -13,7 +13,7 @@ except PackageNotFoundError:
 if TYPE_CHECKING:
     # Keep every lazily-exported symbol resolvable for mypy and IDEs.
     from .application import AgentRuntime as AgentRuntime
-    from .application import GovernedAgentRunner as GovernedAgentRunner
+    from .runner import GovernedAgentRunner as GovernedAgentRunner
     from .artifacts import ArtifactStore as ArtifactStore
     from .budget import BudgetAmount as BudgetAmount
     from .budget import BudgetExceeded as BudgetExceeded
@@ -155,7 +155,7 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "agent_loop_stream": (".loop", None),
     "AgentRunner": (".runner", None),
     "AgentRuntime": (".application", None),
-    "GovernedAgentRunner": (".application", None),
+    "GovernedAgentRunner": (".runner", None),
     # ── asyncio chain ────────────────────────────────────────────────
     "BudgetAmount": (".budget", None),
     "BudgetExceeded": (".budget", None),
