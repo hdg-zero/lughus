@@ -58,51 +58,6 @@ def _render_test_ui_html(agent_card: AgentCard) -> str:
     )
 
 
-def _is_safe_otel_url(url: str) -> bool:
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
-        return False
-    hostname = parsed.hostname
-    if not hostname:
-        return False
-
-    # Check whitelist
-    allowed_hosts_str = os.getenv("LUGHUS_ALLOWED_OTEL_HOSTS", "")
-    allowed_hosts = {h.strip().lower() for h in allowed_hosts_str.split(",") if h.strip()}
-    if hostname.lower() in allowed_hosts:
-        return True
-
-    try:
-        ips = socket.getaddrinfo(hostname, None)
-    except socket.gaierror:
-        return False
-
-    for item in ips:
-        ip = item[4][0]
-        if not isinstance(ip, str):
-            continue
-        # Allow IPv4/IPv6 loopback
-        if ip in ("localhost", "127.0.0.1", "::1") or ip.startswith("127."):
-            continue
-        # Block private subnets (SSRF protection)
-        # IPv4 private/local addresses:
-        if (
-            ip.startswith("10.")
-            or ip.startswith("192.168.")
-            or ip.startswith("169.254.")
-            or (
-                ip.startswith("172.")
-                and len(ip.split(".")) > 1
-                and 16 <= int(ip.split(".")[1]) <= 31
-            )
-        ):
-            return False
-        # IPv6 link-local (fe80::) and unique local (fc00::, fd00::)
-        if ip.startswith("fe80:") or ip.startswith("fc00:") or ip.startswith("fd00:"):
-            return False
-    return True
-
-
 def _resolve_and_validate_otel_url(url: str) -> tuple[str, str]:
     """Resolve URL hostname, validate against SSRF, return (rewritten_url, original_hostname)."""
     parsed = urllib.parse.urlparse(url)

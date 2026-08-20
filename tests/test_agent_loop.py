@@ -178,27 +178,6 @@ async def test_max_iterations_raises(registry: ToolRegistry) -> None:
     assert isinstance(exc_info.value, LughusError)
 
 
-@pytest.mark.asyncio
-async def test_message_history_size_limit_prevents_llm_call(registry: ToolRegistry) -> None:
-    """Oversized message history fails before sending a request to the LLM."""
-    llm = MockLLM(["This should not be used"])
-
-    with pytest.raises(RuntimeError, match="message history exceeded"):
-        await agent_loop(
-            llm,
-            system="system",
-            context="x" * 50,
-            registry=registry,
-            tool_names=["greet"],
-            state=None,
-            tool_config=ToolExecutionConfig(
-                max_message_history_chars=10,
-                runtime=_test_runtime(),
-            ),
-        )
-
-    assert llm.calls == []
-
 
 @pytest.mark.asyncio
 async def test_loop_result_is_str_subclass(registry: ToolRegistry) -> None:

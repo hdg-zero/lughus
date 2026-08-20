@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 class StreamingMode(StrEnum):
     BUFFERED = "buffered"
     LIVE = "live"
-    LIVE_AT_MOST_ONCE = "live_at_most_once"
 
 
 DEFAULT_MAX_ITERATIONS = 12
@@ -24,7 +23,6 @@ DEFAULT_MAX_GLOBAL_TOOLS = 64
 DEFAULT_MAX_TOOL_ARGS_CHARS = 20_000
 DEFAULT_MAX_TOOL_OUTPUT_CHARS = 8_192
 DEFAULT_MAX_SYNC_THREAD_WORKERS = 32
-DEFAULT_MAX_MESSAGE_HISTORY_CHARS = 200_000
 DEFAULT_MAX_CONTEXT_TOKENS = 8_192
 DEFAULT_TOOL_QUEUE_TIMEOUT = 30.0
 DEFAULT_ARTIFACT_PROJECTION_THRESHOLD = 4096
@@ -50,7 +48,6 @@ class ToolExecutionConfig:
     tool_timeout: float | None = 30.0
     max_tool_args_chars: int = DEFAULT_MAX_TOOL_ARGS_CHARS
     max_tool_output_chars: int = DEFAULT_MAX_TOOL_OUTPUT_CHARS
-    max_message_history_chars: int = DEFAULT_MAX_MESSAGE_HISTORY_CHARS
     max_context_tokens: int = DEFAULT_MAX_CONTEXT_TOKENS
     tool_queue_timeout: float | None = DEFAULT_TOOL_QUEUE_TIMEOUT
     # Stays None. A configuration is a value and must never allocate
@@ -74,7 +71,6 @@ class ToolExecutionConfig:
             "max_parallel_tools": self.max_parallel_tools,
             "max_tool_args_chars": self.max_tool_args_chars,
             "max_tool_output_chars": self.max_tool_output_chars,
-            "max_message_history_chars": self.max_message_history_chars,
             "max_context_tokens": self.max_context_tokens,
         }
         invalid = [name for name, value in positive.items() if value <= 0]

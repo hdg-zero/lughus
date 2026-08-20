@@ -72,8 +72,8 @@ async def test_gateway_execute_timeout(monkeypatch) -> None:
     context = MagicMock()
     context.task_id = "task-123"
     context.context_id = "ctx-456"
-    # _extract returns empty objective and files
-    monkeypatch.setattr(gateway, "_extract", lambda ctx: ("", []))
+    # _extract_async returns empty objective and files
+    monkeypatch.setattr(gateway, "_extract_async", AsyncMock(return_value=("", [])))
 
     # Mock TaskUpdater and its methods
     mock_updater = MagicMock()

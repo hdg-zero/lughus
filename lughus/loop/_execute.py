@@ -21,7 +21,6 @@ from ..budget import BudgetAmount
 from ..errors import (
     ApprovalRequired,
     ApprovalRequiredGroup,
-    LoopLimitError,
     SafeToolError,
     ToolExecutionError,
     ToolTimeoutError,
@@ -251,16 +250,6 @@ def _validate_tool_output(
         text = text[:max_tool_output_chars]
         return text, True, original_bytes
     return text, False, original_bytes
-
-
-def _message_history_chars(messages: list[dict]) -> int:
-    return len(json.dumps(messages, ensure_ascii=False, separators=(",", ":")))
-
-
-def _check_message_history_size(messages: list[dict], config: ToolExecutionConfig) -> None:
-    limit = config.max_message_history_chars
-    if limit > 0 and _message_history_chars(messages) > limit:
-        raise LoopLimitError(f"Agent message history exceeded {limit} characters")
 
 
 def _unwrap_async_target(fn: Callable[..., Any]) -> Any:

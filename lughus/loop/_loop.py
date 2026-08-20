@@ -309,10 +309,7 @@ async def agent_loop(
                 cached_tokens = 0
 
                 for iteration in range(max_iterations):
-                    limit = cfg.max_message_history_chars
-                    if limit > 0 and history.char_count > limit:
-                        raise LoopLimitError(f"Agent message history exceeded {limit} characters")
-                    # prune oldest atomic groups before each LLM call.
+                    # Prune oldest atomic groups before each LLM call.
                     _prune_if_needed(history, cfg, prefix_len, llm.model)
                     with tracer.start_as_current_span("llm.generate") as llm_span:
                         llm_span.set_attribute("gen_ai.request.model", llm.model)
@@ -402,8 +399,6 @@ async def agent_loop_stream(
     with ``isinstance`` or by checking ``chunk.final``.
     """
     mode_str = str(streaming_mode)
-    if mode_str == "live_at_most_once":
-        mode_str = "live"
     if mode_str not in {"buffered", "live"}:
         raise ValueError("streaming_mode must be 'buffered' or 'live'")
     streaming_mode_normalized = mode_str
@@ -436,10 +431,7 @@ async def agent_loop_stream(
                 cached_tokens = 0
 
                 for iteration in range(max_iterations):
-                    limit = cfg.max_message_history_chars
-                    if limit > 0 and history.char_count > limit:
-                        raise LoopLimitError(f"Agent message history exceeded {limit} characters")
-                    # prune oldest atomic groups before each LLM call.
+                    # Prune oldest atomic groups before each LLM call.
                     _prune_if_needed(history, cfg, prefix_len, llm.model)
                     content_parts: list[str] = []
                     tc_map: dict[int, dict[str, str]] = {}

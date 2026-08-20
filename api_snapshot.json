@@ -112,22 +112,6 @@
     "kind": "enum"
   },
   {
-    "name": "DelegationCycleError",
-    "kind": "class"
-  },
-  {
-    "name": "DelegationRequest",
-    "kind": "dataclass"
-  },
-  {
-    "name": "DelegationResult",
-    "kind": "dataclass"
-  },
-  {
-    "name": "Delegator",
-    "kind": "class"
-  },
-  {
     "name": "EvaluationResult",
     "kind": "dataclass"
   },
@@ -157,10 +141,6 @@
   },
   {
     "name": "GovernedAgentRunner",
-    "kind": "class"
-  },
-  {
-    "name": "IdempotencyCapacityError",
     "kind": "class"
   },
   {
@@ -240,23 +220,7 @@
     "kind": "dataclass"
   },
   {
-    "name": "REPLAY_SCHEMA_VERSION",
-    "kind": "constant"
-  },
-  {
-    "name": "RecordedCall",
-    "kind": "dataclass"
-  },
-  {
-    "name": "RemoteAgentClient",
-    "kind": "class"
-  },
-  {
     "name": "ReplayBundle",
-    "kind": "dataclass"
-  },
-  {
-    "name": "ReplayCapturePolicy",
     "kind": "dataclass"
   },
   {
@@ -314,10 +278,6 @@
   {
     "name": "StreamingLLM",
     "kind": "class"
-  },
-  {
-    "name": "StreamingMode",
-    "kind": "enum"
   },
   {
     "name": "ToolDef",

@@ -9,7 +9,6 @@ from starlette.testclient import TestClient
 
 from lughus import BaseSettings, build_app
 from lughus.gateway import BaseGateway
-from lughus.ui_server import _is_safe_otel_url
 
 
 class SimpleGateway(BaseGateway):
@@ -60,22 +59,6 @@ def test_timing_safe_multi_key_auth() -> None:
     resp = client.post("/", headers={"Authorization": "Bearer key2"}, json={})
     assert resp.status_code != 401
 
-
-def test_ssrf_proxy_protection(monkeypatch) -> None:
-    # 127.0.0.1 and localhost should be safe by default
-    assert _is_safe_otel_url("http://127.0.0.1:16686/api/traces/abc") is True
-    assert _is_safe_otel_url("http://localhost:16686/api/traces/abc") is True
-
-    # Private IP addresses must be blocked
-    assert _is_safe_otel_url("http://192.168.1.50:16686/api/traces/abc") is False
-    assert _is_safe_otel_url("http://10.0.0.1:16686/api/traces/abc") is False
-    assert _is_safe_otel_url("http://172.16.5.5:16686/api/traces/abc") is False
-
-    # Whitelisted hosts via environment variable
-    monkeypatch.setenv("LUGHUS_ALLOWED_OTEL_HOSTS", "otel-collector,internal-jaeger")
-    assert _is_safe_otel_url("http://otel-collector:16686/api/traces/abc") is True
-    assert _is_safe_otel_url("http://internal-jaeger:16686/api/traces/abc") is True
-    assert _is_safe_otel_url("http://other-internal:16686/api/traces/abc") is False
 
 
 @pytest.mark.asyncio

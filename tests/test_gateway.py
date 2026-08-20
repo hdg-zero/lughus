@@ -1,4 +1,4 @@
-"""Tests for BaseGateway._extract() — A2A message parsing (fixes B2, M2)."""
+"""Tests for BaseGateway._extract_async() — A2A message parsing (fixes B2, M2)."""
 
 from __future__ import annotations
 
@@ -99,37 +99,41 @@ def _invalid_file_part(name: str = "bad.bin") -> MagicMock:
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 
-def test_extract_text_only(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_extract_text_only(monkeypatch) -> None:
     """Simple text message → objective text, empty file list."""
     gw = _make_gateway(monkeypatch)
     ctx = _make_context([_text_part("Do the thing")])
-    objective, files = gw._extract(ctx)
+    objective, files = await gw._extract_async(ctx)
     assert objective == "Do the thing"
     assert files == []
 
 
-def test_extract_multiple_text_parts(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_extract_multiple_text_parts(monkeypatch) -> None:
     """Multiple TextParts are joined with newlines."""
     gw = _make_gateway(monkeypatch)
     ctx = _make_context([_text_part("Part 1"), _text_part("Part 2")])
-    objective, _files = gw._extract(ctx)
+    objective, _files = await gw._extract_async(ctx)
     assert objective == "Part 1\nPart 2"
 
 
-def test_extract_objective_length_limit(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_extract_objective_length_limit(monkeypatch) -> None:
     gw = _make_gateway(monkeypatch, max_objective_chars=5)
     ctx = _make_context([_text_part("too long")])
 
     with pytest.raises(ValueError, match="Objective exceeds"):
-        gw._extract(ctx)
+        await gw._extract_async(ctx)
 
 
-def test_extract_file_part(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_extract_file_part(monkeypatch) -> None:
     """Valid FilePart is decoded and included in files list."""
     gw = _make_gateway(monkeypatch)
     raw = b"PDF content here"
     ctx = _make_context([_text_part("Analyze this"), _file_part(raw, "application/pdf", "doc.pdf")])
-    objective, files = gw._extract(ctx)
+    objective, files = await gw._extract_async(ctx)
     assert objective == "Analyze this"
     assert len(files) == 1
     data, mime, name = files[0]
@@ -138,7 +142,8 @@ def test_extract_file_part(monkeypatch) -> None:
     assert name == "doc.pdf"
 
 
-def test_extract_invalid_base64_skipped_with_warning(
+@pytest.mark.asyncio
+async def test_extract_invalid_base64_skipped_with_warning(
     monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """B2 fix: corrupted base64 files are skipped with a WARNING log."""
@@ -146,7 +151,7 @@ def test_extract_invalid_base64_skipped_with_warning(
     ctx = _make_context([_text_part("Analyze"), _invalid_file_part("corrupt.bin")])
 
     with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
-        objective, files = gw._extract(ctx)
+        objective, files = await gw._extract_async(ctx)
 
     assert objective == "Analyze"
     assert files == []
@@ -154,7 +159,8 @@ def test_extract_invalid_base64_skipped_with_warning(
     assert "base64" in caplog.text.lower()
 
 
-def test_extract_file_exceeding_max_size_skipped_with_warning(
+@pytest.mark.asyncio
+async def test_extract_file_exceeding_max_size_skipped_with_warning(
     monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """M2 fix: files exceeding max_file_bytes are skipped with a WARNING log."""
@@ -163,14 +169,15 @@ def test_extract_file_exceeding_max_size_skipped_with_warning(
     ctx = _make_context([_file_part(big_data, "application/octet-stream", "big.bin")])
 
     with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
-        _objective, files = gw._extract(ctx)
+        _objective, files = await gw._extract_async(ctx)
 
     assert files == []
     assert "big.bin" in caplog.text
     assert "exceeds" in caplog.text.lower()
 
 
-def test_extract_file_exceeding_encoded_max_size_skipped_before_decode(
+@pytest.mark.asyncio
+async def test_extract_file_exceeding_encoded_max_size_skipped_before_decode(
     monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Very large encoded payloads are rejected before base64 decoding."""
@@ -178,7 +185,7 @@ def test_extract_file_exceeding_encoded_max_size_skipped_before_decode(
     ctx = _make_context([_file_part(b"x" * 10, "application/octet-stream", "encoded-big.bin")])
 
     with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
-        objective, files = gw._extract(ctx)
+        objective, files = await gw._extract_async(ctx)
 
     assert objective == ""
     assert files == []
@@ -186,7 +193,8 @@ def test_extract_file_exceeding_encoded_max_size_skipped_before_decode(
     assert "encoded size" in caplog.text
 
 
-def test_extract_max_files_limit(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
+@pytest.mark.asyncio
+async def test_extract_max_files_limit(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
     """Files beyond max_files are skipped with a warning."""
     gw = _make_gateway(monkeypatch, max_files=1)
     ctx = _make_context(
@@ -197,14 +205,15 @@ def test_extract_max_files_limit(monkeypatch, caplog: pytest.LogCaptureFixture) 
     )
 
     with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
-        _, files = gw._extract(ctx)
+        _, files = await gw._extract_async(ctx)
 
     assert len(files) == 1
     assert files[0][2] == "one.txt"
     assert "max file count" in caplog.text
 
 
-def test_extract_max_request_bytes_limit(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
+@pytest.mark.asyncio
+async def test_extract_max_request_bytes_limit(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
     """Total decoded file bytes are bounded per request."""
     gw = _make_gateway(monkeypatch, max_request_bytes=5, max_file_bytes=5)
     ctx = _make_context(
@@ -215,24 +224,26 @@ def test_extract_max_request_bytes_limit(monkeypatch, caplog: pytest.LogCaptureF
     )
 
     with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
-        _, files = gw._extract(ctx)
+        _, files = await gw._extract_async(ctx)
 
     assert len(files) == 1
     assert files[0][2] == "a.txt"
     assert "total decoded file bytes" in caplog.text
 
 
-def test_extract_none_message(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_extract_none_message(monkeypatch) -> None:
     """None message returns empty objective and empty file list."""
     gw = _make_gateway(monkeypatch)
     context = MagicMock()
     context.message = None
-    objective, files = gw._extract(context)
+    objective, files = await gw._extract_async(context)
     assert objective == ""
     assert files == []
 
 
-def test_extract_original_filename_prefix(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_extract_original_filename_prefix(monkeypatch) -> None:
     """__ORIGINAL_FILENAME__: prefix sets the name of the next FilePart."""
     gw = _make_gateway(monkeypatch)
     raw = b"binary content"
@@ -242,14 +253,15 @@ def test_extract_original_filename_prefix(monkeypatch) -> None:
             _file_part(raw, "application/vnd.ms-excel", "upload.bin"),
         ]
     )
-    objective, files = gw._extract(ctx)
+    objective, files = await gw._extract_async(ctx)
     assert objective == ""  # prefix part is consumed, not added to objective
     assert len(files) == 1
     _, _, name = files[0]
     assert name == "custom_name.xlsx"
 
 
-def test_extract_sanitizes_uploaded_filename(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_extract_sanitizes_uploaded_filename(monkeypatch) -> None:
     gw = _make_gateway(monkeypatch)
     ctx = _make_context(
         [
@@ -258,12 +270,13 @@ def test_extract_sanitizes_uploaded_filename(monkeypatch) -> None:
         ]
     )
 
-    _, files = gw._extract(ctx)
+    _, files = await gw._extract_async(ctx)
 
     assert files[0][2] == "secret.txt"
 
 
-def test_extract_sanitizes_windows_uploaded_filename(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_extract_sanitizes_windows_uploaded_filename(monkeypatch) -> None:
     gw = _make_gateway(monkeypatch)
     ctx = _make_context(
         [
@@ -271,7 +284,7 @@ def test_extract_sanitizes_windows_uploaded_filename(monkeypatch) -> None:
         ]
     )
 
-    _, files = gw._extract(ctx)
+    _, files = await gw._extract_async(ctx)
 
     assert files[0][2] == "secret.txt"
 
@@ -291,7 +304,8 @@ def test_validate_artifacts_total_size_limit(monkeypatch) -> None:
         )
 
 
-def test_extract_sanitizes_shell_injection_characters(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_extract_sanitizes_shell_injection_characters(monkeypatch) -> None:
     gw = _make_gateway(monkeypatch)
     ctx = _make_context(
         [
@@ -299,7 +313,7 @@ def test_extract_sanitizes_shell_injection_characters(monkeypatch) -> None:
         ]
     )
 
-    _, files = gw._extract(ctx)
+    _, files = await gw._extract_async(ctx)
 
     # All unsafe characters replaced with underscores
     assert files[0][2] == "foo__rm_-rf____id_.txt"

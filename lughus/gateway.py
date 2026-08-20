@@ -352,32 +352,3 @@ class BaseGateway(AgentExecutor):
         objective = "\n".join(text_parts)
         _validate_objective(objective, self.settings)
         return objective, files
-
-    def _extract(
-        self,
-        context: RequestContext,
-    ) -> tuple[str, list[tuple[bytes, str, str]]]:
-        """Parse an A2A message into (objective_text, [(data, mime, name), ...])."""
-        text_parts, file_tasks = self._parse_message_parts(context)
-        files: list[tuple[bytes, str, str]] = []
-        total_file_bytes = 0
-
-        for task in file_tasks:
-            try:
-                raw = base64.b64decode(task["bytes"], validate=True)
-            except binascii.Error as exc:
-                _logger.warning(
-                    "Skipping file '%s': base64 decode failed — %s",
-                    task["name"],
-                    exc,
-                )
-                continue
-
-            res = self._process_decoded_file(raw, task, total_file_bytes)
-            if res is not None:
-                files.append(res)
-                total_file_bytes += len(res[0])
-
-        objective = "\n".join(text_parts)
-        _validate_objective(objective, self.settings)
-        return objective, files
