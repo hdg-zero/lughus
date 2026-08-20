@@ -60,7 +60,6 @@ def test_timing_safe_multi_key_auth() -> None:
     assert resp.status_code != 401
 
 
-
 @pytest.mark.asyncio
 async def test_gateway_graceful_shutdown() -> None:
     gateway = SimpleGateway(llm=MagicMock(), settings=BaseSettings())

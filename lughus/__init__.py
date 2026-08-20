@@ -13,7 +13,6 @@ except PackageNotFoundError:
 if TYPE_CHECKING:
     # Keep every lazily-exported symbol resolvable for mypy and IDEs.
     from .application import AgentRuntime as AgentRuntime
-    from .runner import GovernedAgentRunner as GovernedAgentRunner
     from .artifacts import ArtifactStore as ArtifactStore
     from .budget import BudgetAmount as BudgetAmount
     from .budget import BudgetExceeded as BudgetExceeded
@@ -52,6 +51,7 @@ if TYPE_CHECKING:
     from .resume import ResumeDecision as ResumeDecision
     from .resume import decide_resume as decide_resume
     from .runner import AgentRunner as AgentRunner
+    from .runner import GovernedAgentRunner as GovernedAgentRunner
     from .runtime import ExecutionRuntime as ExecutionRuntime
     from .runtime import RuntimeConfig as RuntimeConfig
     from .server import BoundedInMemoryTaskStore as BoundedInMemoryTaskStore

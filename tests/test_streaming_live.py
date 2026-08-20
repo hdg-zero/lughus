@@ -55,7 +55,6 @@ async def test_live_streaming_yields_chunks_immediately(registry: ToolRegistry) 
     assert str(chunks[2]) == "Hello world"
 
 
-
 class FailingStreamLLM:
     """Mock LLM that emits a chunk and then fails with a transient error."""
 

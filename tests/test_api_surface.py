@@ -96,9 +96,7 @@ def test_api_surface_matches_snapshot() -> None:
             lines.append(f"        current:  {json.dumps(current_idx[name], sort_keys=True)}")
 
     lines.append("")
-    lines.append(
-        "  Run 'python scripts/update_api_snapshot.py' to accept these changes."
-    )
+    lines.append("  Run 'python scripts/update_api_snapshot.py' to accept these changes.")
     lines.append("=" * 60)
 
     report = "\n".join(lines)

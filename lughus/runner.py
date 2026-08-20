@@ -145,7 +145,6 @@ class GovernedAgentRunner:
         from .budgeted_llm import BudgetedLLM
         from .coordinator import RunCoordinator
         from .errors import ApprovalRequiredGroup, RunSuspended
-        from .loop import ToolExecutionConfig
         from .loop._execute import collect_tool_events
         from .persistence import Checkpoint, RunUnitOfWork
 
@@ -204,9 +203,7 @@ class GovernedAgentRunner:
         for te in tool_events:
             seq = coordinator.next_sequence(run.run_id)
             last_event_seq = seq
-            run_event = RunEvent(
-                te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT
-            )
+            run_event = RunEvent(te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT)
             await rt.event_store.append(run_event)
 
         # Save a checkpoint capturing post-tool-execution state.
@@ -221,9 +218,7 @@ class GovernedAgentRunner:
                     "total_tokens": result.total_tokens,
                 },
             )
-            await rt.checkpoint_store.save(
-                checkpoint, expected_version=running.version
-            )
+            await rt.checkpoint_store.save(checkpoint, expected_version=running.version)
 
         await coordinator.transition(
             running,

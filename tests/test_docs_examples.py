@@ -65,5 +65,5 @@ def test_runnable_example(line: int, code: str) -> None:
     """Self-contained examples must execute without errors."""
     try:
         exec(compile(code, f"README.md:L{line}", "exec"), {"__name__": "__main__"})
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         pytest.fail(f"README.md example at line {line} failed: {exc}")

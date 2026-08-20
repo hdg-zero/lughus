@@ -213,7 +213,9 @@ async def test_extract_max_files_limit(monkeypatch, caplog: pytest.LogCaptureFix
 
 
 @pytest.mark.asyncio
-async def test_extract_max_request_bytes_limit(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
+async def test_extract_max_request_bytes_limit(
+    monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
     """Total decoded file bytes are bounded per request."""
     gw = _make_gateway(monkeypatch, max_request_bytes=5, max_file_bytes=5)
     ctx = _make_context(

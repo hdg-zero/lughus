@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -18,7 +17,6 @@ from lughus import ToolRegistry
 from lughus.loop import LoopResult, agent_loop, agent_loop_stream
 from lughus.loop._execute import _record_llm_usage
 from lughus.testing import MockLLM, MockStreamingLLM
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 

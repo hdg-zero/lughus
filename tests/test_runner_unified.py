@@ -24,7 +24,6 @@ from lughus.runtime import ExecutionRuntime
 from lughus.testing import MockLLM
 from lughus.tools import ToolRegistry
 
-
 # ── Identity: AgentRunner is GovernedAgentRunner ─────────────────────
 
 
@@ -50,9 +49,7 @@ async def test_ungoverned_run_produces_expected_events():
     registry = ToolRegistry()
     runner = GovernedAgentRunner()  # no runtime
 
-    result = await runner.run(
-        llm, system=".", context="Hi", registry=registry, tool_names=[]
-    )
+    result = await runner.run(llm, system=".", context="Hi", registry=registry, tool_names=[])
     assert str(result) == "Hello unified"
 
     events = runner.events.snapshot()
@@ -75,9 +72,7 @@ async def test_ungoverned_run_failure_produces_failed_event():
     runner = GovernedAgentRunner()
     registry = ToolRegistry()
     with pytest.raises(RuntimeError, match="boom"):
-        await runner.run(
-            BrokenLLM(), system=".", context="Hi", registry=registry, tool_names=[]
-        )
+        await runner.run(BrokenLLM(), system=".", context="Hi", registry=registry, tool_names=[])
 
     events = runner.events.snapshot()
     assert len(events) == 2
@@ -156,10 +151,12 @@ async def test_governed_run_persists_tool_events():
 
     runner = GovernedAgentRunner(runtime)
     principal = Principal(subject="user-1", tenant_id="t-1")
-    llm = MockLLM([
-        [{"name": "greet", "arguments": {"name": "World"}, "id": "c1"}],
-        "Done!",
-    ])
+    llm = MockLLM(
+        [
+            [{"name": "greet", "arguments": {"name": "World"}, "id": "c1"}],
+            "Done!",
+        ]
+    )
 
     result = await runner.run(
         llm,
@@ -203,10 +200,12 @@ async def test_governed_run_creates_checkpoint():
 
     runner = GovernedAgentRunner(runtime)
     principal = Principal(subject="user-1", tenant_id="t-1")
-    llm = MockLLM([
-        [{"name": "echo", "arguments": {"msg": "hi"}, "id": "c1"}],
-        "echoed",
-    ])
+    llm = MockLLM(
+        [
+            [{"name": "echo", "arguments": {"msg": "hi"}, "id": "c1"}],
+            "echoed",
+        ]
+    )
 
     await runner.run(
         llm,
@@ -256,10 +255,12 @@ async def test_same_class_handles_both_modes():
     async def noop(*, state: dict) -> str:
         return "done"
 
-    llm_gov = MockLLM([
-        [{"name": "noop", "arguments": {}, "id": "c1"}],
-        "governed result",
-    ])
+    llm_gov = MockLLM(
+        [
+            [{"name": "noop", "arguments": {}, "id": "c1"}],
+            "governed result",
+        ]
+    )
     result_gov = await governed_runner.run(
         llm_gov,
         objective="noop test",

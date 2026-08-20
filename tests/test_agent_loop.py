@@ -178,7 +178,6 @@ async def test_max_iterations_raises(registry: ToolRegistry) -> None:
     assert isinstance(exc_info.value, LughusError)
 
 
-
 @pytest.mark.asyncio
 async def test_loop_result_is_str_subclass(registry: ToolRegistry) -> None:
     """LoopResult behaves as a str in all string contexts."""

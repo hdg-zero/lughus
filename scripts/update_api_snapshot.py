@@ -39,7 +39,7 @@ def collect_api_surface() -> list[dict[str, object]]:
 
         try:
             obj = getattr(lughus, name)
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Symbol requires an optional extra that is not installed.
             entry["kind"] = "unresolvable"
             entries.append(entry)
