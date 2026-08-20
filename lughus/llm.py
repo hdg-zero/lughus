@@ -183,8 +183,8 @@ class LLM:
                     1,
                     {
                         "gen_ai.request.model": self.model,
-                        "error.type": type(exc).__name__,
-                        "retry.label": label,
+                        "lughus.error.type": type(exc).__name__,
+                        "lughus.retry.label": label,
                     },
                 )
                 _logger.warning(

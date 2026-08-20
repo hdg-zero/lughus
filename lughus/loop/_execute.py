@@ -94,15 +94,17 @@ def _record_llm_usage(span: Any, usage: Any, model: str) -> tuple[int, int, int]
     span attributes when the provider reports cache-related fields.
     """
     p, c, ca = _extract_usage(usage)
-    span.set_attribute("gen_ai.usage.prompt_tokens", p)
-    span.set_attribute("gen_ai.usage.completion_tokens", c)
+    span.set_attribute("gen_ai.system", "litellm")
+    span.set_attribute("gen_ai.operation.name", "chat")
+    span.set_attribute("gen_ai.usage.input_tokens", p)
+    span.set_attribute("gen_ai.usage.output_tokens", c)
     if ca:
         span.set_attribute("gen_ai.usage.cached_tokens", ca)
     attrs = {"gen_ai.request.model": model}
-    _token_counter.add(p, {**attrs, "token.type": "prompt"})
-    _token_counter.add(c, {**attrs, "token.type": "completion"})
+    _token_counter.add(p, {**attrs, "lughus.token.type": "prompt"})
+    _token_counter.add(c, {**attrs, "lughus.token.type": "completion"})
     if ca:
-        _token_counter.add(ca, {**attrs, "token.type": "cached"})
+        _token_counter.add(ca, {**attrs, "lughus.token.type": "cached"})
     # cache-specific telemetry
     if ca:
         _cache_read_counter.add(ca, attrs)
@@ -368,8 +370,8 @@ async def _execute_tools(
 
         fn = tool.fn
         with tracer.start_as_current_span(f"tool.{name}") as span:
-            span.set_attribute("tool.name", name)
-            span.set_attribute("tool.timeout_s", timeout or 0)
+            span.set_attribute("lughus.tool.name", name)
+            span.set_attribute("lughus.tool.timeout_s", timeout or 0)
             status, error_type = "ok", None
             idem_key: IdempotencyKey | None = None
             budget_reservation: str | None = None
@@ -408,7 +410,7 @@ async def _execute_tools(
                         and existing_completed.status == AttemptStatus.COMPLETED
                     ):
                         output = existing_completed.result or ""
-                        span.set_attribute("tool.idempotent_hit", True)
+                        span.set_attribute("lughus.tool.idempotent_hit", True)
                         span.set_status(StatusCode.OK)
                         _emit_tool_event(
                             {
@@ -455,7 +457,7 @@ async def _execute_tools(
                     )
                     if existing is not None and existing.status == AttemptStatus.COMPLETED:
                         output = existing.result or ""
-                        span.set_attribute("tool.idempotent_hit", True)
+                        span.set_attribute("lughus.tool.idempotent_hit", True)
                         span.set_status(StatusCode.OK)
                         _emit_tool_event(
                             {
@@ -536,13 +538,13 @@ async def _execute_tools(
                 span.set_status(StatusCode.OK)
             except ToolTimeoutError as exc:
                 span.set_status(StatusCode.ERROR, str(exc))
-                _tool_errors.add(1, {"tool.name": name, "error.type": "timeout"})
+                _tool_errors.add(1, {"lughus.tool.name": name, "lughus.error.type": "timeout"})
                 output, status, error_type = _error_payload(exc), "error", type(exc).__name__
             except TimeoutError:
                 timeout_exc = ToolTimeoutError(f"Tool '{name}' timed out after {timeout}s")
                 span.set_status(StatusCode.ERROR, str(timeout_exc))
                 # Timeout = outcome unknown: leave PENDING for reconciliation
-                _tool_errors.add(1, {"tool.name": name, "error.type": "timeout"})
+                _tool_errors.add(1, {"lughus.tool.name": name, "lughus.error.type": "timeout"})
                 output, status, error_type = (
                     _error_payload(timeout_exc),
                     "error",
@@ -550,7 +552,7 @@ async def _execute_tools(
                 )
             except ToolValidationError as exc:
                 span.set_status(StatusCode.ERROR, str(exc))
-                _tool_errors.add(1, {"tool.name": name, "error.type": "validation"})
+                _tool_errors.add(1, {"lughus.tool.name": name, "lughus.error.type": "validation"})
                 if idem_key is not None and cfg.idempotency_store is not None:
                     await cfg.idempotency_store.save(
                         ExecutionAttempt(
@@ -570,7 +572,7 @@ async def _execute_tools(
                 )
                 span.set_status(StatusCode.ERROR, str(wrapped))
                 span.record_exception(exc)
-                _tool_errors.add(1, {"tool.name": name, "error.type": "exception"})
+                _tool_errors.add(1, {"lughus.tool.name": name, "lughus.error.type": "exception"})
                 if idem_key is not None and cfg.idempotency_store is not None:
                     await cfg.idempotency_store.save(
                         ExecutionAttempt(

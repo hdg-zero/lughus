@@ -206,8 +206,8 @@ def _finalize_loop(
     )
     span.set_attribute("lughus.iterations", result.iterations)
     span.set_attribute("lughus.elapsed_s", round(elapsed, 2))
-    span.set_attribute("gen_ai.usage.prompt_tokens", prompt_tokens)
-    span.set_attribute("gen_ai.usage.completion_tokens", completion_tokens)
+    span.set_attribute("gen_ai.usage.input_tokens", prompt_tokens)
+    span.set_attribute("gen_ai.usage.output_tokens", completion_tokens)
     span.set_attribute("gen_ai.usage.cached_tokens", cached_tokens)
     span.set_attribute("gen_ai.usage.total_tokens", result.total_tokens)
     span.set_status(StatusCode.OK)
@@ -289,7 +289,9 @@ async def agent_loop(
     try:
         with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
             with retry_budget(getattr(llm, "retry_max_elapsed", None)):
+                loop_span.set_attribute("gen_ai.system", "litellm")
                 loop_span.set_attribute("gen_ai.request.model", llm.model)
+                loop_span.set_attribute("gen_ai.operation.name", "chat")
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
 
                 history, tools, prefix_len = _prepare_loop(
@@ -413,7 +415,9 @@ async def agent_loop_stream(
     try:
         with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
             with retry_budget(getattr(llm, "retry_max_elapsed", None)):
+                loop_span.set_attribute("gen_ai.system", "litellm")
                 loop_span.set_attribute("gen_ai.request.model", llm.model)
+                loop_span.set_attribute("gen_ai.operation.name", "chat")
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
                 loop_span.set_attribute("lughus.streaming", True)
 
