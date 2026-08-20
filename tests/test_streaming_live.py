@@ -1,4 +1,4 @@
-"""Tests for live / live_at_most_once streaming mode (M3-03)."""
+"""Tests for live streaming mode (M3-03)."""
 
 from __future__ import annotations
 
@@ -55,26 +55,6 @@ async def test_live_streaming_yields_chunks_immediately(registry: ToolRegistry) 
     assert str(chunks[2]) == "Hello world"
 
 
-@pytest.mark.asyncio
-async def test_live_at_most_once_alias(registry: ToolRegistry) -> None:
-    llm = MockStreamingLLM(["Live stream"])
-    chunks = []
-    async for chunk in agent_loop_stream(
-        llm,
-        system="sys",
-        context="ctx",
-        registry=registry,
-        tool_names=[],
-        streaming_mode=StreamingMode.LIVE_AT_MOST_ONCE,
-    ):
-        chunks.append(chunk)
-
-    assert len(chunks) == 3
-    assert chunks[0] == StreamChunk(content="Live")
-    assert chunks[1] == StreamChunk(content=" stream")
-    assert isinstance(chunks[2], LoopResult)
-
-
 class FailingStreamLLM:
     """Mock LLM that emits a chunk and then fails with a transient error."""
 
@@ -97,7 +77,7 @@ class FailingStreamLLM:
 
 @pytest.mark.asyncio
 async def test_live_mode_no_retry_after_first_emitted_chunk(registry: ToolRegistry) -> None:
-    """In live_at_most_once mode, once a chunk is emitted to the caller, retries are disabled."""
+    """In live mode, once a chunk is emitted to the caller, retries are disabled."""
     llm = FailingStreamLLM()
     emitted = []
     with pytest.raises(TimeoutError):

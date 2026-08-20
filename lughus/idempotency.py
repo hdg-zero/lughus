@@ -144,7 +144,7 @@ class InMemoryIdempotencyStore:
 
         for key in [k for k, v in self._store.items() if self._is_expired(v)]:
             del self._store[key]
-            _evictions.add(1, {"reason": "expired"})
+            _evictions.add(1, {"lughus.reason": "expired"})
 
         while len(self._store) >= self._max_entries:
             oldest = min(
@@ -158,7 +158,7 @@ class InMemoryIdempotencyStore:
                     f"(PENDING and not expired); reduce concurrency or raise max_entries"
                 )
             del self._store[oldest]
-            _evictions.add(1, {"reason": "capacity"})
+            _evictions.add(1, {"lughus.reason": "capacity"})
 
     async def save(self, attempt: ExecutionAttempt) -> None:
         from .persistence import ConcurrentUpdateError
@@ -186,7 +186,7 @@ class InMemoryIdempotencyStore:
             attempt = self._store.get(key)
             if attempt is not None and self._is_expired(attempt):
                 del self._store[key]
-                _evictions.add(1, {"reason": "expired"})
+                _evictions.add(1, {"lughus.reason": "expired"})
                 return None
             return attempt
 
@@ -199,7 +199,7 @@ class InMemoryIdempotencyStore:
                 return existing
             if existing is not None:
                 del self._store[attempt.key]
-                _evictions.add(1, {"reason": "expired"})
+                _evictions.add(1, {"lughus.reason": "expired"})
             self._make_room(attempt.key)
             # Stamp from the store's own clock (see save()).
             self._store[attempt.key] = replace(attempt, created_at=self._now())
@@ -220,7 +220,7 @@ class InMemoryIdempotencyStore:
             expired = [k for k, v in self._store.items() if self._is_expired(v)]
             for key in expired:
                 del self._store[key]
-                _evictions.add(1, {"reason": "expired"})
+                _evictions.add(1, {"lughus.reason": "expired"})
             return len(expired)
 
     def __len__(self) -> int:

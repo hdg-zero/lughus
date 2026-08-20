@@ -11,7 +11,6 @@ import pytest
 from lughus.loop._config import (
     DEFAULT_MAX_GLOBAL_TOOLS,
     DEFAULT_MAX_ITERATIONS,
-    DEFAULT_MAX_MESSAGE_HISTORY_CHARS,
     DEFAULT_MAX_PARALLEL_TOOLS,
     DEFAULT_MAX_SYNC_THREAD_WORKERS,
     DEFAULT_MAX_TOOL_ARGS_CHARS,
@@ -50,10 +49,6 @@ def test_default_max_sync_thread_workers() -> None:
     assert DEFAULT_MAX_SYNC_THREAD_WORKERS == 32
 
 
-def test_default_max_message_history_chars() -> None:
-    assert DEFAULT_MAX_MESSAGE_HISTORY_CHARS == 200_000
-
-
 def test_default_tool_queue_timeout() -> None:
     assert pytest.approx(30.0) == DEFAULT_TOOL_QUEUE_TIMEOUT
 
@@ -65,7 +60,6 @@ def test_tool_config_uses_tightened_defaults() -> None:
     assert cfg.tool_timeout == pytest.approx(30.0)
     assert cfg.max_tool_output_chars == 8_192
     assert cfg.max_tool_args_chars == 20_000
-    assert cfg.max_message_history_chars == 200_000
 
 
 def test_base_settings_tightened_defaults(monkeypatch) -> None:
@@ -75,7 +69,6 @@ def test_base_settings_tightened_defaults(monkeypatch) -> None:
         "TOOL_TIMEOUT",
         "MAX_TOOL_OUTPUT_CHARS",
         "MAX_TOOL_ARGS_CHARS",
-        "MAX_MESSAGE_HISTORY_CHARS",
         "MAX_GLOBAL_TOOLS",
         "MAX_SYNC_THREAD_WORKERS",
         "TOOL_QUEUE_TIMEOUT",

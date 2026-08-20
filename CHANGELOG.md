@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-08-19
+
+### Added
+- **OTel GenAI conventions** — span attributes aligned with `gen_ai.*` semantic conventions; lughus-specific attributes under `lughus.*` prefix.
+- **Unified single runner** — `AgentRunner` and `GovernedAgentRunner` merged; governance is optional. `AgentRunner` is now an alias.
+- **API surface snapshot** — `api_snapshot.json` tracks public API; informative test detects changes.
+- **Supply chain hardening** — GitHub Actions pinned by SHA, SBOM generation, provenance attestations, dependency scanning.
+- **Documentation** — README rewritten with working example; agentic design guide (A1–A8).
+- **Migration guide** — `docs/guides/migration-0.10-to-0.13.md` covers all breaking changes with before/after code.
+
+### Changed
+- OTel attributes renamed: `gen_ai.usage.prompt_tokens` → `gen_ai.usage.input_tokens`, `gen_ai.usage.completion_tokens` → `gen_ai.usage.output_tokens`.
+- Tool span attributes moved under `lughus.*` prefix.
+
+### Removed
+- **Deletion sprint** — 284 net lines removed: `StreamingMode.LIVE_AT_MOST_ONCE`, `max_message_history_chars`, dead code in gateway/delegation/ui_server, `__all__` trimmed from 100 to 89 entries.
+- `AgentRunner` as a separate class (now alias for `GovernedAgentRunner`).
+
 ## [0.12.0] — 2026-08-19
 
 ### Added

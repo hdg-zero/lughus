@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 import os
 from dataclasses import dataclass, field
-
-_logger = logging.getLogger(__name__)
 
 __all__ = ["BaseSettings"]
 
@@ -204,10 +201,6 @@ class BaseSettings:
     max_tool_output_chars: int = field(
         default_factory=lambda: _env_int("MAX_TOOL_OUTPUT_CHARS", 8_192)
     )
-    max_message_history_chars: int = field(
-        default_factory=lambda: _env_int("MAX_MESSAGE_HISTORY_CHARS", 200_000)
-    )
-
     cors_allow_credentials: bool = field(
         default_factory=lambda: _env_bool("CORS_ALLOW_CREDENTIALS", False)
     )
@@ -229,7 +222,6 @@ class BaseSettings:
             "max_sync_thread_workers": self.max_sync_thread_workers,
             "max_tool_args_chars": self.max_tool_args_chars,
             "max_tool_output_chars": self.max_tool_output_chars,
-            "max_message_history_chars": self.max_message_history_chars,
         }
         invalid = [name for name, value in positive.items() if value <= 0]
         if invalid:

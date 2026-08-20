@@ -206,8 +206,8 @@ def _finalize_loop(
     )
     span.set_attribute("lughus.iterations", result.iterations)
     span.set_attribute("lughus.elapsed_s", round(elapsed, 2))
-    span.set_attribute("gen_ai.usage.prompt_tokens", prompt_tokens)
-    span.set_attribute("gen_ai.usage.completion_tokens", completion_tokens)
+    span.set_attribute("gen_ai.usage.input_tokens", prompt_tokens)
+    span.set_attribute("gen_ai.usage.output_tokens", completion_tokens)
     span.set_attribute("gen_ai.usage.cached_tokens", cached_tokens)
     span.set_attribute("gen_ai.usage.total_tokens", result.total_tokens)
     span.set_status(StatusCode.OK)
@@ -289,7 +289,9 @@ async def agent_loop(
     try:
         with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
             with retry_budget(getattr(llm, "retry_max_elapsed", None)):
+                loop_span.set_attribute("gen_ai.system", "litellm")
                 loop_span.set_attribute("gen_ai.request.model", llm.model)
+                loop_span.set_attribute("gen_ai.operation.name", "chat")
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
 
                 history, tools, prefix_len = _prepare_loop(
@@ -307,10 +309,7 @@ async def agent_loop(
                 cached_tokens = 0
 
                 for iteration in range(max_iterations):
-                    limit = cfg.max_message_history_chars
-                    if limit > 0 and history.char_count > limit:
-                        raise LoopLimitError(f"Agent message history exceeded {limit} characters")
-                    # prune oldest atomic groups before each LLM call.
+                    # Prune oldest atomic groups before each LLM call.
                     _prune_if_needed(history, cfg, prefix_len, llm.model)
                     with tracer.start_as_current_span("llm.generate") as llm_span:
                         llm_span.set_attribute("gen_ai.request.model", llm.model)
@@ -400,8 +399,6 @@ async def agent_loop_stream(
     with ``isinstance`` or by checking ``chunk.final``.
     """
     mode_str = str(streaming_mode)
-    if mode_str == "live_at_most_once":
-        mode_str = "live"
     if mode_str not in {"buffered", "live"}:
         raise ValueError("streaming_mode must be 'buffered' or 'live'")
     streaming_mode_normalized = mode_str
@@ -413,7 +410,9 @@ async def agent_loop_stream(
     try:
         with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
             with retry_budget(getattr(llm, "retry_max_elapsed", None)):
+                loop_span.set_attribute("gen_ai.system", "litellm")
                 loop_span.set_attribute("gen_ai.request.model", llm.model)
+                loop_span.set_attribute("gen_ai.operation.name", "chat")
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
                 loop_span.set_attribute("lughus.streaming", True)
 
@@ -432,10 +431,7 @@ async def agent_loop_stream(
                 cached_tokens = 0
 
                 for iteration in range(max_iterations):
-                    limit = cfg.max_message_history_chars
-                    if limit > 0 and history.char_count > limit:
-                        raise LoopLimitError(f"Agent message history exceeded {limit} characters")
-                    # prune oldest atomic groups before each LLM call.
+                    # Prune oldest atomic groups before each LLM call.
                     _prune_if_needed(history, cfg, prefix_len, llm.model)
                     content_parts: list[str] = []
                     tc_map: dict[int, dict[str, str]] = {}

@@ -13,7 +13,6 @@ except PackageNotFoundError:
 if TYPE_CHECKING:
     # Keep every lazily-exported symbol resolvable for mypy and IDEs.
     from .application import AgentRuntime as AgentRuntime
-    from .application import GovernedAgentRunner as GovernedAgentRunner
     from .artifacts import ArtifactStore as ArtifactStore
     from .budget import BudgetAmount as BudgetAmount
     from .budget import BudgetExceeded as BudgetExceeded
@@ -21,11 +20,6 @@ if TYPE_CHECKING:
     from .budget import BudgetLimit as BudgetLimit
     from .budgeted_llm import BudgetedLLM as BudgetedLLM
     from .coordinator import RunCoordinator as RunCoordinator
-    from .delegation import DelegationCycleError as DelegationCycleError
-    from .delegation import DelegationRequest as DelegationRequest
-    from .delegation import DelegationResult as DelegationResult
-    from .delegation import Delegator as Delegator
-    from .delegation import RemoteAgentClient as RemoteAgentClient
     from .event_stream import EventSink as EventSink
     from .event_stream import InMemoryEventSink as InMemoryEventSink
     from .gateway import BaseGateway as BaseGateway
@@ -39,7 +33,6 @@ if TYPE_CHECKING:
     from .llm import StreamingLLM as StreamingLLM
     from .loop import LoopResult as LoopResult
     from .loop import StreamChunk as StreamChunk
-    from .loop import StreamingMode as StreamingMode
     from .loop import ToolExecutionConfig as ToolExecutionConfig
     from .loop import agent_loop as agent_loop
     from .loop import agent_loop_stream as agent_loop_stream
@@ -58,6 +51,7 @@ if TYPE_CHECKING:
     from .resume import ResumeDecision as ResumeDecision
     from .resume import decide_resume as decide_resume
     from .runner import AgentRunner as AgentRunner
+    from .runner import GovernedAgentRunner as GovernedAgentRunner
     from .runtime import ExecutionRuntime as ExecutionRuntime
     from .runtime import RuntimeConfig as RuntimeConfig
     from .server import BoundedInMemoryTaskStore as BoundedInMemoryTaskStore
@@ -80,7 +74,6 @@ from .errors import (
     ApprovalRequired,
     ApprovalRequiredGroup,
     ContextBudgetExceeded,
-    IdempotencyCapacityError,
     LoopLimitError,
     LughusError,
     RunSuspended,
@@ -100,7 +93,7 @@ from .policy import (
     ToolPolicy,
     ToolProposal,
 )
-from .replay import REPLAY_SCHEMA_VERSION, RecordedCall, ReplayBundle, ReplayCapturePolicy
+from .replay import ReplayBundle
 
 # ── Lazy-loaded symbols ─────────────────────────────────────────────
 #
@@ -149,13 +142,12 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     # ── jsonschema + opentelemetry ───────────────────────────────────
     "LoopResult": (".loop", None),
     "StreamChunk": (".loop", None),
-    "StreamingMode": (".loop", None),
     "ToolExecutionConfig": (".loop", None),
     "agent_loop": (".loop", None),
     "agent_loop_stream": (".loop", None),
     "AgentRunner": (".runner", None),
     "AgentRuntime": (".application", None),
-    "GovernedAgentRunner": (".application", None),
+    "GovernedAgentRunner": (".runner", None),
     # ── asyncio chain ────────────────────────────────────────────────
     "BudgetAmount": (".budget", None),
     "BudgetExceeded": (".budget", None),
@@ -163,11 +155,6 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "BudgetLimit": (".budget", None),
     "BudgetedLLM": (".budgeted_llm", None),
     "RunCoordinator": (".coordinator", None),
-    "DelegationCycleError": (".delegation", None),
-    "DelegationRequest": (".delegation", None),
-    "DelegationResult": (".delegation", None),
-    "Delegator": (".delegation", None),
-    "RemoteAgentClient": (".delegation", None),
     "EventSink": (".event_stream", None),
     "InMemoryEventSink": (".event_stream", None),
     "Checkpoint": (".persistence", None),
@@ -207,7 +194,6 @@ def __dir__() -> list[str]:
 
 __all__ = [
     "LLM",
-    "REPLAY_SCHEMA_VERSION",
     "AgentRunner",
     "AgentRuntime",
     "ApprovalRequest",
@@ -236,10 +222,6 @@ __all__ = [
     "ContextManager",
     "ContextWindow",
     "DecisionKind",
-    "DelegationCycleError",
-    "DelegationRequest",
-    "DelegationResult",
-    "Delegator",
     "EvaluationResult",
     "EventSink",
     "EventStore",
@@ -248,7 +230,6 @@ __all__ = [
     "ExecutionRuntime",
     "GenerateLLM",
     "GovernedAgentRunner",
-    "IdempotencyCapacityError",
     "IdempotencyKey",
     "IdempotencyStore",
     "InMemoryApprovalStore",
@@ -267,10 +248,7 @@ __all__ = [
     "Principal",
     "ProductionGuardMiddleware",
     "ProgressEvent",
-    "RecordedCall",
-    "RemoteAgentClient",
     "ReplayBundle",
-    "ReplayCapturePolicy",
     "ResumeAction",
     "ResumeDecision",
     "Run",
@@ -285,7 +263,6 @@ __all__ = [
     "Scenario",
     "StreamChunk",
     "StreamingLLM",
-    "StreamingMode",
     "ToolDef",
     "ToolEffect",
     "ToolExecutionConfig",
