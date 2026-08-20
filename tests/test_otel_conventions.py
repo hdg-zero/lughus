@@ -1,6 +1,6 @@
 """Tests for OpenTelemetry GenAI semantic convention compliance.
 
-W4-01: every span attribute must live under ``gen_ai.*`` (standard GenAI
+Every span attribute must live under ``gen_ai.*`` (standard GenAI
 convention) or ``lughus.*`` (framework-specific).  This module validates
 that the agent loop emits the right attributes with the right types and
 that no attribute leaks into an unexpected namespace.
