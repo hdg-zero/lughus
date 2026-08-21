@@ -4,7 +4,7 @@
 Observability is critical for AI agents. Tracing LLM calls, tool execution times, and error rates is necessary for production deployment. However, framework-level OpenTelemetry (OTel) integration often conflicts with application-level configurations. We needed a strategy for integrating tracing and metrics into Lughus without hijacking the host application's observability stack.
 
 ## Decision
-Lughus utilizes atomic initialization for OpenTelemetry (`lughus.telemetry`) and scopes its telemetry purely to its own operations.
+Lughus utilizes atomic initialization for OpenTelemetry (`lughus.infra.telemetry`) and scopes its telemetry purely to its own operations.
 - **Initialization:** We use a thread-safe atomic lock (`_INIT_LOCK`) to ensure OTel providers are only instantiated once, and only if requested via Lughus's internal setup routine.
 - **Conventions:** All telemetry items (spans, metrics) are prefixed with the `lughus.*` namespace.
 - **Prompt Capture:** We decided **not** to capture actual prompt or completion text by default in traces. Only metadata and token usage are logged to prevent sensitive data leakage.

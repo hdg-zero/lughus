@@ -1,12 +1,12 @@
 ---
 type: API Reference
 title: Policy Engine API
-description: API reference for lughus.policy deterministic authorization module.
+description: API reference for lughus.governance.policy deterministic authorization module.
 ---
 
 # Policy Engine API
 
-The `lughus.policy` module provides deterministic authorization primitives evaluated prior to tool execution in the agent loop.
+The `lughus.governance.policy` module provides deterministic authorization primitives evaluated prior to tool execution in the agent loop.
 
 ---
 

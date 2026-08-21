@@ -1,12 +1,12 @@
 ---
 type: API Reference
 title: Approval Management API
-description: API reference for lughus.approval Human-in-the-Loop management module.
+description: API reference for lughus.governance.approval Human-in-the-Loop management module.
 ---
 
 # Approval Management API
 
-The `lughus.approval` module manages tamper-evident human-in-the-loop (HITL) approval requests when a tool execution requires human authorization.
+The `lughus.governance.approval` module manages tamper-evident human-in-the-loop (HITL) approval requests when a tool execution requires human authorization.
 
 ---
 

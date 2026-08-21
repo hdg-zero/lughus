@@ -22,12 +22,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Stress benchmark** — 52-turn scenario with 512-byte outputs; `large_outputs` scenario enlarged to 100KB payloads.
 
 ### Changed
-- **Package reorganization**: modules grouped into four layered subpackages:
+- **Full package reorganization**: all modules grouped into eight layered subpackages — only `__init__.py` remains at the package root:
+  - `core/` — domain, errors, events, context, artifacts, event_stream, _defaults
+  - `engine/` — tools, llm, files, delegation
+  - `agent/` — runner (GovernedAgentRunner), application (AgentRuntime)
+  - `testing/` — mocks (MockLLM, MockStreamingLLM), evaluation
   - `governance/` — policy, approval, idempotency, budget, budgeted_llm
   - `infra/` — config, telemetry, runtime, _threading, retry
   - `persistence/` — store (was persistence.py), coordinator, replay, resume
   - `interfaces/` — server, gateway, ui_server, cli, mcp
-- Old import paths remain functional via `sys.modules`-based compatibility shims.
+- Top-level `from lughus import X` still works for all public symbols (lazy loading via `__getattr__`).
+
+### Removed
+- Backward-compatibility shims at old module paths (all imports must use canonical subpackage paths).
+- Migration guide (`docs/guides/migration-0.10-to-0.13.md`) — framework not yet public.
 
 ## [0.13.0] — 2026-08-19
 
@@ -37,7 +45,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **API surface snapshot** — `api_snapshot.json` tracks public API; informative test detects changes.
 - **Supply chain hardening** — GitHub Actions pinned by SHA, SBOM generation, provenance attestations, dependency scanning.
 - **Documentation** — README rewritten with working example; agentic design guide (A1–A8).
-- **Migration guide** — `docs/guides/migration-0.10-to-0.13.md` covers all breaking changes with before/after code.
+
 
 ### Changed
 - OTel attributes renamed: `gen_ai.usage.prompt_tokens` → `gen_ai.usage.input_tokens`, `gen_ai.usage.completion_tokens` → `gen_ai.usage.output_tokens`.

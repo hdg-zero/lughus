@@ -113,7 +113,7 @@ This module is not imported by default in `lughus/__init__.py` to avoid producti
 
 ## Adding a new public API
 
-1. Implement in the appropriate module (`loop/` sub-package, `tools.py`, etc.).
+1. Implement in the appropriate subpackage (`core/`, `engine/`, `agent/`, `governance/`, `infra/`, `persistence/`, `interfaces/`, `loop/`).
 2. Export from `__init__.py` and add to `__all__` if it should be imported from the top-level package, or document the module-level import (e.g. `lughus.testing`).
 3. Add to the `API reference` section in `README.md`.
 4. Write tests with ≥ 90% branch coverage for the new code.

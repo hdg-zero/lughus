@@ -4,7 +4,7 @@
 As an A2A micro-framework, Lughus requires a structured, observable execution journal to trace complex AI behaviors. The runtime demands a mechanism to reliably capture everything an agent does to enable execution resumption across process boundaries, detailed audits, and real-time streaming to user interfaces. We needed to choose a data model that encapsulates this execution state without becoming tightly coupled to a specific underlying persistence backend.
 
 ## Decision
-We adopted an event-sourced execution model organized around the `Run` and `RunEvent` constructs (`lughus.domain`).
+We adopted an event-sourced execution model organized around the `Run` and `RunEvent` constructs (`lughus.core.domain`).
 - **Run Status:** The high-level state is defined by the `RunStatus` enumeration, transitioning from `PENDING` and `RUNNING` to terminal statuses like `COMPLETED`, `FAILED`, or `CANCELLED`. Once terminal, the `Run` cannot transition further.
 - **Events:** Execution history is tracked via immutable `RunEvent` instances that form a strictly monotonic sequence per `Run`.
 - **Visibility:** We implemented a 4-level visibility system (`EventVisibility`: `INTERNAL`, `MODEL`, `PUBLIC`, `AUDIT`) to control exposure of event data.

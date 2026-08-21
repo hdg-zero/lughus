@@ -1,12 +1,12 @@
 ---
 type: API Reference
 title: Domain Models API
-description: API reference for lughus.domain domain records.
+description: API reference for lughus.core.domain domain records.
 ---
 
 # Domain Models API
 
-The `lughus.domain` module defines immutable, versioned domain models for observable agent execution.
+The `lughus.core.domain` module defines immutable, versioned domain models for observable agent execution.
 
 ---
 

@@ -3,7 +3,7 @@
 The Model Context Protocol (MCP) allows Lughus agents to dynamically interact with external, standardized tool servers. Our integration is designed to be policy-ready and secure by default.
 
 ## Architecture
-The integration uses an adapter pattern (`lughus.mcp`) to prevent Lughus from tightly coupling to any specific underlying SDK.
+The integration uses an adapter pattern (`lughus.interfaces.mcp`) to prevent Lughus from tightly coupling to any specific underlying SDK.
 - The `MCPClient` is a protocol defining tool discovery and invocation.
 - `MCPAdapter` wraps the client, applying runtime constraints and bridging MCP tool definitions into Lughus's native `ToolPolicy` and execution layers.
 

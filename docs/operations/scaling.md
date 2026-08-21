@@ -3,7 +3,7 @@
 Lughus is built as a lightweight framework. Moving from a local development environment to a multi-replica production deployment requires understanding the underlying persistence and concurrency guarantees.
 
 ## Single Process Execution
-Locally, Lughus handles concurrency via the `ExecutionRuntime` (`lughus.runtime`).
+Locally, Lughus handles concurrency via the `ExecutionRuntime` (`lughus.infra.runtime`).
 - It manages an isolated `ThreadPoolExecutor` dedicated strictly to tool execution.
 - Global semaphores prevent aggressive LLMs from overwhelming the host with parallel tool calls.
 - In-memory event sinks handle subscription state.

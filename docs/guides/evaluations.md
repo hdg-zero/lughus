@@ -3,7 +3,7 @@
 Testing non-deterministic A2A agents presents a unique challenge. Lughus separates testing into two distinct phases: deterministic replay of past interactions, and probabilistic evaluation of scenario constraints.
 
 ## Development Cycle Overview
-The `lughus.replay` and `lughus.evaluation` modules allow you to capture an agent's execution, seal it into a portable bundle, and run assertions against the resulting event stream. This ensures regressions are caught early without incurring the cost and variance of live LLM calls.
+The `lughus.persistence.replay` and `lughus.testing.evaluation` modules allow you to capture an agent's execution, seal it into a portable bundle, and run assertions against the resulting event stream. This ensures regressions are caught early without incurring the cost and variance of live LLM calls.
 
 ## Replay Bundles
 A `ReplayBundle` encapsulates everything needed to reconstruct a `Run`.
