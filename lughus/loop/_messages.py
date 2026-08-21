@@ -108,38 +108,24 @@ class _ReadOnlyMessageView(Sequence[dict[str, Any]]):
 
 
 class MessageHistory:
-    """Append-only message list with incremental char counting and a read-only view.
-
-    The char count tracks the exact value that ``json.dumps(messages,
-    ensure_ascii=False, separators=(",",":"))`` would produce, but is
-    maintained incrementally so that callers never pay O(n) to recompute
-    it from scratch.  This is the preparation step for token budgets.
+    """Append-only message list with a read-only view.
 
     The :attr:`view` property returns a :class:`~collections.abc.Sequence`
     that shares the backing list but raises ``TypeError`` on any mutation
     attempt, protecting the canonical history from accidental corruption.
     """
 
-    __slots__ = ("_char_count", "_messages", "_view")
+    __slots__ = ("_messages", "_view")
 
     def __init__(self, initial: Iterable[dict[str, Any]] | None = None) -> None:
         self._messages: list[dict[str, Any]] = []
-        self._char_count: int = 2  # accounts for enclosing '[]'
         self._view = _ReadOnlyMessageView(self._messages)
         if initial is not None:
             for msg in initial:
                 self.append(msg)
 
-    @staticmethod
-    def _msg_chars(msg: dict[str, Any]) -> int:
-        """JSON char count for a single message dict (compact separators)."""
-        return len(json.dumps(msg, ensure_ascii=False, separators=(",", ":")))
-
     def append(self, msg: dict[str, Any]) -> None:
-        """Append *msg* and update the incremental char count."""
-        if self._messages:
-            self._char_count += 1  # comma separator between elements
-        self._char_count += self._msg_chars(msg)
+        """Append *msg* to the history."""
         self._messages.append(msg)
 
     def extend(self, msgs: Iterable[dict[str, Any]]) -> None:
@@ -152,11 +138,6 @@ class MessageHistory:
         """Read-only view sharing the backing list — mutation raises TypeError."""
         return self._view
 
-    @property
-    def char_count(self) -> int:
-        """Exact JSON char count equivalent to ``len(json.dumps(list, ...))``."""
-        return self._char_count
-
     def __len__(self) -> int:
         return len(self._messages)
 
@@ -166,17 +147,10 @@ class MessageHistory:
         Returns the number of groups pruned.  Raises :class:`ContextBudgetExceeded`
         if a single atomic group exceeds the entire budget.
         """
-        pruned = prune_history(self._messages, max_tokens, prefix_len, model=model)
-        # Recompute char count from scratch after mutation.
-        self._char_count = 2
-        for i, msg in enumerate(self._messages):
-            if i > 0:
-                self._char_count += 1  # comma
-            self._char_count += self._msg_chars(msg)
-        return pruned
+        return prune_history(self._messages, max_tokens, prefix_len, model=model)
 
     def __repr__(self) -> str:
-        return f"MessageHistory(len={len(self._messages)}, chars={self._char_count})"
+        return f"MessageHistory(len={len(self._messages)})"
 
 
 # ── Token estimation ────────────────────────────────────────────────────────
