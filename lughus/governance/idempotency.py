@@ -11,7 +11,7 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any, Protocol
 
-from ..errors import IdempotencyCapacityError
+from ..core.errors import IdempotencyCapacityError
 from ..infra.telemetry import meter
 
 # Eviction weakens the exactly-once guarantee, so it must be observable.

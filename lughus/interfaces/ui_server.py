@@ -26,8 +26,8 @@ from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingR
 from starlette.routing import Route
 
 from ..infra._threading import run_sync_in_thread
-from ..events import CompletionEvent, ProgressEvent
-from ..files import decode_files_payload
+from ..core.events import CompletionEvent, ProgressEvent
+from ..engine.files import decode_files_payload
 from .gateway import BaseGateway, _validate_artifacts, _validate_objective
 from ..loop import collect_tool_events
 from ..infra.telemetry import tracer

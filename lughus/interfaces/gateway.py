@@ -25,13 +25,13 @@ from opentelemetry.trace import StatusCode
 
 from ..infra._threading import run_sync_in_thread
 from ..infra.config import BaseSettings
-from ..errors import LughusError, SafeToolError
-from ..events import Artifact, CompletionEvent, ProgressEvent
-from ..files import _safe_filename
+from ..core.errors import LughusError, SafeToolError
+from ..core.events import Artifact, CompletionEvent, ProgressEvent
+from ..engine.files import _safe_filename
 from ..infra.telemetry import tracer
 
 if TYPE_CHECKING:
-    from ..llm import LLM
+    from ..engine.llm import LLM
 
 from concurrent.futures import ThreadPoolExecutor
 

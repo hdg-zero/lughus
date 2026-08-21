@@ -75,7 +75,7 @@ The budget is especially useful in streaming agent loops where multiple
 LLM calls share one budget via `retry_budget()`:
 
 ```python
-from lughus.llm import retry_budget
+from lughus.engine.llm import retry_budget
 
 with retry_budget(max_elapsed=30.0):
     # All LLM calls inside this block share a 30-second retry budget.

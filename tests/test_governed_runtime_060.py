@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from lughus.application import AgentRuntime
+from lughus.agent.application import AgentRuntime
 from lughus.governance.approval import (
     ApprovalRequest,
     ApprovalStatus,
@@ -11,10 +11,10 @@ from lughus.governance.approval import (
     proposal_digest,
 )
 from lughus.governance.budget import BudgetLedger, BudgetLimit
-from lughus.context import ContextManager
-from lughus.domain import RunEvent
-from lughus.errors import ApprovalRequiredGroup
-from lughus.event_stream import InMemoryEventSink
+from lughus.core.context import ContextManager
+from lughus.core.domain import RunEvent
+from lughus.core.errors import ApprovalRequiredGroup
+from lughus.core.event_stream import InMemoryEventSink
 from lughus.governance.idempotency import (
     AttemptStatus,
     ExecutionAttempt,
@@ -25,7 +25,7 @@ from lughus.loop import ToolExecutionConfig, _execute_tools
 from lughus.persistence import Checkpoint, InMemoryRunStore
 from lughus.governance.policy import LeastPrivilegePolicy, Principal
 from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
-from lughus.tools import ToolRegistry, ToolRisk
+from lughus.engine.tools import ToolRegistry, ToolRisk
 
 
 @pytest.mark.asyncio

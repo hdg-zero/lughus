@@ -1,7 +1,7 @@
 import pytest
 
 from lughus.interfaces.mcp import MCPAdapter, MCPServerConfig, MCPToolDescriptor
-from lughus.tools import ToolRegistry, ToolRisk
+from lughus.engine.tools import ToolRegistry, ToolRisk
 
 
 class _MCP:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-from .._defaults import (
+from ..core._defaults import (
     DEFAULT_MAX_GLOBAL_TOOLS,
     DEFAULT_MAX_PARALLEL_TOOLS,
     DEFAULT_MAX_SYNC_THREAD_WORKERS,

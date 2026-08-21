@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from lughus import ToolRegistry
-from lughus.errors import (
+from lughus.core.errors import (
     SafeToolError,
     ToolExecutionError,
     ToolTimeoutError,

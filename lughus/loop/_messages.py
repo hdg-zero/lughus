@@ -18,8 +18,8 @@ from collections.abc import Iterable, Iterator, Sequence
 from typing import Any, overload
 from xml.sax.saxutils import escape
 
-from ..context import ContextItem
-from ..errors import ContextBudgetExceeded
+from ..core.context import ContextItem
+from ..core.errors import ContextBudgetExceeded
 
 _logger = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from .infra._threading import run_sync_in_thread
+from ..infra._threading import run_sync_in_thread
 
 __all__ = ["_safe_filename", "decode_file_bytes", "decode_files_payload"]
 

@@ -17,7 +17,7 @@ from opentelemetry.trace import StatusCode
 
 from ..governance.approval import ApprovalRequest, proposal_digest
 from ..governance.budget import BudgetAmount
-from ..errors import (
+from ..core.errors import (
     ApprovalRequired,
     ApprovalRequiredGroup,
     SafeToolError,
@@ -25,11 +25,11 @@ from ..errors import (
     ToolTimeoutError,
     ToolValidationError,
 )
-from ..artifacts import _summarize
+from ..core.artifacts import _summarize
 from ..governance.idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey
 from ..governance.policy import DecisionKind, ToolProposal
 from ..infra.telemetry import meter, tracer
-from ..tools import ConcurrencyMode, ToolRegistry
+from ..engine.tools import ConcurrencyMode, ToolRegistry
 from ._config import ToolExecutionConfig
 
 if TYPE_CHECKING:

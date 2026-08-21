@@ -9,7 +9,7 @@ import pytest
 
 from lughus.infra.config import BaseSettings
 from lughus.interfaces.gateway import BaseGateway
-from lughus.llm import LLM
+from lughus.engine.llm import LLM
 
 # this module exercises code that needs the 'server' extra.
 pytestmark = pytest.mark.extra_server
@@ -19,7 +19,7 @@ class SlowGateway(BaseGateway):
     """Gateway that takes time to produce events."""
 
     async def handle(self, objective, files):
-        from lughus.events import ProgressEvent
+        from lughus.core.events import ProgressEvent
 
         yield ProgressEvent("started")
         await asyncio.sleep(0.5)
@@ -30,7 +30,7 @@ class NoCompletionGateway(BaseGateway):
     """Gateway that returns progress but never completes."""
 
     async def handle(self, objective, files):
-        from lughus.events import ProgressEvent
+        from lughus.core.events import ProgressEvent
 
         yield ProgressEvent("started")
 
@@ -44,7 +44,7 @@ class CancellableGateway(BaseGateway):
         self.cancelled = asyncio.Event()
 
     async def handle(self, objective, files):
-        from lughus.events import ProgressEvent
+        from lughus.core.events import ProgressEvent
 
         yield ProgressEvent("started")
         self.started.set()

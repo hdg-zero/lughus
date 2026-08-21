@@ -3,14 +3,14 @@ import json
 import pytest
 
 from lughus.governance.budget import BudgetLedger, BudgetLimit
-from lughus.delegation import (
+from lughus.engine.delegation import (
     DelegationCycleError,
     DelegationRequest,
     DelegationResult,
     Delegator,
 )
-from lughus.domain import RunEvent
-from lughus.evaluation import Scenario, evaluate_scenario
+from lughus.core.domain import RunEvent
+from lughus.testing.evaluation import Scenario, evaluate_scenario
 from lughus.interfaces.mcp import MCPAdapter, MCPServerConfig, MCPToolDescriptor
 from lughus.persistence.replay import ReplayBundle
 

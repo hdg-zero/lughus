@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from lughus.errors import ContextBudgetExceeded
+from lughus.core.errors import ContextBudgetExceeded
 from lughus.loop._messages import (
     MessageHistory,
     _build_groups,

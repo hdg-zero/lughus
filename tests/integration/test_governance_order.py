@@ -37,7 +37,7 @@ from lughus.loop._config import ToolExecutionConfig
 from lughus.loop._execute import _execute_tools
 from lughus.governance.policy import DecisionKind, PolicyDecision, Principal, ToolProposal
 from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
-from lughus.tools import ToolRegistry, ToolRisk
+from lughus.engine.tools import ToolRegistry, ToolRisk
 
 # ── Helpers ──────────────────────────────────────────────
 

@@ -16,11 +16,11 @@ from typing import Any
 import pytest
 
 from lughus import ToolRegistry
-from lughus.errors import ApprovalRequiredGroup
+from lughus.core.errors import ApprovalRequired, ApprovalRequiredGroup
 from lughus.loop import ToolExecutionConfig
 from lughus.loop import _execute_tools as _raw_execute_tools
 from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
-from lughus.tools import ConcurrencyMode
+from lughus.engine.tools import ConcurrencyMode
 
 
 def _test_runtime(max_workers: int = 32) -> ExecutionRuntime:

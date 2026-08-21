@@ -15,7 +15,7 @@ import threading
 import pytest
 
 from lughus import ExecutionRuntime, ToolExecutionConfig, ToolRegistry, agent_loop
-from lughus.errors import LoopLimitError
+from lughus.core.errors import LoopLimitError
 from lughus.loop._execute import _execute_tools
 from lughus.infra.runtime import RuntimeConfig
 from lughus.testing import MockLLM

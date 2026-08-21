@@ -123,7 +123,7 @@ def test_declarations_unknown_name_skipped_with_warning(
     registry: ToolRegistry, caplog: pytest.LogCaptureFixture
 ) -> None:
     """declarations() skips unknown names and logs a warning (M5 fix)."""
-    with caplog.at_level(logging.WARNING, logger="lughus.tools"):
+    with caplog.at_level(logging.WARNING, logger="lughus.engine.tools"):
         result = registry.declarations(["nonexistent"])
 
     assert len(result) == 0

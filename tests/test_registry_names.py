@@ -41,5 +41,5 @@ def test_the_core_no_longer_reaches_into_private_state() -> None:
     """Regression guard: application.py used registry._tools.keys()."""
     import pathlib
 
-    source = pathlib.Path(__import__("lughus").__file__).parent / "application.py"
+    source = pathlib.Path(__import__("lughus").__file__).parent / "agent" / "application.py"
     assert "registry._tools" not in source.read_text()

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from ..domain import EventVisibility, Run, RunEvent, RunStatus
+from ..core.domain import EventVisibility, Run, RunEvent, RunStatus
 from .store import Checkpoint, RunUnitOfWork
 
 _ALLOWED = {

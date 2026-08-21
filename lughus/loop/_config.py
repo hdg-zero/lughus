@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from .._defaults import (
+from ..core._defaults import (
     DEFAULT_ARTIFACT_PROJECTION_THRESHOLD,
     DEFAULT_MAX_CONTEXT_TOKENS,
     DEFAULT_MAX_GLOBAL_TOOLS,
@@ -18,7 +18,7 @@ from .._defaults import (
 
 if TYPE_CHECKING:
     from ..governance.approval import ApprovalStore
-    from ..artifacts import ArtifactStore
+    from ..core.artifacts import ArtifactStore
     from ..governance.idempotency import IdempotencyStore
     from ..governance.policy import Principal, ToolPolicy
     from ..infra.runtime import ExecutionRuntime

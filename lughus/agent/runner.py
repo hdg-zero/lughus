@@ -5,14 +5,14 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Sequence
 from typing import TYPE_CHECKING, Any
 
-from .domain import EventVisibility, Run, RunEvent, RunStatus
-from .event_stream import EventSink, InMemoryEventSink
-from .loop import LoopResult, agent_loop, agent_loop_stream
+from ..core.domain import EventVisibility, Run, RunEvent, RunStatus
+from ..core.event_stream import EventSink, InMemoryEventSink
+from ..loop import LoopResult, agent_loop, agent_loop_stream
 
 if TYPE_CHECKING:
-    from .context import ContextItem
-    from .governance.policy import Principal
-    from .tools import ToolRegistry
+    from ..core.context import ContextItem
+    from ..governance.policy import Principal
+    from ..engine.tools import ToolRegistry
 
 
 class GovernedAgentRunner:
@@ -142,11 +142,12 @@ class GovernedAgentRunner:
         max_iterations: int = 20,
         system: str = "You are a helpful assistant.",
     ) -> LoopResult:
-        from .governance.budgeted_llm import BudgetedLLM
-        from .persistence.coordinator import RunCoordinator
-        from .errors import ApprovalRequiredGroup, RunSuspended
-        from .loop._execute import collect_tool_events
-        from .persistence.store import Checkpoint, RunUnitOfWork
+        from ..governance.budgeted_llm import BudgetedLLM
+        from ..persistence.coordinator import RunCoordinator
+        from ..core.errors import ApprovalRequiredGroup, RunSuspended
+        from ..loop import ToolExecutionConfig
+        from ..loop._execute import collect_tool_events
+        from ..persistence.store import Checkpoint, RunUnitOfWork
 
         rt = self.runtime
         if not isinstance(rt.run_store, RunUnitOfWork):

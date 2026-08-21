@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
-from ..tools import ConcurrencyMode, ToolEffect, ToolRisk
+from ..engine.tools import ConcurrencyMode, ToolEffect, ToolRisk
 
 
 @dataclass(frozen=True, slots=True)

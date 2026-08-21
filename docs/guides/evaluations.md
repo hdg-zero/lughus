@@ -16,12 +16,12 @@ The `Scenario` dataclass defines the boundary conditions for an agent test. You 
 
 ```python
 import asyncio
-from lughus.evaluation import Scenario, evaluate_scenario
+from lughus.testing.evaluation import Scenario, evaluate_scenario
 
 
 async def execute_mock_run(scenario: Scenario):
     # In a real test, this would invoke the agent with a Mock or Replay transport
-    from lughus.domain import RunEvent
+    from lughus.core.domain import RunEvent
 
     return [
         RunEvent(run_id="run_1", type="run.started", sequence=1),

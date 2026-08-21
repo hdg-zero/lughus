@@ -1,7 +1,7 @@
 import pytest
 
 from lughus.persistence.coordinator import RunCoordinator
-from lughus.domain import RunStatus
+from lughus.core.domain import RunStatus
 from lughus.persistence import ConcurrentUpdateError, InMemoryRunStore
 
 

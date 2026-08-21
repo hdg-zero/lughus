@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
 
-from ..domain import Run, RunEvent, RunStatus
+from ..core.domain import Run, RunEvent, RunStatus
 
 
 class ConcurrentUpdateError(RuntimeError):

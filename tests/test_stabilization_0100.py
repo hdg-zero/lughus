@@ -1,4 +1,4 @@
-from lughus.domain import RunEvent
+from lughus.core.domain import RunEvent
 from lughus.persistence.replay import ReplayBundle, ReplayCapturePolicy
 
 

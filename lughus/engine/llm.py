@@ -11,9 +11,9 @@ from typing import Any, Protocol, cast
 
 import litellm
 
-from .errors import LLMResponseError
-from .infra.retry import _retry_budget_var, _retry_used_var, retry_budget
-from .infra.telemetry import meter
+from ..core.errors import LLMResponseError
+from ..infra.retry import _retry_budget_var, _retry_used_var, retry_budget
+from ..infra.telemetry import meter
 
 _logger = logging.getLogger(__name__)
 

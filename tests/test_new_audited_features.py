@@ -140,7 +140,7 @@ async def test_stream_mid_stream_error_propagates() -> None:
     """
     from lughus.loop import agent_loop_stream
     from lughus.testing import _make_streaming_chunk
-    from lughus.tools import ToolRegistry
+    from lughus.engine.tools import ToolRegistry
 
     class FaultyStreamingLLM:
         model = "test/mock-model"

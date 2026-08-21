@@ -10,11 +10,11 @@ from typing import TYPE_CHECKING, Any
 
 from opentelemetry.trace import StatusCode
 
-from ..artifacts import ArtifactStore
-from ..errors import LoopLimitError
+from ..core.artifacts import ArtifactStore
+from ..core.errors import LoopLimitError
 from ..infra.retry import retry_budget
 from ..infra.telemetry import meter, tracer
-from ..tools import ToolRegistry
+from ..engine.tools import ToolRegistry
 from ._config import (
     DEFAULT_MAX_ITERATIONS,
     StreamingMode,
@@ -41,8 +41,8 @@ _estimated_tokens_histogram = meter.create_histogram(
 )
 
 if TYPE_CHECKING:
-    from ..context import ContextItem
-    from ..llm import GenerateLLM, StreamingLLM
+    from ..core.context import ContextItem
+    from ..engine.llm import GenerateLLM, StreamingLLM
     from ..infra.runtime import ExecutionRuntime
 
 

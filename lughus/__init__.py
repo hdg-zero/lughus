@@ -5,25 +5,26 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     # Keep every lazily-exported symbol resolvable for mypy and IDEs.
-    from .application import AgentRuntime as AgentRuntime
-    from .artifacts import ArtifactStore as ArtifactStore
+    from .agent.application import AgentRuntime as AgentRuntime
+    from .agent.runner import GovernedAgentRunner as GovernedAgentRunner
+    from .core.artifacts import ArtifactStore as ArtifactStore
     from .governance.budget import BudgetAmount as BudgetAmount
     from .governance.budget import BudgetExceeded as BudgetExceeded
     from .governance.budget import BudgetLedger as BudgetLedger
     from .governance.budget import BudgetLimit as BudgetLimit
     from .governance.budgeted_llm import BudgetedLLM as BudgetedLLM
     from .persistence.coordinator import RunCoordinator as RunCoordinator
-    from .event_stream import EventSink as EventSink
-    from .event_stream import InMemoryEventSink as InMemoryEventSink
+    from .core.event_stream import EventSink as EventSink
+    from .core.event_stream import InMemoryEventSink as InMemoryEventSink
     from .interfaces.gateway import BaseGateway as BaseGateway
     from .governance.idempotency import AttemptStatus as AttemptStatus
     from .governance.idempotency import ExecutionAttempt as ExecutionAttempt
     from .governance.idempotency import IdempotencyKey as IdempotencyKey
     from .governance.idempotency import IdempotencyStore as IdempotencyStore
     from .governance.idempotency import InMemoryIdempotencyStore as InMemoryIdempotencyStore
-    from .llm import LLM as LLM
-    from .llm import GenerateLLM as GenerateLLM
-    from .llm import StreamingLLM as StreamingLLM
+    from .engine.llm import LLM as LLM
+    from .engine.llm import GenerateLLM as GenerateLLM
+    from .engine.llm import StreamingLLM as StreamingLLM
     from .loop import LoopResult as LoopResult
     from .loop import StreamChunk as StreamChunk
     from .loop import ToolExecutionConfig as ToolExecutionConfig
@@ -43,7 +44,7 @@ if TYPE_CHECKING:
     from .persistence.resume import ResumeAction as ResumeAction
     from .persistence.resume import ResumeDecision as ResumeDecision
     from .persistence.resume import decide_resume as decide_resume
-    from .runner import AgentRunner as AgentRunner
+    from .agent.runner import AgentRunner as AgentRunner
     from .infra.runtime import ExecutionRuntime as ExecutionRuntime
     from .infra.runtime import RuntimeConfig as RuntimeConfig
     from .interfaces.server import BoundedInMemoryTaskStore as BoundedInMemoryTaskStore
@@ -51,18 +52,18 @@ if TYPE_CHECKING:
     from .interfaces.server import build_app as build_app
     from .interfaces.server import serve as serve
     from .infra.telemetry import setup_telemetry as setup_telemetry
-    from .tools import ConcurrencyMode as ConcurrencyMode
-    from .tools import ToolDef as ToolDef
-    from .tools import ToolEffect as ToolEffect
-    from .tools import ToolRegistry as ToolRegistry
-    from .tools import ToolRisk as ToolRisk
+    from .engine.tools import ConcurrencyMode as ConcurrencyMode
+    from .engine.tools import ToolDef as ToolDef
+    from .engine.tools import ToolEffect as ToolEffect
+    from .engine.tools import ToolRegistry as ToolRegistry
+    from .engine.tools import ToolRisk as ToolRisk
 
 # ── Eager imports: stdlib-only modules (no asyncio / third-party) ────
 from .governance.approval import ApprovalRequest, ApprovalStatus, InMemoryApprovalStore
 from .infra.config import BaseSettings
-from .context import ContextItem, ContextManager, ContextWindow, TrustLevel
-from .domain import EventVisibility, Run, RunEvent, RunStatus, Usage
-from .errors import (
+from .core.context import ContextItem, ContextManager, ContextWindow, TrustLevel
+from .core.domain import EventVisibility, Run, RunEvent, RunStatus, Usage
+from .core.errors import (
     ApprovalRequired,
     ApprovalRequiredGroup,
     ContextBudgetExceeded,
@@ -74,8 +75,8 @@ from .errors import (
     ToolTimeoutError,
     ToolValidationError,
 )
-from .evaluation import EvaluationResult, Scenario, evaluate_scenario
-from .events import Artifact, CompletionEvent, ProgressEvent
+from .testing.evaluation import EvaluationResult, Scenario, evaluate_scenario
+from .core.events import Artifact, CompletionEvent, ProgressEvent
 from .governance.policy import (
     CompositePolicy,
     DecisionKind,
@@ -100,11 +101,11 @@ from .persistence.replay import ReplayBundle
 #     persistence, event_stream, etc.
 _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     # ── artifacts (stdlib-only) ────────────────────────────────────────
-    "ArtifactStore": (".artifacts", None),
+    "ArtifactStore": (".core.artifacts", None),
     # ── litellm (heavy) ─────────────────────────────────────────────
-    "LLM": (".llm", None),
-    "GenerateLLM": (".llm", None),
-    "StreamingLLM": (".llm", None),
+    "LLM": (".engine.llm", None),
+    "GenerateLLM": (".engine.llm", None),
+    "StreamingLLM": (".engine.llm", None),
     # ── server extra ─────────────────────────────────────────────────
     "BaseGateway": (".interfaces.gateway", "server"),
     "BoundedInMemoryTaskStore": (".interfaces.server", "server"),
@@ -112,11 +113,11 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "build_app": (".interfaces.server", "server"),
     "serve": (".interfaces.server", "server"),
     # ── jsonschema chain ─────────────────────────────────────────────
-    "ConcurrencyMode": (".tools", None),
-    "ToolDef": (".tools", None),
-    "ToolEffect": (".tools", None),
-    "ToolRegistry": (".tools", None),
-    "ToolRisk": (".tools", None),
+    "ConcurrencyMode": (".engine.tools", None),
+    "ToolDef": (".engine.tools", None),
+    "ToolEffect": (".engine.tools", None),
+    "ToolRegistry": (".engine.tools", None),
+    "ToolRisk": (".engine.tools", None),
     "MCPAdapter": (".interfaces.mcp", None),
     "MCPClient": (".interfaces.mcp", None),
     "MCPServerConfig": (".interfaces.mcp", None),
@@ -137,9 +138,9 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "ToolExecutionConfig": (".loop", None),
     "agent_loop": (".loop", None),
     "agent_loop_stream": (".loop", None),
-    "AgentRunner": (".runner", None),
-    "AgentRuntime": (".application", None),
-    "GovernedAgentRunner": (".runner", None),
+    "AgentRunner": (".agent.runner", None),
+    "AgentRuntime": (".agent.application", None),
+    "GovernedAgentRunner": (".agent.runner", None),
     # ── asyncio chain ────────────────────────────────────────────────
     "BudgetAmount": (".governance.budget", None),
     "BudgetExceeded": (".governance.budget", None),
@@ -147,8 +148,8 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "BudgetLimit": (".governance.budget", None),
     "BudgetedLLM": (".governance.budgeted_llm", None),
     "RunCoordinator": (".persistence.coordinator", None),
-    "EventSink": (".event_stream", None),
-    "InMemoryEventSink": (".event_stream", None),
+    "EventSink": (".core.event_stream", None),
+    "InMemoryEventSink": (".core.event_stream", None),
     "Checkpoint": (".persistence.store", None),
     "CheckpointStore": (".persistence.store", None),
     "ConcurrentUpdateError": (".persistence.store", None),

@@ -11,7 +11,7 @@ import random
 import pytest
 
 from lughus import ToolRegistry
-from lughus.context import ContextItem, TrustLevel
+from lughus.core.context import ContextItem, TrustLevel
 from lughus.loop import agent_loop
 from lughus.testing import MockLLM
 

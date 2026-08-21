@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from lughus import ConcurrencyMode, ToolRegistry
-from lughus.errors import ToolValidationError
+from lughus.core.errors import ToolValidationError
 from lughus.loop import ToolExecutionConfig
 from lughus.loop import _execute_tools as _raw_execute_tools
 from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig

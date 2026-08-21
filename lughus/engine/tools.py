@@ -13,7 +13,7 @@ from typing import Any, cast
 
 from jsonschema import Draft202012Validator, SchemaError  # type: ignore[import-untyped]
 
-from .errors import ToolValidationError
+from ..core.errors import ToolValidationError
 
 __all__ = [
     "ConcurrencyMode",

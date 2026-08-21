@@ -9,8 +9,8 @@ import litellm
 import pytest
 
 from lughus.infra.config import BaseSettings
-from lughus.errors import LLMResponseError
-from lughus.llm import LLM, retry_budget
+from lughus.core.errors import LLMResponseError
+from lughus.engine.llm import LLM, retry_budget
 
 
 def _make_text_response(text: str) -> MagicMock:
