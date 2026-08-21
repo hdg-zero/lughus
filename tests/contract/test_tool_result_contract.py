@@ -162,7 +162,7 @@ async def test_truncated_output_has_truncation_metadata() -> None:
     assert data["ok"] is True
     assert data["truncated"] is True
     assert data["original_bytes"] == 200
-    assert data["result"] == "A" * 50
+    assert data["result"] == "A" * 50 + " [TRUNCATED]"
 
 
 @pytest.mark.asyncio

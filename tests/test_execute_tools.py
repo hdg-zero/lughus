@@ -401,7 +401,7 @@ async def test_tool_output_size_limit() -> None:
     assert data["ok"] is True
     assert data["truncated"] is True
     assert data["original_bytes"] == 50
-    assert data["result"] == "x" * 10
+    assert data["result"] == "x" * 10 + " [TRUNCATED]"
 
 
 @pytest.mark.asyncio

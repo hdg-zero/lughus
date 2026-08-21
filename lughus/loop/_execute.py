@@ -234,6 +234,31 @@ def _validate_tool_args(
     return args
 
 
+def _truncate_json(value: Any, max_chars: int) -> str:
+    """Structurally truncate a parsed JSON value to fit within *max_chars*."""
+    if isinstance(value, list):
+        result = list(value)
+        while result:
+            candidate = json.dumps(result, ensure_ascii=False, default=str)
+            if len(candidate) <= max_chars:
+                return candidate
+            result.pop()
+        return "[]"
+    if isinstance(value, dict):
+        keys = list(value.keys())
+        result = dict(value)
+        while keys:
+            candidate = json.dumps(result, ensure_ascii=False, default=str)
+            if len(candidate) <= max_chars:
+                return candidate
+            del result[keys.pop()]
+        return "{}"
+    if isinstance(value, str):
+        safe_len = max(0, max_chars - 20)
+        return json.dumps(value[:safe_len] + " [TRUNCATED]", ensure_ascii=False)
+    return json.dumps(value, ensure_ascii=False, default=str)[:max_chars]
+
+
 def _validate_tool_output(
     name: str, output: Any, max_tool_output_chars: int
 ) -> tuple[str, bool, int]:
@@ -247,7 +272,11 @@ def _validate_tool_output(
     )
     original_bytes = len(text.encode("utf-8"))
     if max_tool_output_chars > 0 and len(text) > max_tool_output_chars:
-        text = text[:max_tool_output_chars]
+        try:
+            parsed = json.loads(text)
+            text = _truncate_json(parsed, max_tool_output_chars)
+        except (json.JSONDecodeError, ValueError):
+            text = text[:max_tool_output_chars] + " [TRUNCATED]"
         return text, True, original_bytes
     return text, False, original_bytes
 
@@ -497,17 +526,22 @@ async def _execute_tools(
                             f"Tool '{name}' returned an invalid result: "
                             f"{validation_errors[0].message}"
                         )
-                text, truncated, original_bytes = _validate_tool_output(
-                    name=name, output=output, max_tool_output_chars=cfg.max_tool_output_chars
+                text = (
+                    output
+                    if isinstance(output, str)
+                    else json.dumps(output, ensure_ascii=False, default=str)
                 )
-                output = _success_payload(text, truncated=truncated, original_bytes=original_bytes)
-                # artifact projection — large outputs replaced by reference
+                original_bytes = len(text.encode("utf-8"))
+                # Artifact projection FIRST — store full content before truncation.
                 if (
                     cfg.artifact_projection
                     and cfg.artifact_store is not None
-                    and len(output) > cfg.artifact_projection_threshold
+                    and len(text) > cfg.artifact_projection_threshold
                 ):
-                    artifact_id = cfg.artifact_store.store_artifact(output)
+                    full_payload = _success_payload(
+                        text, truncated=False, original_bytes=original_bytes
+                    )
+                    artifact_id = cfg.artifact_store.store_artifact(full_payload)
                     summary = _summarize(text)
                     output = json.dumps(
                         {
@@ -517,6 +551,15 @@ async def _execute_tools(
                             "hint": "Use fetch_artifact to retrieve full content",
                         },
                         ensure_ascii=False,
+                    )
+                else:
+                    text, truncated, original_bytes = _validate_tool_output(
+                        name=name,
+                        output=output,
+                        max_tool_output_chars=cfg.max_tool_output_chars,
+                    )
+                    output = _success_payload(
+                        text, truncated=truncated, original_bytes=original_bytes
                     )
                 if idem_key is not None and cfg.idempotency_store is not None:
                     await cfg.idempotency_store.save(
