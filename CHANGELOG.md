@@ -6,6 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-08-19
+
+### Fixed
+- **P0 — BudgetedLLM.astream protocol**: rewrote `astream` from async generator to coroutine returning an internal generator, matching `StreamingLLM` protocol. Budget reservation moved inside inner generator for lazy semantics.
+- **Token estimation**: `estimate_tokens` now uses `litellm.token_counter` with `len(text)//4` fallback instead of `len(text)//3`.
+- **JSON-aware truncation**: tool output truncation now preserves JSON structure. Artifact projection runs before truncation so stored artifacts retain full content.
+- **Dead state**: removed unused `_char_count` tracking from `MessageHistory`.
+- **Config consolidation**: all `DEFAULT_*` constants centralized in `_defaults.py`; `ToolExecutionConfig` now accepts `max_global_tools` and `max_sync_thread_workers`.
+- **Lazy `__version__`**: deferred `importlib.metadata.version()` to first access via `__getattr__`.
+- **Subprocess env**: `test_prefix_stability` inherits full `os.environ` instead of a minimal env dict.
+
+### Added
+- **Streaming protocol contract tests** — 6 tests verifying `BudgetedLLM` wrapping of `MockStreamingLLM`.
+- **Stress benchmark** — 52-turn scenario with 512-byte outputs; `large_outputs` scenario enlarged to 100KB payloads.
+
+### Changed
+- **Package reorganization**: modules grouped into four layered subpackages:
+  - `governance/` — policy, approval, idempotency, budget, budgeted_llm
+  - `infra/` — config, telemetry, runtime, _threading, retry
+  - `persistence/` — store (was persistence.py), coordinator, replay, resume
+  - `interfaces/` — server, gateway, ui_server, cli, mcp
+- Old import paths remain functional via `sys.modules`-based compatibility shims.
+
 ## [0.13.0] — 2026-08-19
 
 ### Added
