@@ -52,7 +52,7 @@ class _ClockContractCase:
 
 
 def _idem_create(clock: FakeClock) -> Any:
-    from lughus.idempotency import InMemoryIdempotencyStore
+    from lughus.governance.idempotency import InMemoryIdempotencyStore
 
     return InMemoryIdempotencyStore(
         ttl_seconds=100.0,
@@ -62,7 +62,7 @@ def _idem_create(clock: FakeClock) -> Any:
 
 
 async def _idem_insert(store: Any) -> Any:
-    from lughus.idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey
+    from lughus.governance.idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey
 
     k = IdempotencyKey(run_id="run-clk", tool_name="t", arguments_hash="h1")
     # Claim then complete -- no explicit created_at anywhere.
@@ -81,7 +81,7 @@ async def _idem_alive(store: Any, key: Any) -> bool:
 
 
 def _task_create(clock: FakeClock) -> Any:
-    from lughus.server import BoundedInMemoryTaskStore
+    from lughus.interfaces.server import BoundedInMemoryTaskStore
 
     return BoundedInMemoryTaskStore(ttl_seconds=100.0, now=clock)
 
@@ -162,7 +162,7 @@ async def test_idempotency_store_stamps_created_at_from_own_clock() -> None:
     """Verify the store overrides default_factory=time.time with its own
     clock, so that the dataclass default is never authoritative.
     """
-    from lughus.idempotency import (
+    from lughus.governance.idempotency import (
         AttemptStatus,
         ExecutionAttempt,
         IdempotencyKey,
@@ -187,7 +187,7 @@ async def test_idempotency_store_stamps_created_at_from_own_clock() -> None:
 @pytest.mark.contract
 async def test_idempotency_pending_expires_via_injected_clock() -> None:
     """PENDING entries must also expire using the injected clock alone."""
-    from lughus.idempotency import (
+    from lughus.governance.idempotency import (
         AttemptStatus,
         ExecutionAttempt,
         IdempotencyKey,

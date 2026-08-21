@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from lughus.idempotency import (
+from lughus.governance.idempotency import (
     AttemptStatus,
     ExecutionAttempt,
     IdempotencyKey,
@@ -12,7 +12,7 @@ from lughus.idempotency import (
     idempotency_hash,
 )
 from lughus.persistence import Checkpoint, ConcurrentUpdateError
-from lughus.resume import ResumeAction, decide_resume
+from lughus.persistence.resume import ResumeAction, decide_resume
 
 
 def _key(run_id: str = "run", tool: str = "send_email") -> IdempotencyKey:

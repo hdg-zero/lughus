@@ -1,12 +1,12 @@
 import pytest
 
-from lughus.approval import (
+from lughus.governance.approval import (
     ApprovalRequest,
     ApprovalStatus,
     InMemoryApprovalStore,
     proposal_digest,
 )
-from lughus.policy import (
+from lughus.governance.policy import (
     CompositePolicy,
     DecisionKind,
     LeastPrivilegePolicy,

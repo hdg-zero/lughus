@@ -20,7 +20,7 @@ from lughus.loop._loop import (
     _active_artifact_store,
     _setup_artifact_projection,
 )
-from lughus.runtime import ExecutionRuntime, RuntimeConfig
+from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 
 # ── helpers ──────────────────────────────────────────────────────────
 

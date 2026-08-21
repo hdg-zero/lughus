@@ -6,9 +6,9 @@ import os
 
 import pytest
 
-from lughus.config import BaseSettings, _env_bool, _env_float, _env_int
+from lughus.infra.config import BaseSettings, _env_bool, _env_float, _env_int
 from lughus.loop._config import ToolExecutionConfig
-from lughus.runtime import ExecutionRuntime
+from lughus.infra.runtime import ExecutionRuntime
 
 
 def _test_runtime() -> ExecutionRuntime:

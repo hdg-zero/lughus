@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from lughus.budget import BudgetLedger, BudgetLimit
-from lughus.budgeted_llm import BudgetedLLM
+from lughus.governance.budget import BudgetLedger, BudgetLimit
+from lughus.governance.budgeted_llm import BudgetedLLM
 
 
 @dataclass

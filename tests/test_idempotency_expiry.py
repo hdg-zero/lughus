@@ -20,7 +20,7 @@ import time
 import pytest
 
 from lughus.errors import IdempotencyCapacityError
-from lughus.idempotency import (
+from lughus.governance.idempotency import (
     AttemptStatus,
     ExecutionAttempt,
     IdempotencyKey,

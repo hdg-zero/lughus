@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from lughus import ToolRegistry
-from lughus.config import BaseSettings
+from lughus.infra.config import BaseSettings
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 

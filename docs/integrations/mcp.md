@@ -54,7 +54,7 @@ Currently, Lughus only supports unary RPC-style MCP interactions.
 - Server-Sent Events (SSE) for push notifications and streaming tool outputs are not yet supported.
 
 ```python
-from lughus.mcp import MCPServerConfig, MCPAdapter
+from lughus.interfaces.mcp import MCPServerConfig, MCPAdapter
 
 
 # Mock client for demonstration

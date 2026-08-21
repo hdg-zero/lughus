@@ -75,7 +75,7 @@ def test_base_settings_tightened_defaults(monkeypatch) -> None:
     ):
         monkeypatch.delenv(key, raising=False)
 
-    from lughus.config import BaseSettings
+    from lughus.infra.config import BaseSettings
 
     s = BaseSettings()
     assert s.max_parallel_tools == 4

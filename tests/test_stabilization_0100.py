@@ -1,5 +1,5 @@
 from lughus.domain import RunEvent
-from lughus.replay import ReplayBundle, ReplayCapturePolicy
+from lughus.persistence.replay import ReplayBundle, ReplayCapturePolicy
 
 
 def test_replay_capture_policy_redacts_nested_secrets():

@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from lughus import Artifact
-from lughus.config import BaseSettings
-from lughus.gateway import BaseGateway, _validate_artifacts
+from lughus.infra.config import BaseSettings
+from lughus.interfaces.gateway import BaseGateway, _validate_artifacts
 
 # this module exercises code that needs the 'server' extra.
 pytestmark = pytest.mark.extra_server

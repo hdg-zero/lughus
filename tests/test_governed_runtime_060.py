@@ -4,18 +4,18 @@ import json
 import pytest
 
 from lughus.application import AgentRuntime
-from lughus.approval import (
+from lughus.governance.approval import (
     ApprovalRequest,
     ApprovalStatus,
     InMemoryApprovalStore,
     proposal_digest,
 )
-from lughus.budget import BudgetLedger, BudgetLimit
+from lughus.governance.budget import BudgetLedger, BudgetLimit
 from lughus.context import ContextManager
 from lughus.domain import RunEvent
 from lughus.errors import ApprovalRequiredGroup
 from lughus.event_stream import InMemoryEventSink
-from lughus.idempotency import (
+from lughus.governance.idempotency import (
     AttemptStatus,
     ExecutionAttempt,
     IdempotencyKey,
@@ -23,8 +23,8 @@ from lughus.idempotency import (
 )
 from lughus.loop import ToolExecutionConfig, _execute_tools
 from lughus.persistence import Checkpoint, InMemoryRunStore
-from lughus.policy import LeastPrivilegePolicy, Principal
-from lughus.runtime import ExecutionRuntime, RuntimeConfig
+from lughus.governance.policy import LeastPrivilegePolicy, Principal
+from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 from lughus.tools import ToolRegistry, ToolRisk
 
 

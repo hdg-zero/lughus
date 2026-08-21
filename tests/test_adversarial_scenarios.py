@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from lughus.budget import BudgetAmount, BudgetExceeded, BudgetLedger, BudgetLimit
+from lughus.governance.budget import BudgetAmount, BudgetExceeded, BudgetLedger, BudgetLimit
 from lughus.errors import SafeToolError, ToolExecutionError, ToolValidationError
 from lughus.loop._execute import _error_payload
 

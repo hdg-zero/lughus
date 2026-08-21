@@ -14,7 +14,7 @@ from lughus import ConcurrencyMode, ToolRegistry
 from lughus.errors import ToolValidationError
 from lughus.loop import ToolExecutionConfig
 from lughus.loop import _execute_tools as _raw_execute_tools
-from lughus.runtime import ExecutionRuntime, RuntimeConfig
+from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 
 
 def _test_runtime() -> ExecutionRuntime:

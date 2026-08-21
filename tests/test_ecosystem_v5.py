@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from lughus.budget import BudgetLedger, BudgetLimit
+from lughus.governance.budget import BudgetLedger, BudgetLimit
 from lughus.delegation import (
     DelegationCycleError,
     DelegationRequest,
@@ -11,8 +11,8 @@ from lughus.delegation import (
 )
 from lughus.domain import RunEvent
 from lughus.evaluation import Scenario, evaluate_scenario
-from lughus.mcp import MCPAdapter, MCPServerConfig, MCPToolDescriptor
-from lughus.replay import ReplayBundle
+from lughus.interfaces.mcp import MCPAdapter, MCPServerConfig, MCPToolDescriptor
+from lughus.persistence.replay import ReplayBundle
 
 
 def test_replay_bundle_round_trip_and_tamper_detection():

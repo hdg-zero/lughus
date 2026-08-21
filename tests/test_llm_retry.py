@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import litellm
 import pytest
 
-from lughus.config import BaseSettings
+from lughus.infra.config import BaseSettings
 from lughus.errors import LLMResponseError
 from lughus.llm import LLM, retry_budget
 

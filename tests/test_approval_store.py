@@ -13,7 +13,7 @@ import dataclasses
 
 import pytest
 
-from lughus.approval import (
+from lughus.governance.approval import (
     ApprovalRequest,
     ApprovalStatus,
     InMemoryApprovalStore,

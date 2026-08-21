@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from lughus.cli import _package_name, create_agent, main
+from lughus.interfaces.cli import _package_name, create_agent, main
 
 
 def test_package_name_is_python_safe() -> None:

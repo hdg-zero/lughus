@@ -8,7 +8,7 @@ import pytest
 
 from lughus import LughusError, ToolRegistry
 from lughus.loop import LoopResult, ToolExecutionConfig, _extract_usage, agent_loop
-from lughus.runtime import ExecutionRuntime
+from lughus.infra.runtime import ExecutionRuntime
 from lughus.testing import MockLLM
 
 

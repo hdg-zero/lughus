@@ -20,14 +20,14 @@ from typing import Any
 
 import pytest
 
-from lughus.approval import (
+from lughus.governance.approval import (
     ApprovalRequest,
     ApprovalStatus,
     InMemoryApprovalStore,
     proposal_digest,
 )
-from lughus.budget import BudgetLedger, BudgetLimit
-from lughus.idempotency import (
+from lughus.governance.budget import BudgetLedger, BudgetLimit
+from lughus.governance.idempotency import (
     AttemptStatus,
     ExecutionAttempt,
     IdempotencyKey,
@@ -35,8 +35,8 @@ from lughus.idempotency import (
 )
 from lughus.loop._config import ToolExecutionConfig
 from lughus.loop._execute import _execute_tools
-from lughus.policy import DecisionKind, PolicyDecision, Principal, ToolProposal
-from lughus.runtime import ExecutionRuntime, RuntimeConfig
+from lughus.governance.policy import DecisionKind, PolicyDecision, Principal, ToolProposal
+from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 from lughus.tools import ToolRegistry, ToolRisk
 
 # ── Helpers ──────────────────────────────────────────────

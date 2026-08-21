@@ -4,7 +4,7 @@ import pytest
 
 from lughus.domain import EventVisibility, Run, RunEvent, RunStatus
 from lughus.event_stream import InMemoryEventSink
-from lughus.runtime import ExecutionRuntime, RuntimeConfig
+from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 
 
 def test_run_event_round_trip_and_terminal_status():
