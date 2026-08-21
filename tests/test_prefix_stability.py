@@ -9,6 +9,7 @@ produces a different prefix (non-trivially constant).
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import textwrap
@@ -290,10 +291,7 @@ def test_prefix_stable_under_different_pythonhashseed(seed: str) -> None:
         [sys.executable, "-c", _HASHSEED_SCRIPT],
         capture_output=True,
         text=True,
-        env={
-            **{"PYTHONHASHSEED": seed, "SYSTEMROOT": "C:\\Windows"},
-            "PATH": subprocess.os.environ.get("PATH", ""),
-        },
+        env={**os.environ, "PYTHONHASHSEED": seed},
         timeout=30,
     )
     assert result.returncode == 0, (
@@ -314,10 +312,7 @@ def test_prefix_identical_across_two_hashseeds() -> None:
             [sys.executable, "-c", _HASHSEED_SCRIPT],
             capture_output=True,
             text=True,
-            env={
-                **{"PYTHONHASHSEED": seed, "SYSTEMROOT": "C:\\Windows"},
-                "PATH": subprocess.os.environ.get("PATH", ""),
-            },
+            env={**os.environ, "PYTHONHASHSEED": seed},
             timeout=30,
         )
         assert result.returncode == 0, f"Subprocess failed (seed={seed}):\n{result.stderr}"
