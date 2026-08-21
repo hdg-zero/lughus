@@ -37,6 +37,7 @@ class _FakeStreamingLLM:
         async def _inner():
             for chunk in self._chunks:
                 yield chunk
+
         return _inner()
 
 

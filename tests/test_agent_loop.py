@@ -7,8 +7,8 @@ import json
 import pytest
 
 from lughus import LughusError, ToolRegistry
-from lughus.loop import LoopResult, ToolExecutionConfig, _extract_usage, agent_loop
 from lughus.infra.runtime import ExecutionRuntime
+from lughus.loop import LoopResult, ToolExecutionConfig, _extract_usage, agent_loop
 from lughus.testing import MockLLM
 
 
@@ -262,7 +262,10 @@ async def test_tool_schemas_preserve_descriptions() -> None:
     tool = llm.calls[0]["tools"][0]
     assert tool["function"]["description"] == "Describe a thing."
     assert tool["function"]["parameters"]["description"] == "Verbose root description."
-    assert tool["function"]["parameters"]["properties"]["name"]["description"] == "Verbose property description."
+    assert (
+        tool["function"]["parameters"]["properties"]["name"]["description"]
+        == "Verbose property description."
+    )
 
 
 @pytest.mark.asyncio

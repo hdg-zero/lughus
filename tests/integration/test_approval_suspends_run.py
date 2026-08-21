@@ -15,21 +15,21 @@ from typing import Any
 import pytest
 
 from lughus.agent.application import AgentRuntime, GovernedAgentRunner
+from lughus.core.context import ContextManager
+from lughus.core.errors import RunSuspended
+from lughus.core.event_stream import InMemoryEventSink
+from lughus.engine.tools import ToolRegistry
 from lughus.governance.approval import (
     ApprovalRequest,
     ApprovalStatus,
     InMemoryApprovalStore,
 )
 from lughus.governance.budget import BudgetLedger, BudgetLimit
-from lughus.core.context import ContextManager
-from lughus.core.errors import RunSuspended
-from lughus.core.event_stream import InMemoryEventSink
 from lughus.governance.idempotency import InMemoryIdempotencyStore
-from lughus.persistence import InMemoryRunStore
 from lughus.governance.policy import AllowAllPolicy, Principal
 from lughus.infra.runtime import ExecutionRuntime
+from lughus.persistence import InMemoryRunStore
 from lughus.testing import MockLLM
-from lughus.engine.tools import ToolRegistry
 
 _PRINCIPAL = Principal(subject="tester", tenant_id="test-tenant")
 _EMPTY_SCHEMA: dict[str, Any] = {"type": "object", "properties": {}, "required": []}

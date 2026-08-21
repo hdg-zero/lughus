@@ -7,9 +7,9 @@ from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 
+from lughus.engine.llm import LLM
 from lughus.infra.config import BaseSettings
 from lughus.interfaces.gateway import BaseGateway
-from lughus.engine.llm import LLM
 
 # this module exercises code that needs the 'server' extra.
 pytestmark = pytest.mark.extra_server
@@ -83,7 +83,9 @@ async def test_gateway_execute_timeout(monkeypatch) -> None:
     mock_updater.complete = AsyncMock()
     mock_updater.new_agent_message = MagicMock(return_value="mock-message")
 
-    monkeypatch.setattr("lughus.interfaces.gateway.TaskUpdater", lambda *args, **kwargs: mock_updater)
+    monkeypatch.setattr(
+        "lughus.interfaces.gateway.TaskUpdater", lambda *args, **kwargs: mock_updater
+    )
 
     event_queue = MagicMock()
 
@@ -127,7 +129,9 @@ async def test_gateway_execute_fails_without_completion(monkeypatch) -> None:
     mock_updater.complete = AsyncMock()
     mock_updater.new_agent_message = MagicMock(return_value="mock-message")
 
-    monkeypatch.setattr("lughus.interfaces.gateway.TaskUpdater", lambda *args, **kwargs: mock_updater)
+    monkeypatch.setattr(
+        "lughus.interfaces.gateway.TaskUpdater", lambda *args, **kwargs: mock_updater
+    )
 
     await gateway.execute(context, MagicMock())
 
@@ -168,7 +172,9 @@ async def test_gateway_cancel_stops_running_execute(monkeypatch) -> None:
     mock_updater.cancel = AsyncMock()
     mock_updater.new_agent_message = MagicMock(return_value="mock-message")
 
-    monkeypatch.setattr("lughus.interfaces.gateway.TaskUpdater", lambda *args, **kwargs: mock_updater)
+    monkeypatch.setattr(
+        "lughus.interfaces.gateway.TaskUpdater", lambda *args, **kwargs: mock_updater
+    )
 
     execute_task = asyncio.create_task(gateway.execute(context, MagicMock()))
     await asyncio.wait_for(gateway.started.wait(), timeout=1)

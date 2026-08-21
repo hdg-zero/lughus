@@ -10,13 +10,13 @@ from typing import TYPE_CHECKING, Any
 
 from opentelemetry.trace import StatusCode
 
+from ..core._defaults import DEFAULT_MAX_ITERATIONS
 from ..core.artifacts import ArtifactStore
 from ..core.errors import LoopLimitError
+from ..engine.tools import ToolRegistry
 from ..infra.retry import retry_budget
 from ..infra.telemetry import meter, tracer
-from ..engine.tools import ToolRegistry
 from ._config import (
-    DEFAULT_MAX_ITERATIONS,
     StreamingMode,
     ToolExecutionConfig,
 )

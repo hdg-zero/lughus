@@ -7,8 +7,8 @@ import os
 import pytest
 
 from lughus.infra.config import BaseSettings, _env_bool, _env_float, _env_int
-from lughus.loop._config import ToolExecutionConfig
 from lughus.infra.runtime import ExecutionRuntime
+from lughus.loop._config import ToolExecutionConfig
 
 
 def _test_runtime() -> ExecutionRuntime:
@@ -362,7 +362,7 @@ def test_tool_config_accepts_max_sync_thread_workers_kwarg() -> None:
 @pytest.mark.asyncio
 async def test_implicit_runtime_uses_module_defaults() -> None:
     """The implicit runtime uses module-level constants."""
-    from lughus.loop._config import DEFAULT_MAX_GLOBAL_TOOLS, DEFAULT_MAX_SYNC_THREAD_WORKERS
+    from lughus.core._defaults import DEFAULT_MAX_GLOBAL_TOOLS, DEFAULT_MAX_SYNC_THREAD_WORKERS
     from lughus.loop._loop import _resolve_tool_config
 
     cfg, owned_runtime = _resolve_tool_config(ToolExecutionConfig())

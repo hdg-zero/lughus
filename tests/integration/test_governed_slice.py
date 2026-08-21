@@ -11,16 +11,16 @@ from typing import Any
 import pytest
 
 from lughus.agent.application import AgentRuntime, GovernedAgentRunner
-from lughus.governance.approval import InMemoryApprovalStore
-from lughus.governance.budget import BudgetLedger, BudgetLimit
 from lughus.core.context import ContextManager
 from lughus.core.event_stream import InMemoryEventSink
+from lughus.engine.tools import ToolRegistry
+from lughus.governance.approval import InMemoryApprovalStore
+from lughus.governance.budget import BudgetLedger, BudgetLimit
 from lughus.governance.idempotency import InMemoryIdempotencyStore
-from lughus.persistence import InMemoryRunStore
 from lughus.governance.policy import AllowAllPolicy, Principal
 from lughus.infra.runtime import ExecutionRuntime
+from lughus.persistence import InMemoryRunStore
 from lughus.testing import MockLLM
-from lughus.engine.tools import ToolRegistry
 
 
 def _build_runtime() -> AgentRuntime:

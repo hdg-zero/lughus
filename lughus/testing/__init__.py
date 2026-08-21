@@ -36,5 +36,6 @@ __all__ = [
     "MockLLM",
     "MockStreamingLLM",
     "Scenario",
+    "_make_streaming_chunk",
     "evaluate_scenario",
 ]

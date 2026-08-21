@@ -25,12 +25,12 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
-from ..infra._threading import run_sync_in_thread
 from ..core.events import CompletionEvent, ProgressEvent
 from ..engine.files import decode_files_payload
-from .gateway import BaseGateway, _validate_artifacts, _validate_objective
-from ..loop import collect_tool_events
+from ..infra._threading import run_sync_in_thread
 from ..infra.telemetry import tracer
+from ..loop import collect_tool_events
+from .gateway import BaseGateway, _validate_artifacts, _validate_objective
 
 __all__ = [
     "shutdown_ui_server",

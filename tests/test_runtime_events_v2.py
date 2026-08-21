@@ -148,8 +148,8 @@ async def test_event_sink_subscribe():
 @pytest.mark.asyncio
 async def test_agent_runner_run_success():
     from lughus.agent.runner import AgentRunner
-    from lughus.testing import MockLLM
     from lughus.engine.tools import ToolRegistry
+    from lughus.testing import MockLLM
 
     llm = MockLLM(["Hello from runner"])
     registry = ToolRegistry()
@@ -191,8 +191,8 @@ async def test_agent_runner_run_failure():
 @pytest.mark.asyncio
 async def test_agent_runner_stream_success():
     from lughus.agent.runner import AgentRunner
-    from lughus.testing import MockStreamingLLM
     from lughus.engine.tools import ToolRegistry
+    from lughus.testing import MockStreamingLLM
 
     llm = MockStreamingLLM(["Hello world!"])
     registry = ToolRegistry()

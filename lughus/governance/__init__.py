@@ -3,8 +3,8 @@
 from .approval import (
     ApprovalRequest,
     ApprovalStatus,
-    InMemoryApprovalStore,
     ApprovalStore,
+    InMemoryApprovalStore,
     proposal_digest,
 )
 from .budget import BudgetAmount, BudgetExceeded, BudgetLedger, BudgetLimit

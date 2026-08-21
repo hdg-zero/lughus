@@ -8,7 +8,6 @@ from ..core._defaults import (
     DEFAULT_ARTIFACT_PROJECTION_THRESHOLD,
     DEFAULT_MAX_CONTEXT_TOKENS,
     DEFAULT_MAX_GLOBAL_TOOLS,
-    DEFAULT_MAX_ITERATIONS,
     DEFAULT_MAX_PARALLEL_TOOLS,
     DEFAULT_MAX_SYNC_THREAD_WORKERS,
     DEFAULT_MAX_TOOL_ARGS_CHARS,
@@ -17,8 +16,8 @@ from ..core._defaults import (
 )
 
 if TYPE_CHECKING:
-    from ..governance.approval import ApprovalStore
     from ..core.artifacts import ArtifactStore
+    from ..governance.approval import ApprovalStore
     from ..governance.idempotency import IdempotencyStore
     from ..governance.policy import Principal, ToolPolicy
     from ..infra.runtime import ExecutionRuntime

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from lughus.loop._config import (
+from lughus.core._defaults import (
     DEFAULT_MAX_GLOBAL_TOOLS,
     DEFAULT_MAX_ITERATIONS,
     DEFAULT_MAX_PARALLEL_TOOLS,
@@ -16,8 +16,8 @@ from lughus.loop._config import (
     DEFAULT_MAX_TOOL_ARGS_CHARS,
     DEFAULT_MAX_TOOL_OUTPUT_CHARS,
     DEFAULT_TOOL_QUEUE_TIMEOUT,
-    ToolExecutionConfig,
 )
+from lughus.loop._config import ToolExecutionConfig
 
 
 def test_default_max_iterations() -> None:

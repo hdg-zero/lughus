@@ -1,8 +1,8 @@
 import pytest
 
-from lughus.persistence.coordinator import RunCoordinator
 from lughus.core.domain import RunStatus
 from lughus.persistence import ConcurrentUpdateError, InMemoryRunStore
+from lughus.persistence.coordinator import RunCoordinator
 
 
 @pytest.mark.asyncio

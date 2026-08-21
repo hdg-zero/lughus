@@ -12,13 +12,13 @@ from .llm import LLM, GenerateLLM, StreamingLLM, retry_budget
 from .tools import ConcurrencyMode, ToolDef, ToolEffect, ToolRegistry, ToolRisk
 
 __all__ = [
+    "LLM",
     "ConcurrencyMode",
     "DelegationCycleError",
     "DelegationRequest",
     "DelegationResult",
     "Delegator",
     "GenerateLLM",
-    "LLM",
     "RemoteAgentClient",
     "StreamingLLM",
     "ToolDef",

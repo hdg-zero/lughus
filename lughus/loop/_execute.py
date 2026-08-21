@@ -15,8 +15,7 @@ from typing import TYPE_CHECKING, Any
 from jsonschema import Draft202012Validator, ValidationError  # type: ignore[import-untyped]
 from opentelemetry.trace import StatusCode
 
-from ..governance.approval import ApprovalRequest, proposal_digest
-from ..governance.budget import BudgetAmount
+from ..core.artifacts import _summarize
 from ..core.errors import (
     ApprovalRequired,
     ApprovalRequiredGroup,
@@ -25,11 +24,12 @@ from ..core.errors import (
     ToolTimeoutError,
     ToolValidationError,
 )
-from ..core.artifacts import _summarize
+from ..engine.tools import ConcurrencyMode, ToolRegistry
+from ..governance.approval import ApprovalRequest, proposal_digest
+from ..governance.budget import BudgetAmount
 from ..governance.idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey
 from ..governance.policy import DecisionKind, ToolProposal
 from ..infra.telemetry import meter, tracer
-from ..engine.tools import ConcurrencyMode, ToolRegistry
 from ._config import ToolExecutionConfig
 
 if TYPE_CHECKING:
@@ -246,12 +246,12 @@ def _truncate_json(value: Any, max_chars: int) -> str:
         return "[]"
     if isinstance(value, dict):
         keys = list(value.keys())
-        result = dict(value)
+        dict_result = dict(value)
         while keys:
-            candidate = json.dumps(result, ensure_ascii=False, default=str)
+            candidate = json.dumps(dict_result, ensure_ascii=False, default=str)
             if len(candidate) <= max_chars:
                 return candidate
-            del result[keys.pop()]
+            del dict_result[keys.pop()]
         return "{}"
     if isinstance(value, str):
         safe_len = max(0, max_chars - 20)

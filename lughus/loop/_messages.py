@@ -170,7 +170,7 @@ def estimate_tokens(text: str, model: str | None = None) -> int:
             import litellm
 
             return max(1, litellm.token_counter(model=model, text=text))
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
     return max(1, len(text) // 4)
 

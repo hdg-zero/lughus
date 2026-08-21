@@ -15,7 +15,7 @@ import pytest
 
 from lughus.governance.budget import BudgetLedger, BudgetLimit
 from lughus.governance.budgeted_llm import BudgetedLLM
-from lughus.testing import FakeUsage, MockStreamingLLM
+from lughus.testing import MockStreamingLLM
 
 
 @pytest.mark.asyncio
@@ -38,9 +38,11 @@ async def test_budgeted_wraps_mock_streaming_llm():
 @pytest.mark.asyncio
 async def test_budgeted_wraps_mock_with_tool_calls():
     """MockStreamingLLM returning tool calls works through BudgetedLLM."""
-    inner = MockStreamingLLM([
-        [{"id": "c1", "name": "echo", "arguments": {"text": "hi"}}],
-    ])
+    inner = MockStreamingLLM(
+        [
+            [{"id": "c1", "name": "echo", "arguments": {"text": "hi"}}],
+        ]
+    )
     ledger = BudgetLedger(BudgetLimit())
     llm = BudgetedLLM(inner, ledger)
 

@@ -138,9 +138,9 @@ async def test_stream_mid_stream_error_propagates() -> None:
     Once streaming has begun and the first chunk is emitted, a mid-stream
     error propagates to the caller instead of silently retrying.
     """
+    from lughus.engine.tools import ToolRegistry
     from lughus.loop import agent_loop_stream
     from lughus.testing import _make_streaming_chunk
-    from lughus.engine.tools import ToolRegistry
 
     class FaultyStreamingLLM:
         model = "test/mock-model"

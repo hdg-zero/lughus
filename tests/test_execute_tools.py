@@ -13,9 +13,9 @@ from typing import Any
 import pytest
 
 from lughus import ConcurrencyMode, ToolRegistry
+from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 from lughus.loop import ToolExecutionConfig, collect_tool_events
 from lughus.loop import _execute_tools as _raw_execute_tools
-from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 
 
 def _test_runtime(max_workers: int = 32) -> ExecutionRuntime:

@@ -1,7 +1,7 @@
 """Persistence layer: stores, coordinator, replay, resume."""
 
 from .coordinator import RunCoordinator
-from .replay import ReplayBundle, ReplayCapturePolicy, RecordedCall
+from .replay import RecordedCall, ReplayBundle, ReplayCapturePolicy
 from .resume import ResumeAction, ResumeDecision, decide_resume
 from .store import (
     Checkpoint,
@@ -20,8 +20,8 @@ __all__ = [
     "EventStore",
     "InMemoryRunStore",
     "RecordedCall",
-    "ReplayCapturePolicy",
     "ReplayBundle",
+    "ReplayCapturePolicy",
     "ResumeAction",
     "ResumeDecision",
     "RunCoordinator",

@@ -13,7 +13,11 @@ from starlette.requests import Request
 
 from lughus import Artifact, BaseSettings, CompletionEvent, ProgressEvent, build_app, serve
 from lughus.interfaces.gateway import BaseGateway
-from lughus.interfaces.server import BoundedInMemoryTaskStore, ProductionGuardMiddleware, _test_ui_routes
+from lughus.interfaces.server import (
+    BoundedInMemoryTaskStore,
+    ProductionGuardMiddleware,
+    _test_ui_routes,
+)
 
 # this module exercises code that needs the 'server' extra.
 pytestmark = pytest.mark.extra_server

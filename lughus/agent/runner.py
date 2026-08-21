@@ -11,8 +11,8 @@ from ..loop import LoopResult, agent_loop, agent_loop_stream
 
 if TYPE_CHECKING:
     from ..core.context import ContextItem
-    from ..governance.policy import Principal
     from ..engine.tools import ToolRegistry
+    from ..governance.policy import Principal
 
 
 class GovernedAgentRunner:
@@ -142,11 +142,10 @@ class GovernedAgentRunner:
         max_iterations: int = 20,
         system: str = "You are a helpful assistant.",
     ) -> LoopResult:
-        from ..governance.budgeted_llm import BudgetedLLM
-        from ..persistence.coordinator import RunCoordinator
         from ..core.errors import ApprovalRequiredGroup, RunSuspended
-        from ..loop import ToolExecutionConfig
+        from ..governance.budgeted_llm import BudgetedLLM
         from ..loop._execute import collect_tool_events
+        from ..persistence.coordinator import RunCoordinator
         from ..persistence.store import Checkpoint, RunUnitOfWork
 
         rt = self.runtime

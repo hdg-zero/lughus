@@ -21,8 +21,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from .gateway import BaseGateway
 from ..infra.telemetry import setup_telemetry
+from .gateway import BaseGateway
 from .ui_server import _test_ui_routes, shutdown_ui_server
 
 __all__ = [

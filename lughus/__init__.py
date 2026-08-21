@@ -6,34 +6,50 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     # Keep every lazily-exported symbol resolvable for mypy and IDEs.
     from .agent.application import AgentRuntime as AgentRuntime
+    from .agent.runner import AgentRunner as AgentRunner
     from .agent.runner import GovernedAgentRunner as GovernedAgentRunner
     from .core.artifacts import ArtifactStore as ArtifactStore
+    from .core.event_stream import EventSink as EventSink
+    from .core.event_stream import InMemoryEventSink as InMemoryEventSink
+    from .engine.llm import LLM as LLM
+    from .engine.llm import GenerateLLM as GenerateLLM
+    from .engine.llm import StreamingLLM as StreamingLLM
+    from .engine.tools import ConcurrencyMode as ConcurrencyMode
+    from .engine.tools import ToolDef as ToolDef
+    from .engine.tools import ToolEffect as ToolEffect
+    from .engine.tools import ToolRegistry as ToolRegistry
+    from .engine.tools import ToolRisk as ToolRisk
     from .governance.budget import BudgetAmount as BudgetAmount
     from .governance.budget import BudgetExceeded as BudgetExceeded
     from .governance.budget import BudgetLedger as BudgetLedger
     from .governance.budget import BudgetLimit as BudgetLimit
     from .governance.budgeted_llm import BudgetedLLM as BudgetedLLM
-    from .persistence.coordinator import RunCoordinator as RunCoordinator
-    from .core.event_stream import EventSink as EventSink
-    from .core.event_stream import InMemoryEventSink as InMemoryEventSink
-    from .interfaces.gateway import BaseGateway as BaseGateway
     from .governance.idempotency import AttemptStatus as AttemptStatus
     from .governance.idempotency import ExecutionAttempt as ExecutionAttempt
     from .governance.idempotency import IdempotencyKey as IdempotencyKey
     from .governance.idempotency import IdempotencyStore as IdempotencyStore
     from .governance.idempotency import InMemoryIdempotencyStore as InMemoryIdempotencyStore
-    from .engine.llm import LLM as LLM
-    from .engine.llm import GenerateLLM as GenerateLLM
-    from .engine.llm import StreamingLLM as StreamingLLM
+    from .infra.runtime import ExecutionRuntime as ExecutionRuntime
+    from .infra.runtime import RuntimeConfig as RuntimeConfig
+    from .infra.telemetry import setup_telemetry as setup_telemetry
+    from .interfaces.gateway import BaseGateway as BaseGateway
+    from .interfaces.mcp import MCPAdapter as MCPAdapter
+    from .interfaces.mcp import MCPClient as MCPClient
+    from .interfaces.mcp import MCPServerConfig as MCPServerConfig
+    from .interfaces.mcp import MCPToolDescriptor as MCPToolDescriptor
+    from .interfaces.server import BoundedInMemoryTaskStore as BoundedInMemoryTaskStore
+    from .interfaces.server import ProductionGuardMiddleware as ProductionGuardMiddleware
+    from .interfaces.server import build_app as build_app
+    from .interfaces.server import serve as serve
     from .loop import LoopResult as LoopResult
     from .loop import StreamChunk as StreamChunk
     from .loop import ToolExecutionConfig as ToolExecutionConfig
     from .loop import agent_loop as agent_loop
     from .loop import agent_loop_stream as agent_loop_stream
-    from .interfaces.mcp import MCPAdapter as MCPAdapter
-    from .interfaces.mcp import MCPClient as MCPClient
-    from .interfaces.mcp import MCPServerConfig as MCPServerConfig
-    from .interfaces.mcp import MCPToolDescriptor as MCPToolDescriptor
+    from .persistence.coordinator import RunCoordinator as RunCoordinator
+    from .persistence.resume import ResumeAction as ResumeAction
+    from .persistence.resume import ResumeDecision as ResumeDecision
+    from .persistence.resume import decide_resume as decide_resume
     from .persistence.store import Checkpoint as Checkpoint
     from .persistence.store import CheckpointStore as CheckpointStore
     from .persistence.store import ConcurrentUpdateError as ConcurrentUpdateError
@@ -41,26 +57,8 @@ if TYPE_CHECKING:
     from .persistence.store import InMemoryRunStore as InMemoryRunStore
     from .persistence.store import RunStore as RunStore
     from .persistence.store import RunUnitOfWork as RunUnitOfWork
-    from .persistence.resume import ResumeAction as ResumeAction
-    from .persistence.resume import ResumeDecision as ResumeDecision
-    from .persistence.resume import decide_resume as decide_resume
-    from .agent.runner import AgentRunner as AgentRunner
-    from .infra.runtime import ExecutionRuntime as ExecutionRuntime
-    from .infra.runtime import RuntimeConfig as RuntimeConfig
-    from .interfaces.server import BoundedInMemoryTaskStore as BoundedInMemoryTaskStore
-    from .interfaces.server import ProductionGuardMiddleware as ProductionGuardMiddleware
-    from .interfaces.server import build_app as build_app
-    from .interfaces.server import serve as serve
-    from .infra.telemetry import setup_telemetry as setup_telemetry
-    from .engine.tools import ConcurrencyMode as ConcurrencyMode
-    from .engine.tools import ToolDef as ToolDef
-    from .engine.tools import ToolEffect as ToolEffect
-    from .engine.tools import ToolRegistry as ToolRegistry
-    from .engine.tools import ToolRisk as ToolRisk
 
 # ── Eager imports: stdlib-only modules (no asyncio / third-party) ────
-from .governance.approval import ApprovalRequest, ApprovalStatus, InMemoryApprovalStore
-from .infra.config import BaseSettings
 from .core.context import ContextItem, ContextManager, ContextWindow, TrustLevel
 from .core.domain import EventVisibility, Run, RunEvent, RunStatus, Usage
 from .core.errors import (
@@ -75,8 +73,8 @@ from .core.errors import (
     ToolTimeoutError,
     ToolValidationError,
 )
-from .testing.evaluation import EvaluationResult, Scenario, evaluate_scenario
 from .core.events import Artifact, CompletionEvent, ProgressEvent
+from .governance.approval import ApprovalRequest, ApprovalStatus, InMemoryApprovalStore
 from .governance.policy import (
     CompositePolicy,
     DecisionKind,
@@ -86,7 +84,9 @@ from .governance.policy import (
     ToolPolicy,
     ToolProposal,
 )
+from .infra.config import BaseSettings
 from .persistence.replay import ReplayBundle
+from .testing.evaluation import EvaluationResult, Scenario, evaluate_scenario
 
 # ── Lazy-loaded symbols ─────────────────────────────────────────────
 #

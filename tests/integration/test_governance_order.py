@@ -20,6 +20,7 @@ from typing import Any
 
 import pytest
 
+from lughus.engine.tools import ToolRegistry, ToolRisk
 from lughus.governance.approval import (
     ApprovalRequest,
     ApprovalStatus,
@@ -33,11 +34,10 @@ from lughus.governance.idempotency import (
     IdempotencyKey,
     InMemoryIdempotencyStore,
 )
-from lughus.loop._config import ToolExecutionConfig
-from lughus.loop._execute import _execute_tools
 from lughus.governance.policy import DecisionKind, PolicyDecision, Principal, ToolProposal
 from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
-from lughus.engine.tools import ToolRegistry, ToolRisk
+from lughus.loop._config import ToolExecutionConfig
+from lughus.loop._execute import _execute_tools
 
 # ── Helpers ──────────────────────────────────────────────
 

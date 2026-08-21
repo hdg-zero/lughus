@@ -220,7 +220,13 @@ async def scenario_stress() -> dict[str, Any]:
     responses.append("Stress benchmark complete.")
     llm = build_mock_llm(responses)
     return await _run_scenario(
-        "stress", llm, SYSTEM, CONTEXT, registry, tool_names, max_iterations=60,
+        "stress",
+        llm,
+        SYSTEM,
+        CONTEXT,
+        registry,
+        tool_names,
+        max_iterations=60,
     )
 
 
