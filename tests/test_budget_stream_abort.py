@@ -34,8 +34,10 @@ class _FakeStreamingLLM:
         self._chunks = chunks
 
     async def astream(self, *, messages: list[dict], tools: list[dict] | None = None):
-        for chunk in self._chunks:
-            yield chunk
+        async def _inner():
+            for chunk in self._chunks:
+                yield chunk
+        return _inner()
 
 
 # ── Tests ──────────────────────────────────────────────────
@@ -53,7 +55,7 @@ async def test_stream_closed_after_first_chunk_settles():
     ledger = BudgetLedger(BudgetLimit())
     llm = BudgetedLLM(_FakeStreamingLLM(chunks), ledger)
 
-    stream = llm.astream(messages=[{"role": "user", "content": "hi"}])
+    stream = await llm.astream(messages=[{"role": "user", "content": "hi"}])
     first = await stream.__anext__()
     assert first.text == "hello"
 
@@ -80,7 +82,7 @@ async def test_stream_closed_before_any_chunk_releases():
     ledger = BudgetLedger(BudgetLimit())
     llm = BudgetedLLM(_FakeStreamingLLM(chunks), ledger)
 
-    stream = llm.astream(messages=[{"role": "user", "content": "hi"}])
+    stream = await llm.astream(messages=[{"role": "user", "content": "hi"}])
     # Close immediately without consuming any chunk
     await stream.aclose()
 
@@ -105,7 +107,7 @@ async def test_full_stream_consumption_settles_normally():
     llm = BudgetedLLM(_FakeStreamingLLM(chunks), ledger)
 
     received = []
-    async for chunk in llm.astream(messages=[{"role": "user", "content": "hi"}]):
+    async for chunk in await llm.astream(messages=[{"role": "user", "content": "hi"}]):
         received.append(chunk.text)
 
     assert received == ["hello", " world"]
@@ -129,7 +131,7 @@ async def test_task_cancellation_treated_as_closure():
     ledger = BudgetLedger(BudgetLimit())
     llm = BudgetedLLM(_FakeStreamingLLM(chunks), ledger)
 
-    stream = llm.astream(messages=[{"role": "user", "content": "hi"}])
+    stream = await llm.astream(messages=[{"role": "user", "content": "hi"}])
     first = await stream.__anext__()
     assert first.text == "hello"
 
@@ -160,7 +162,7 @@ async def test_abort_loop_cannot_spend_without_cap():
     for _ in range(10):
         inner = _FakeStreamingLLM(chunks)
         llm = BudgetedLLM(inner, ledger)
-        stream = llm.astream(messages=[{"role": "user", "content": "hi"}])
+        stream = await llm.astream(messages=[{"role": "user", "content": "hi"}])
         await stream.__anext__()  # consume one chunk
         await stream.aclose()
 
