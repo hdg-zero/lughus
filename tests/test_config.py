@@ -347,16 +347,16 @@ def test_tool_execution_config_requires_runtime():
     assert cfg.runtime is None
 
 
-def test_tool_config_rejects_max_global_tools_kwarg() -> None:
-    """max_global_tools is no longer a ToolExecutionConfig field."""
-    with pytest.raises(TypeError):
-        ToolExecutionConfig(max_global_tools=32)  # type: ignore[call-arg]
+def test_tool_config_accepts_max_global_tools_kwarg() -> None:
+    """max_global_tools is now a ToolExecutionConfig field."""
+    cfg = ToolExecutionConfig(max_global_tools=32)
+    assert cfg.max_global_tools == 32
 
 
-def test_tool_config_rejects_max_sync_thread_workers_kwarg() -> None:
-    """max_sync_thread_workers is no longer a ToolExecutionConfig field."""
-    with pytest.raises(TypeError):
-        ToolExecutionConfig(max_sync_thread_workers=4)  # type: ignore[call-arg]
+def test_tool_config_accepts_max_sync_thread_workers_kwarg() -> None:
+    """max_sync_thread_workers is now a ToolExecutionConfig field."""
+    cfg = ToolExecutionConfig(max_sync_thread_workers=4)
+    assert cfg.max_sync_thread_workers == 4
 
 
 @pytest.mark.asyncio

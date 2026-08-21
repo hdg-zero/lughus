@@ -5,6 +5,15 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+from ._defaults import (
+    DEFAULT_MAX_GLOBAL_TOOLS,
+    DEFAULT_MAX_PARALLEL_TOOLS,
+    DEFAULT_MAX_SYNC_THREAD_WORKERS,
+    DEFAULT_MAX_TOOL_ARGS_CHARS,
+    DEFAULT_MAX_TOOL_OUTPUT_CHARS,
+    DEFAULT_TOOL_QUEUE_TIMEOUT,
+)
+
 __all__ = ["BaseSettings"]
 
 
@@ -171,16 +180,20 @@ class BaseSettings:
 
     # Maximum number of tool calls to run concurrently inside one loop iteration.
     # Env: MAX_PARALLEL_TOOLS.
-    max_parallel_tools: int = field(default_factory=lambda: _env_int("MAX_PARALLEL_TOOLS", 4))
+    max_parallel_tools: int = field(
+        default_factory=lambda: _env_int("MAX_PARALLEL_TOOLS", DEFAULT_MAX_PARALLEL_TOOLS)
+    )
 
     # Maximum number of tool calls to run concurrently in this event loop / worker.
     # Env: MAX_GLOBAL_TOOLS.
-    max_global_tools: int = field(default_factory=lambda: _env_int("MAX_GLOBAL_TOOLS", 64))
+    max_global_tools: int = field(
+        default_factory=lambda: _env_int("MAX_GLOBAL_TOOLS", DEFAULT_MAX_GLOBAL_TOOLS)
+    )
 
     # Maximum worker threads used for synchronous tools and framework blocking
     # work. Env: MAX_SYNC_THREAD_WORKERS.
     max_sync_thread_workers: int = field(
-        default_factory=lambda: _env_int("MAX_SYNC_THREAD_WORKERS", 32)
+        default_factory=lambda: _env_int("MAX_SYNC_THREAD_WORKERS", DEFAULT_MAX_SYNC_THREAD_WORKERS)
     )
 
     # Per-tool timeout in seconds. Set to 0 or a negative value to disable.
@@ -190,16 +203,16 @@ class BaseSettings:
     # How long a tool waits for a worker-local global tool slot before returning
     # a structured timeout error. Set to 0 to fail immediately. Env: TOOL_QUEUE_TIMEOUT.
     tool_queue_timeout: float = field(
-        default_factory=lambda: _env_float("TOOL_QUEUE_TIMEOUT", 30.0)
+        default_factory=lambda: _env_float("TOOL_QUEUE_TIMEOUT", DEFAULT_TOOL_QUEUE_TIMEOUT)
     )
 
     # Size limits that protect the LLM message history from tool payload blowups.
     # Env: MAX_TOOL_ARGS_CHARS / MAX_TOOL_OUTPUT_CHARS.
     max_tool_args_chars: int = field(
-        default_factory=lambda: _env_int("MAX_TOOL_ARGS_CHARS", 20_000)
+        default_factory=lambda: _env_int("MAX_TOOL_ARGS_CHARS", DEFAULT_MAX_TOOL_ARGS_CHARS)
     )
     max_tool_output_chars: int = field(
-        default_factory=lambda: _env_int("MAX_TOOL_OUTPUT_CHARS", 8_192)
+        default_factory=lambda: _env_int("MAX_TOOL_OUTPUT_CHARS", DEFAULT_MAX_TOOL_OUTPUT_CHARS)
     )
     cors_allow_credentials: bool = field(
         default_factory=lambda: _env_bool("CORS_ALLOW_CREDENTIALS", False)

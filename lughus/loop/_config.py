@@ -4,6 +4,18 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
+from .._defaults import (
+    DEFAULT_ARTIFACT_PROJECTION_THRESHOLD,
+    DEFAULT_MAX_CONTEXT_TOKENS,
+    DEFAULT_MAX_GLOBAL_TOOLS,
+    DEFAULT_MAX_ITERATIONS,
+    DEFAULT_MAX_PARALLEL_TOOLS,
+    DEFAULT_MAX_SYNC_THREAD_WORKERS,
+    DEFAULT_MAX_TOOL_ARGS_CHARS,
+    DEFAULT_MAX_TOOL_OUTPUT_CHARS,
+    DEFAULT_TOOL_QUEUE_TIMEOUT,
+)
+
 if TYPE_CHECKING:
     from ..approval import ApprovalStore
     from ..artifacts import ArtifactStore
@@ -17,34 +29,22 @@ class StreamingMode(StrEnum):
     LIVE = "live"
 
 
-DEFAULT_MAX_ITERATIONS = 12
-DEFAULT_MAX_PARALLEL_TOOLS = 4
-DEFAULT_MAX_GLOBAL_TOOLS = 64
-DEFAULT_MAX_TOOL_ARGS_CHARS = 20_000
-DEFAULT_MAX_TOOL_OUTPUT_CHARS = 8_192
-DEFAULT_MAX_SYNC_THREAD_WORKERS = 32
-DEFAULT_MAX_CONTEXT_TOKENS = 8_192
-DEFAULT_TOOL_QUEUE_TIMEOUT = 30.0
-DEFAULT_ARTIFACT_PROJECTION_THRESHOLD = 4096
-
-
 @dataclass(frozen=True)
 class ToolExecutionConfig:
     """Runtime guardrails for tool execution.
 
     ``tool_timeout`` is per tool call. Set it to ``None`` or ``<= 0`` to disable.
     ``max_parallel_tools`` limits concurrency within one agent loop iteration.
+    ``max_global_tools`` and ``max_sync_thread_workers`` are runtime capacities
+    used when ``_resolve_tool_config`` creates an implicit runtime.
 
     This object is inert: constructing it allocates nothing. See the ``runtime``
     field for how the execution runtime is created and owned.
-
-    ``max_global_tools`` and ``max_sync_thread_workers`` are capacities of the
-    runtime, not per-loop guardrails. They live as module-level constants
-    (``DEFAULT_MAX_GLOBAL_TOOLS``, ``DEFAULT_MAX_SYNC_THREAD_WORKERS``) and are
-    used by ``_resolve_tool_config`` when creating the implicit runtime.
     """
 
     max_parallel_tools: int = DEFAULT_MAX_PARALLEL_TOOLS
+    max_global_tools: int = DEFAULT_MAX_GLOBAL_TOOLS
+    max_sync_thread_workers: int = DEFAULT_MAX_SYNC_THREAD_WORKERS
     tool_timeout: float | None = 30.0
     max_tool_args_chars: int = DEFAULT_MAX_TOOL_ARGS_CHARS
     max_tool_output_chars: int = DEFAULT_MAX_TOOL_OUTPUT_CHARS

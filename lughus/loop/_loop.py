@@ -16,9 +16,7 @@ from ..retry import retry_budget
 from ..telemetry import meter, tracer
 from ..tools import ToolRegistry
 from ._config import (
-    DEFAULT_MAX_GLOBAL_TOOLS,
     DEFAULT_MAX_ITERATIONS,
-    DEFAULT_MAX_SYNC_THREAD_WORKERS,
     StreamingMode,
     ToolExecutionConfig,
 )
@@ -255,8 +253,8 @@ def _resolve_tool_config(
 
     runtime = ExecutionRuntime(
         RuntimeConfig(
-            max_global_tools=DEFAULT_MAX_GLOBAL_TOOLS,
-            max_sync_workers=DEFAULT_MAX_SYNC_THREAD_WORKERS,
+            max_global_tools=cfg.max_global_tools,
+            max_sync_workers=cfg.max_sync_thread_workers,
             queue_timeout=cfg.tool_queue_timeout,
         )
     )
