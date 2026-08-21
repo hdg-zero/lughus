@@ -1,14 +1,7 @@
 """lughus — micro-framework for building A2A agents with LiteLLM."""
 
 from importlib import import_module
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as _pkg_version
 from typing import TYPE_CHECKING, Any
-
-try:
-    __version__ = _pkg_version("lughus")
-except PackageNotFoundError:
-    __version__ = "0.0.0-dev"
 
 if TYPE_CHECKING:
     # Keep every lazily-exported symbol resolvable for mypy and IDEs.
@@ -170,6 +163,16 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
 
 
 def __getattr__(name: str) -> Any:
+    if name == "__version__":
+        from importlib.metadata import PackageNotFoundError
+        from importlib.metadata import version as _pkg_version
+
+        try:
+            v = _pkg_version("lughus")
+        except PackageNotFoundError:
+            v = "0.0.0-dev"
+        globals()["__version__"] = v
+        return v
     target = _LAZY_ATTRS.get(name)
     if target is None:
         raise AttributeError(f"module 'lughus' has no attribute {name!r}")
