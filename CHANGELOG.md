@@ -36,6 +36,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Removed
 - Backward-compatibility shims at old module paths (all imports must use canonical subpackage paths).
 - Migration guide (`docs/guides/migration-0.10-to-0.13.md`) — framework not yet public.
+- **Schema compaction (`_compact_schema`)**: parameter `description` fields are no longer stripped from tool declarations. With prefix caching, tool declarations live in the cacheable prefix and the ~376 tokens saved per call are billed at ~10% rate (~38 token-equivalents). Meanwhile, descriptions carry critical constraints (enum values, valid formats, value ranges) that the model cannot infer from parameter names alone — a single failed tool call from missing context (2000+ tokens) costs more than 50 cached calls of savings.
 
 ## [0.13.0] — 2026-08-19
 

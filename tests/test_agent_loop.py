@@ -223,8 +223,8 @@ async def test_usage_metadata_accumulated(registry: ToolRegistry) -> None:
 
 
 @pytest.mark.asyncio
-async def test_tool_schemas_always_compacted() -> None:
-    """declarations always strip parameter descriptions."""
+async def test_tool_schemas_preserve_descriptions() -> None:
+    """declarations preserve parameter descriptions for model accuracy."""
     r = ToolRegistry()
 
     @r.tool(
@@ -261,8 +261,8 @@ async def test_tool_schemas_always_compacted() -> None:
 
     tool = llm.calls[0]["tools"][0]
     assert tool["function"]["description"] == "Describe a thing."
-    assert "description" not in tool["function"]["parameters"]
-    assert "description" not in tool["function"]["parameters"]["properties"]["name"]
+    assert tool["function"]["parameters"]["description"] == "Verbose root description."
+    assert tool["function"]["parameters"]["properties"]["name"]["description"] == "Verbose property description."
 
 
 @pytest.mark.asyncio
