@@ -12,8 +12,8 @@ from opentelemetry.trace import StatusCode
 
 from ..artifacts import ArtifactStore
 from ..errors import LoopLimitError
-from ..retry import retry_budget
-from ..telemetry import meter, tracer
+from ..infra.retry import retry_budget
+from ..infra.telemetry import meter, tracer
 from ..tools import ToolRegistry
 from ._config import (
     DEFAULT_MAX_ITERATIONS,
@@ -43,7 +43,7 @@ _estimated_tokens_histogram = meter.create_histogram(
 if TYPE_CHECKING:
     from ..context import ContextItem
     from ..llm import GenerateLLM, StreamingLLM
-    from ..runtime import ExecutionRuntime
+    from ..infra.runtime import ExecutionRuntime
 
 
 _FETCH_ARTIFACT_TOOL = "fetch_artifact"
@@ -245,7 +245,7 @@ def _resolve_tool_config(
     runtime, not per-loop guardrails.  The implicit runtime is built from the
     module-level constants; ``tool_queue_timeout`` is still read from the config.
     """
-    from ..runtime import ExecutionRuntime, RuntimeConfig
+    from ..infra.runtime import ExecutionRuntime, RuntimeConfig
 
     cfg = tool_config if tool_config is not None else ToolExecutionConfig()
     if cfg.runtime is not None:

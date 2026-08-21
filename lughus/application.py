@@ -4,16 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .approval import ApprovalStore
-from .budget import BudgetLedger
+from .governance.approval import ApprovalStore
+from .governance.budget import BudgetLedger
 from .context import ContextManager
 from .event_stream import EventSink
-from .idempotency import IdempotencyStore
+from .governance.idempotency import IdempotencyStore
 from .loop import ToolExecutionConfig
-from .persistence import CheckpointStore, EventStore, RunStore
-from .policy import Principal, ToolPolicy
+from .persistence.store import CheckpointStore, EventStore, RunStore
+from .governance.policy import Principal, ToolPolicy
 from .runner import GovernedAgentRunner  # re-export for backward compatibility
-from .runtime import ExecutionRuntime
+from .infra.runtime import ExecutionRuntime
 
 # Re-export so ``from lughus.application import GovernedAgentRunner`` still works.
 __all__ = ["AgentRuntime", "GovernedAgentRunner"]

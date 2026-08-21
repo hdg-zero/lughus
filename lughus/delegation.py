@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from .budget import BudgetAmount, BudgetLedger
+from .governance.budget import BudgetAmount, BudgetLedger
 
 
 class DelegationCycleError(RuntimeError):

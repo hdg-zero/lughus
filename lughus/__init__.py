@@ -7,20 +7,20 @@ if TYPE_CHECKING:
     # Keep every lazily-exported symbol resolvable for mypy and IDEs.
     from .application import AgentRuntime as AgentRuntime
     from .artifacts import ArtifactStore as ArtifactStore
-    from .budget import BudgetAmount as BudgetAmount
-    from .budget import BudgetExceeded as BudgetExceeded
-    from .budget import BudgetLedger as BudgetLedger
-    from .budget import BudgetLimit as BudgetLimit
-    from .budgeted_llm import BudgetedLLM as BudgetedLLM
-    from .coordinator import RunCoordinator as RunCoordinator
+    from .governance.budget import BudgetAmount as BudgetAmount
+    from .governance.budget import BudgetExceeded as BudgetExceeded
+    from .governance.budget import BudgetLedger as BudgetLedger
+    from .governance.budget import BudgetLimit as BudgetLimit
+    from .governance.budgeted_llm import BudgetedLLM as BudgetedLLM
+    from .persistence.coordinator import RunCoordinator as RunCoordinator
     from .event_stream import EventSink as EventSink
     from .event_stream import InMemoryEventSink as InMemoryEventSink
-    from .gateway import BaseGateway as BaseGateway
-    from .idempotency import AttemptStatus as AttemptStatus
-    from .idempotency import ExecutionAttempt as ExecutionAttempt
-    from .idempotency import IdempotencyKey as IdempotencyKey
-    from .idempotency import IdempotencyStore as IdempotencyStore
-    from .idempotency import InMemoryIdempotencyStore as InMemoryIdempotencyStore
+    from .interfaces.gateway import BaseGateway as BaseGateway
+    from .governance.idempotency import AttemptStatus as AttemptStatus
+    from .governance.idempotency import ExecutionAttempt as ExecutionAttempt
+    from .governance.idempotency import IdempotencyKey as IdempotencyKey
+    from .governance.idempotency import IdempotencyStore as IdempotencyStore
+    from .governance.idempotency import InMemoryIdempotencyStore as InMemoryIdempotencyStore
     from .llm import LLM as LLM
     from .llm import GenerateLLM as GenerateLLM
     from .llm import StreamingLLM as StreamingLLM
@@ -29,29 +29,28 @@ if TYPE_CHECKING:
     from .loop import ToolExecutionConfig as ToolExecutionConfig
     from .loop import agent_loop as agent_loop
     from .loop import agent_loop_stream as agent_loop_stream
-    from .mcp import MCPAdapter as MCPAdapter
-    from .mcp import MCPClient as MCPClient
-    from .mcp import MCPServerConfig as MCPServerConfig
-    from .mcp import MCPToolDescriptor as MCPToolDescriptor
-    from .persistence import Checkpoint as Checkpoint
-    from .persistence import CheckpointStore as CheckpointStore
-    from .persistence import ConcurrentUpdateError as ConcurrentUpdateError
-    from .persistence import EventStore as EventStore
-    from .persistence import InMemoryRunStore as InMemoryRunStore
-    from .persistence import RunStore as RunStore
-    from .persistence import RunUnitOfWork as RunUnitOfWork
-    from .resume import ResumeAction as ResumeAction
-    from .resume import ResumeDecision as ResumeDecision
-    from .resume import decide_resume as decide_resume
+    from .interfaces.mcp import MCPAdapter as MCPAdapter
+    from .interfaces.mcp import MCPClient as MCPClient
+    from .interfaces.mcp import MCPServerConfig as MCPServerConfig
+    from .interfaces.mcp import MCPToolDescriptor as MCPToolDescriptor
+    from .persistence.store import Checkpoint as Checkpoint
+    from .persistence.store import CheckpointStore as CheckpointStore
+    from .persistence.store import ConcurrentUpdateError as ConcurrentUpdateError
+    from .persistence.store import EventStore as EventStore
+    from .persistence.store import InMemoryRunStore as InMemoryRunStore
+    from .persistence.store import RunStore as RunStore
+    from .persistence.store import RunUnitOfWork as RunUnitOfWork
+    from .persistence.resume import ResumeAction as ResumeAction
+    from .persistence.resume import ResumeDecision as ResumeDecision
+    from .persistence.resume import decide_resume as decide_resume
     from .runner import AgentRunner as AgentRunner
-    from .runner import GovernedAgentRunner as GovernedAgentRunner
-    from .runtime import ExecutionRuntime as ExecutionRuntime
-    from .runtime import RuntimeConfig as RuntimeConfig
-    from .server import BoundedInMemoryTaskStore as BoundedInMemoryTaskStore
-    from .server import ProductionGuardMiddleware as ProductionGuardMiddleware
-    from .server import build_app as build_app
-    from .server import serve as serve
-    from .telemetry import setup_telemetry as setup_telemetry
+    from .infra.runtime import ExecutionRuntime as ExecutionRuntime
+    from .infra.runtime import RuntimeConfig as RuntimeConfig
+    from .interfaces.server import BoundedInMemoryTaskStore as BoundedInMemoryTaskStore
+    from .interfaces.server import ProductionGuardMiddleware as ProductionGuardMiddleware
+    from .interfaces.server import build_app as build_app
+    from .interfaces.server import serve as serve
+    from .infra.telemetry import setup_telemetry as setup_telemetry
     from .tools import ConcurrencyMode as ConcurrencyMode
     from .tools import ToolDef as ToolDef
     from .tools import ToolEffect as ToolEffect
@@ -59,8 +58,8 @@ if TYPE_CHECKING:
     from .tools import ToolRisk as ToolRisk
 
 # ── Eager imports: stdlib-only modules (no asyncio / third-party) ────
-from .approval import ApprovalRequest, ApprovalStatus, InMemoryApprovalStore
-from .config import BaseSettings
+from .governance.approval import ApprovalRequest, ApprovalStatus, InMemoryApprovalStore
+from .infra.config import BaseSettings
 from .context import ContextItem, ContextManager, ContextWindow, TrustLevel
 from .domain import EventVisibility, Run, RunEvent, RunStatus, Usage
 from .errors import (
@@ -77,7 +76,7 @@ from .errors import (
 )
 from .evaluation import EvaluationResult, Scenario, evaluate_scenario
 from .events import Artifact, CompletionEvent, ProgressEvent
-from .policy import (
+from .governance.policy import (
     CompositePolicy,
     DecisionKind,
     LeastPrivilegePolicy,
@@ -86,7 +85,7 @@ from .policy import (
     ToolPolicy,
     ToolProposal,
 )
-from .replay import ReplayBundle
+from .persistence.replay import ReplayBundle
 
 # ── Lazy-loaded symbols ─────────────────────────────────────────────
 #
@@ -107,31 +106,31 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "GenerateLLM": (".llm", None),
     "StreamingLLM": (".llm", None),
     # ── server extra ─────────────────────────────────────────────────
-    "BaseGateway": (".gateway", "server"),
-    "BoundedInMemoryTaskStore": (".server", "server"),
-    "ProductionGuardMiddleware": (".server", "server"),
-    "build_app": (".server", "server"),
-    "serve": (".server", "server"),
+    "BaseGateway": (".interfaces.gateway", "server"),
+    "BoundedInMemoryTaskStore": (".interfaces.server", "server"),
+    "ProductionGuardMiddleware": (".interfaces.server", "server"),
+    "build_app": (".interfaces.server", "server"),
+    "serve": (".interfaces.server", "server"),
     # ── jsonschema chain ─────────────────────────────────────────────
     "ConcurrencyMode": (".tools", None),
     "ToolDef": (".tools", None),
     "ToolEffect": (".tools", None),
     "ToolRegistry": (".tools", None),
     "ToolRisk": (".tools", None),
-    "MCPAdapter": (".mcp", None),
-    "MCPClient": (".mcp", None),
-    "MCPServerConfig": (".mcp", None),
-    "MCPToolDescriptor": (".mcp", None),
+    "MCPAdapter": (".interfaces.mcp", None),
+    "MCPClient": (".interfaces.mcp", None),
+    "MCPServerConfig": (".interfaces.mcp", None),
+    "MCPToolDescriptor": (".interfaces.mcp", None),
     # ── opentelemetry chain ──────────────────────────────────────────
-    "setup_telemetry": (".telemetry", None),
-    "AttemptStatus": (".idempotency", None),
-    "ExecutionAttempt": (".idempotency", None),
-    "IdempotencyKey": (".idempotency", None),
-    "IdempotencyStore": (".idempotency", None),
-    "InMemoryIdempotencyStore": (".idempotency", None),
-    "ResumeAction": (".resume", None),
-    "ResumeDecision": (".resume", None),
-    "decide_resume": (".resume", None),
+    "setup_telemetry": (".infra.telemetry", None),
+    "AttemptStatus": (".governance.idempotency", None),
+    "ExecutionAttempt": (".governance.idempotency", None),
+    "IdempotencyKey": (".governance.idempotency", None),
+    "IdempotencyStore": (".governance.idempotency", None),
+    "InMemoryIdempotencyStore": (".governance.idempotency", None),
+    "ResumeAction": (".persistence.resume", None),
+    "ResumeDecision": (".persistence.resume", None),
+    "decide_resume": (".persistence.resume", None),
     # ── jsonschema + opentelemetry ───────────────────────────────────
     "LoopResult": (".loop", None),
     "StreamChunk": (".loop", None),
@@ -142,23 +141,23 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "AgentRuntime": (".application", None),
     "GovernedAgentRunner": (".runner", None),
     # ── asyncio chain ────────────────────────────────────────────────
-    "BudgetAmount": (".budget", None),
-    "BudgetExceeded": (".budget", None),
-    "BudgetLedger": (".budget", None),
-    "BudgetLimit": (".budget", None),
-    "BudgetedLLM": (".budgeted_llm", None),
-    "RunCoordinator": (".coordinator", None),
+    "BudgetAmount": (".governance.budget", None),
+    "BudgetExceeded": (".governance.budget", None),
+    "BudgetLedger": (".governance.budget", None),
+    "BudgetLimit": (".governance.budget", None),
+    "BudgetedLLM": (".governance.budgeted_llm", None),
+    "RunCoordinator": (".persistence.coordinator", None),
     "EventSink": (".event_stream", None),
     "InMemoryEventSink": (".event_stream", None),
-    "Checkpoint": (".persistence", None),
-    "CheckpointStore": (".persistence", None),
-    "ConcurrentUpdateError": (".persistence", None),
-    "EventStore": (".persistence", None),
-    "InMemoryRunStore": (".persistence", None),
-    "RunStore": (".persistence", None),
-    "RunUnitOfWork": (".persistence", None),
-    "ExecutionRuntime": (".runtime", None),
-    "RuntimeConfig": (".runtime", None),
+    "Checkpoint": (".persistence.store", None),
+    "CheckpointStore": (".persistence.store", None),
+    "ConcurrentUpdateError": (".persistence.store", None),
+    "EventStore": (".persistence.store", None),
+    "InMemoryRunStore": (".persistence.store", None),
+    "RunStore": (".persistence.store", None),
+    "RunUnitOfWork": (".persistence.store", None),
+    "ExecutionRuntime": (".infra.runtime", None),
+    "RuntimeConfig": (".infra.runtime", None),
 }
 
 

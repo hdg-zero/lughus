@@ -15,9 +15,8 @@ from typing import TYPE_CHECKING, Any
 from jsonschema import Draft202012Validator, ValidationError  # type: ignore[import-untyped]
 from opentelemetry.trace import StatusCode
 
-from ..approval import ApprovalRequest, proposal_digest
-from ..artifacts import _summarize
-from ..budget import BudgetAmount
+from ..governance.approval import ApprovalRequest, proposal_digest
+from ..governance.budget import BudgetAmount
 from ..errors import (
     ApprovalRequired,
     ApprovalRequiredGroup,
@@ -26,14 +25,15 @@ from ..errors import (
     ToolTimeoutError,
     ToolValidationError,
 )
-from ..idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey
-from ..policy import DecisionKind, ToolProposal
-from ..telemetry import meter, tracer
+from ..artifacts import _summarize
+from ..governance.idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey
+from ..governance.policy import DecisionKind, ToolProposal
+from ..infra.telemetry import meter, tracer
 from ..tools import ConcurrencyMode, ToolRegistry
 from ._config import ToolExecutionConfig
 
 if TYPE_CHECKING:
-    from ..runtime import ExecutionRuntime
+    from ..infra.runtime import ExecutionRuntime
 
 _logger = logging.getLogger(__name__)
 

@@ -17,11 +17,11 @@ from .._defaults import (
 )
 
 if TYPE_CHECKING:
-    from ..approval import ApprovalStore
+    from ..governance.approval import ApprovalStore
     from ..artifacts import ArtifactStore
-    from ..idempotency import IdempotencyStore
-    from ..policy import Principal, ToolPolicy
-    from ..runtime import ExecutionRuntime
+    from ..governance.idempotency import IdempotencyStore
+    from ..governance.policy import Principal, ToolPolicy
+    from ..infra.runtime import ExecutionRuntime
 
 
 class StreamingMode(StrEnum):
