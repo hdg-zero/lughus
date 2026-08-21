@@ -76,7 +76,7 @@ def test_build_groups_identifies_atomic_groups() -> None:
 def test_pruning_never_splits_tool_pairs() -> None:
     """No pruning ever separates a tool_call from its tool_result."""
     msgs = _make_history()
-    pruned = prune_history(msgs, max_tokens=200, prefix_len=2)
+    pruned = prune_history(msgs, max_tokens=150, prefix_len=2)
     assert pruned > 0
     # Verify: every assistant with tool_calls has all its tool results
     for i, msg in enumerate(msgs):
@@ -103,7 +103,7 @@ def test_prune_oldest_first() -> None:
     """Pruning removes the oldest groups first."""
     msgs = _make_history()
     original_last = msgs[-1].copy()
-    prune_history(msgs, max_tokens=200, prefix_len=2)
+    prune_history(msgs, max_tokens=150, prefix_len=2)
     # The last message (standalone "Done.") should survive longest
     if len(msgs) > 2:
         assert msgs[-1] == original_last
@@ -188,7 +188,7 @@ def test_many_tool_pairs_no_split() -> None:
             }
         )
 
-    prune_history(msgs, max_tokens=200, prefix_len=2)
+    prune_history(msgs, max_tokens=150, prefix_len=2)
     # Verify integrity: every remaining assistant with tool_calls has its tool results
     for i, msg in enumerate(msgs):
         if msg.get("role") == "assistant" and msg.get("tool_calls"):

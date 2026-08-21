@@ -160,13 +160,13 @@ class MessageHistory:
     def __len__(self) -> int:
         return len(self._messages)
 
-    def prune(self, max_tokens: int, prefix_len: int) -> int:
+    def prune(self, max_tokens: int, prefix_len: int, model: str | None = None) -> int:
         """Drop oldest non-prefix atomic groups until estimated tokens fit *max_tokens*.
 
         Returns the number of groups pruned.  Raises :class:`ContextBudgetExceeded`
         if a single atomic group exceeds the entire budget.
         """
-        pruned = prune_history(self._messages, max_tokens, prefix_len)
+        pruned = prune_history(self._messages, max_tokens, prefix_len, model=model)
         # Recompute char count from scratch after mutation.
         self._char_count = 2
         for i, msg in enumerate(self._messages):
@@ -182,23 +182,29 @@ class MessageHistory:
 # ── Token estimation ────────────────────────────────────────────────────────
 
 
-def estimate_tokens(text: str) -> int:
-    """Return a conservative token estimate for *text*.
+def estimate_tokens(text: str, model: str | None = None) -> int:
+    """Return a token estimate for *text*.
 
-    Uses ``len(text) // 3`` which slightly over-counts compared to real
-    tokenizers (1 token ~ 4 chars for English).  Over-counting is safe: it
-    means we prune a little earlier than necessary rather than risking a
-    provider 400 error.
+    When *model* is provided, delegates to ``litellm.token_counter`` for an
+    accurate count.  Falls back to ``len(text) // 4`` (industry-standard
+    approximation of ~4 chars per token for English prose).
     """
     if not text:
         return 0
-    return max(1, len(text) // 3)
+    if model is not None:
+        try:
+            import litellm
+
+            return max(1, litellm.token_counter(model=model, text=text))
+        except Exception:
+            pass
+    return max(1, len(text) // 4)
 
 
-def _message_tokens(msg: dict[str, Any]) -> int:
+def _message_tokens(msg: dict[str, Any], model: str | None = None) -> int:
     """Estimate the token cost of a single message dict."""
     serialized = json.dumps(msg, ensure_ascii=False, separators=(",", ":"))
-    return estimate_tokens(serialized)
+    return estimate_tokens(serialized, model=model)
 
 
 # ── Atomic groups ────────────────────────────────────────────────────────────
@@ -239,6 +245,7 @@ def prune_history(
     messages: list[dict[str, Any]],
     max_tokens: int,
     prefix_len: int,
+    model: str | None = None,
 ) -> int:
     """Remove oldest non-prefix atomic groups from *messages* until under budget.
 
@@ -250,7 +257,7 @@ def prune_history(
     Raises :class:`ContextBudgetExceeded` if a single atomic group is larger
     than the entire *max_tokens* budget.
     """
-    total_tokens = sum(_message_tokens(m) for m in messages)
+    total_tokens = sum(_message_tokens(m, model=model) for m in messages)
     if total_tokens <= max_tokens:
         return 0
 
@@ -259,10 +266,10 @@ def prune_history(
         return 0
 
     # Check if any single group exceeds the budget on its own
-    prefix_tokens = sum(_message_tokens(messages[i]) for i in range(prefix_len))
+    prefix_tokens = sum(_message_tokens(messages[i], model=model) for i in range(prefix_len))
     available = max_tokens - prefix_tokens
     for group in groups:
-        group_tokens = sum(_message_tokens(messages[idx]) for idx in group)
+        group_tokens = sum(_message_tokens(messages[idx], model=model) for idx in group)
         if group_tokens > available:
             raise ContextBudgetExceeded(
                 f"A single atomic group ({group_tokens} estimated tokens) "
@@ -276,7 +283,7 @@ def prune_history(
     for group in groups:
         if total_tokens <= max_tokens:
             break
-        group_tokens = sum(_message_tokens(messages[idx]) for idx in group)
+        group_tokens = sum(_message_tokens(messages[idx], model=model) for idx in group)
         indices_to_remove.extend(group)
         total_tokens -= group_tokens
         pruned_count += 1

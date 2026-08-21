@@ -146,11 +146,11 @@ def _prune_if_needed(
     telemetry when pruning occurs.
     """
     max_tokens = cfg.max_context_tokens
-    pruned = history.prune(max_tokens, prefix_len)
+    pruned = history.prune(max_tokens, prefix_len, model=model)
     if pruned > 0:
         attrs = {"gen_ai.request.model": model}
         _pruned_groups_counter.add(pruned, attrs)
-        estimated = sum(_message_tokens(m) for m in history.view)
+        estimated = sum(_message_tokens(m, model=model) for m in history.view)
         _estimated_tokens_histogram.record(estimated, attrs)
         _logger.info(
             "Context budget: pruned %d group(s), ~%d tokens remaining",
