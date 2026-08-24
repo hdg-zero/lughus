@@ -1,4 +1,4 @@
-"""Tests for SafeToolError and exception redaction logic (v0.1.3)."""
+"""Tests for SafeToolError and exception redaction logic."""
 
 from __future__ import annotations
 

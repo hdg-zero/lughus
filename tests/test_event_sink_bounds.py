@@ -13,7 +13,7 @@ def event(run_id: str, sequence: int) -> RunEvent:
 
 
 async def test_sequence_tracker_is_bounded() -> None:
-    """Fails on 0.10.1: _last_sequence grew by one entry per run, forever."""
+    """Regression guard: _last_sequence must not grow by one entry per run forever."""
     sink = InMemoryEventSink(max_events=100, max_tracked_runs=32)
     for i in range(1000):
         await sink.append(event(f"run-{i}", 0))

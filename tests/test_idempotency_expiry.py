@@ -74,7 +74,7 @@ async def test_pending_expires_after_pending_ttl_only() -> None:
 
 
 async def test_terminal_receipts_expire_after_ttl() -> None:
-    """Fails on 0.10.1: terminal receipts never expired at all."""
+    """Regression guard: terminal receipts must expire, not accumulate forever."""
     clock = FakeClock()
     store = InMemoryIdempotencyStore(ttl_seconds=3600.0, pending_ttl_seconds=300.0, now=clock)
 
@@ -130,7 +130,7 @@ async def test_expired_pending_is_reclaimable() -> None:
 async def test_store_keeps_accepting_work_when_full_of_terminal_receipts() -> None:
     """Regression test: the store keeps accepting work when full of terminal receipts.
 
-    On 0.10.1 this raises RuntimeError("Idempotency store capacity reached") and
+    Without terminal-receipt expiry this raises a capacity error and
     every subsequent idempotent tool execution fails for the life of the process.
     """
     clock = FakeClock()
@@ -188,7 +188,7 @@ async def test_capacity_error_is_catchable_as_lughus_error() -> None:
 
 
 def test_created_at_defaults_to_wall_clock() -> None:
-    """Fails on 0.10.1, which used time.monotonic()."""
+    """Regression guard: expiry must use wall clock, not time.monotonic()."""
     receipt = ExecutionAttempt(key=key(1), status=AttemptStatus.PENDING)
     assert abs(receipt.created_at - time.time()) < 5.0, (
         "created_at must be a wall-clock timestamp so that it survives serialisation"
