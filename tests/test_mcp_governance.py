@@ -95,21 +95,26 @@ async def test_registered_tools_use_governance_pipeline() -> None:
 
 
 @pytest.mark.asyncio
-async def test_schema_fingerprint_change_raises() -> None:
-    """If the snapshot schemas are mutated after refresh, _invoke must refuse."""
-    adapter, _ = _make_adapter()
-    await adapter.refresh()
-
-    # Tamper with the snapshot to simulate a schema change mid-run.
-    # Replace the descriptor with one that has a different input_schema.
-    tampered = MCPToolDescriptor(
+async def test_remote_schema_drift_raises() -> None:
+    """If the server's schemas change after refresh, _invoke must refuse."""
+    tool_v1 = MCPToolDescriptor(
+        name="tool_a",
+        description="Test tool A",
+        input_schema={"type": "object", "properties": {"x": {"type": "integer"}}},
+    )
+    tool_v2 = MCPToolDescriptor(
         name="tool_a",
         description="Test tool A",
         input_schema={"type": "object", "properties": {"x": {"type": "string"}}},
     )
-    adapter._snapshot["tool_a"] = tampered
+    client = FakeMCPClient([tool_v1])
+    adapter, _ = _make_adapter(client=client, tools=[tool_v1])
+    await adapter.refresh()
 
-    with pytest.raises(RuntimeError, match="schema fingerprint changed"):
+    # Simulate server-side schema drift WITHOUT calling refresh().
+    client._tools = [tool_v2]
+
+    with pytest.raises(RuntimeError, match="schemas changed on the server"):
         await adapter._invoke("tool_a", {"x": 1})
 
 
