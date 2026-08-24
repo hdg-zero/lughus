@@ -23,7 +23,7 @@ from starlette.routing import Route
 
 from ..infra.telemetry import setup_telemetry
 from .gateway import BaseGateway
-from .ui_server import _test_ui_routes, shutdown_ui_server
+from .ui_server import _console_routes, shutdown_ui_server
 
 __all__ = [
     "BoundedInMemoryTaskStore",
@@ -291,7 +291,7 @@ def _validate_production_config(
     *,
     gateway: BaseGateway,
     task_store: TaskStore | None,
-    enable_test_ui: bool,
+    enable_console: bool,
 ) -> None:
     """Fail fast for configurations that are unsafe in production mode."""
     settings = gateway.settings
@@ -303,8 +303,8 @@ def _validate_production_config(
         errors.append("API_BEARER_TOKEN must be set")
     if not getattr(settings, "public_url", ""):
         errors.append("PUBLIC_URL must be set")
-    if enable_test_ui:
-        errors.append("ENABLE_TEST_UI must be false")
+    if enable_console:
+        errors.append("ENABLE_CONSOLE must be false")
     if task_store is None or not bool(getattr(task_store, "durable", False)):
         errors.append("a persistent task_store must be provided")
     if errors:
@@ -317,7 +317,7 @@ def build_app(
     *,
     task_store: TaskStore | None = None,
     setup_otel: bool = True,
-    enable_test_ui: bool = False,
+    enable_console: bool = False,
 ) -> Any:
     """Build a complete A2A Starlette app without starting uvicorn.
 
@@ -326,7 +326,7 @@ def build_app(
         gateway: The BaseGateway executor instance.
         task_store: Optional custom task store. Defaults to BoundedInMemoryTaskStore.
         setup_otel: If True, calls setup_telemetry() automatically.
-        enable_test_ui: If True, exposes the local testing interface at /ui.
+        enable_console: If True, exposes the developer console at /ui.
     """
     if setup_otel:
         setup_telemetry(service_name=agent_card.name)
@@ -334,7 +334,7 @@ def build_app(
     _validate_production_config(
         gateway=gateway,
         task_store=task_store,
-        enable_test_ui=enable_test_ui,
+        enable_console=enable_console,
     )
 
     if task_store is None:
@@ -366,8 +366,8 @@ def build_app(
         Route("/health", _health),
         Route("/healthz", _health),
     ]
-    if enable_test_ui:
-        utility_routes.extend(_test_ui_routes(agent_card, gateway))
+    if enable_console:
+        utility_routes.extend(_console_routes(agent_card, gateway))
     app.routes[0:0] = utility_routes
     app.add_middleware(
         ProductionGuardMiddleware,
@@ -406,7 +406,7 @@ def serve(
     log_level: str = "INFO",
     task_store: TaskStore | None = None,
     setup_otel: bool = True,
-    enable_test_ui: bool = False,
+    enable_console: bool = False,
 ) -> None:
     """Start a complete A2A server with uvicorn.
 
@@ -418,14 +418,14 @@ def serve(
         log_level: Log level string.
         task_store: Optional custom task store. Defaults to BoundedInMemoryTaskStore.
         setup_otel: If True, calls setup_telemetry() automatically.
-        enable_test_ui: If True, exposes the local testing interface at /ui.
+        enable_console: If True, exposes the developer console at /ui.
     """
     app = build_app(
         agent_card=agent_card,
         gateway=gateway,
         task_store=task_store,
         setup_otel=setup_otel,
-        enable_test_ui=enable_test_ui,
+        enable_console=enable_console,
     )
     uvicorn.run(
         app,

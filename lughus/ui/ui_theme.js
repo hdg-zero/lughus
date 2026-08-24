@@ -1,9 +1,15 @@
-/** Persisted light/dark theme handling for the Developer Test UI. */
+/** Persisted light/dark theme handling for the Lughus Developer Console. */
 
 const STORAGE_KEY = "lughus_ui_theme";
 
 function nextTheme(theme) {
   return theme === "light" ? "dark" : "light";
+}
+
+function getSystemTheme() {
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark";
 }
 
 function applyTheme(theme) {
@@ -18,8 +24,17 @@ function applyTheme(theme) {
 
 export function initTheme() {
   const saved = localStorage.getItem(STORAGE_KEY);
-  const initialTheme = saved === "light" || saved === "dark" ? saved : "dark";
+  const initialTheme = saved === "light" || saved === "dark" ? saved : getSystemTheme();
   applyTheme(initialTheme);
+
+  // Sync with OS if user hasn't explicitly overridden
+  if (window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", (e) => {
+      if (!localStorage.getItem(STORAGE_KEY)) {
+        applyTheme(e.matches ? "light" : "dark");
+      }
+    });
+  }
 
   const button = document.querySelector("#theme-toggle");
   if (!button) return;

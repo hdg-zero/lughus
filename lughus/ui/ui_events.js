@@ -43,9 +43,12 @@ export function parseMarkdown(text) {
   if (!text) return "";
   let html = escapeHtml(text);
 
-  // Fenced code blocks
-  html = html.replace(/```([a-z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
-    return `<pre class="md-code-block"><code>${code.trim()}</code></pre>`;
+  // Fenced code blocks with placeholder extraction
+  const codeBlocks = [];
+  html = html.replace(/```([a-z0-9_-]*)\n([\s\S]*?)```/g, (_match, _lang, code) => {
+    const placeholder = `___CODE_BLOCK_${codeBlocks.length}___`;
+    codeBlocks.push(`<pre class="md-code-block"><code>${code.trim()}</code></pre>`);
+    return placeholder;
   });
 
   // Inline code
@@ -64,10 +67,15 @@ export function parseMarkdown(text) {
   html = html.replace(/^\s*[-*]\s+(.*$)/gim, '<li class="md-li">$1</li>');
 
   // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="md-link">$1</a>');
+  html = html.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>');
 
   // Line breaks
   html = html.replace(/\n/g, '<br>');
+
+  // Restore code blocks without corrupting them with <br>
+  codeBlocks.forEach((block, index) => {
+    html = html.replace(`___CODE_BLOCK_${index}___`, block);
+  });
 
   return html;
 }

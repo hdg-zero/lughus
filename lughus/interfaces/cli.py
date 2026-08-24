@@ -323,7 +323,7 @@ app = build_app(
     agent_card,
     gateway,
     task_store=task_store,
-    enable_test_ui=settings.enable_test_ui,
+    enable_console=settings.enable_console,
 )
 
 
@@ -336,7 +336,7 @@ def main() -> None:
         log_level=settings.log_level,
         task_store=task_store,
         setup_otel=False,
-        enable_test_ui=settings.enable_test_ui,
+        enable_console=settings.enable_console,
     )
 
 

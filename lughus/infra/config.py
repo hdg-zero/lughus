@@ -103,7 +103,7 @@ class BaseSettings:
     public_url: str = field(default_factory=lambda: os.getenv("PUBLIC_URL", ""))
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
     environment: str = field(default_factory=lambda: os.getenv("LUGHUS_ENV", "development"))
-    enable_test_ui: bool = field(default_factory=lambda: _env_bool("ENABLE_TEST_UI", False))
+    enable_console: bool = field(default_factory=lambda: _env_bool("ENABLE_CONSOLE", False))
     api_bearer_token: str = field(default_factory=lambda: os.getenv("API_BEARER_TOKEN", ""))
     cors_origins: str = field(default_factory=lambda: os.getenv("CORS_ORIGINS", ""))
 

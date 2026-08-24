@@ -43,7 +43,7 @@ _OTEL_TIMEOUT_SECONDS = 5.0
 
 
 def shutdown_ui_server() -> None:
-    """Shutdown background threadpool worker resources allocated for the test UI."""
+    """Shutdown background threadpool worker resources allocated for the developer console."""
     _executor.shutdown(wait=False, cancel_futures=True)
 
 
@@ -51,8 +51,8 @@ def _read_ui_asset(name: str) -> str:
     return resources.files("lughus").joinpath("ui", name).read_text(encoding="utf-8")
 
 
-def _render_test_ui_html(agent_card: AgentCard) -> str:
-    template = _read_ui_asset("test_ui.html")
+def _render_console_html(agent_card: AgentCard) -> str:
+    template = _read_ui_asset("console.html")
     return template.replace("__AGENT_NAME__", html.escape(agent_card.name)).replace(
         "__AGENT_DESCRIPTION__", html.escape(agent_card.description or "")
     )
@@ -250,15 +250,9 @@ async def _decode_files(
     return await decode_files_payload(raw_files, gateway.settings, executor=_executor)
 
 
-def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
+def _console_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
     async def page(request: Request) -> HTMLResponse:
-        return HTMLResponse(_render_test_ui_html(agent_card))
-
-    async def css(request: Request) -> Response:
-        return Response(_read_ui_asset("test_ui.css"), media_type="text/css")
-
-    async def js(request: Request) -> Response:
-        return Response(_read_ui_asset("test_ui.js"), media_type="application/javascript")
+        return HTMLResponse(_render_console_html(agent_card))
 
     async def _parse_run_request(
         request: Request,
@@ -433,12 +427,21 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
             return JSONResponse({"error": "internal_error"}, status_code=500)
         return JSONResponse(result)
 
+    _asset_mime_types = {
+        ".css": "text/css",
+        ".js": "application/javascript",
+        ".svg": "image/svg+xml",
+        ".html": "text/html",
+        ".json": "application/json",
+    }
+
     async def serve_asset(request: Request) -> Response:
         filename = request.path_params.get("filename", "")
         safe_filename = Path(filename).name
         try:
             content = _read_ui_asset(safe_filename)
-            media_type = "text/css" if safe_filename.endswith(".css") else "application/javascript"
+            suffix = Path(safe_filename).suffix.lower()
+            media_type = _asset_mime_types.get(suffix, "application/octet-stream")
             return Response(content, media_type=media_type)
         except (FileNotFoundError, IsADirectoryError, OSError, UnicodeError):
             return Response("Asset not found", status_code=404)
@@ -448,7 +451,5 @@ def _test_ui_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
         Route("/ui/run", run, methods=["POST"]),
         Route("/ui/otel/traces", otel_traces, methods=["POST"]),
         Route("/ui/stream", stream, methods=["POST"]),
-        Route("/ui/assets/test_ui.css", css, methods=["GET"]),
-        Route("/ui/assets/test_ui.js", js, methods=["GET"]),
         Route("/ui/assets/{filename:path}", serve_asset, methods=["GET"]),
     ]

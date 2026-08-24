@@ -16,8 +16,8 @@ from lughus.interfaces.gateway import BaseGateway
 from lughus.interfaces.server import (
     BoundedInMemoryTaskStore,
     ProductionGuardMiddleware,
-    _test_ui_routes,
 )
+from lughus.interfaces.ui_server import _console_routes
 
 # this module exercises code that needs the 'server' extra.
 pytestmark = pytest.mark.extra_server
@@ -212,9 +212,9 @@ def test_serve_calls(
     assert mock_handler_class.call_args[1]["task_store"] is not None
 
 
-def test_build_app_can_expose_test_ui() -> None:
+def test_build_app_can_expose_console() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    app = build_app(_agent_card(), gateway, setup_otel=False, enable_test_ui=True)
+    app = build_app(_agent_card(), gateway, setup_otel=False, enable_console=True)
 
     assert [route.path for route in app.routes[:6]] == [
         "/health",
@@ -343,22 +343,22 @@ def test_build_app_rejects_unsafe_production_config(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_test_ui_page_renders_agent_metadata() -> None:
+async def test_console_page_renders_agent_metadata() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    page = _test_ui_routes(_agent_card(), gateway)[0].endpoint
+    page = _console_routes(_agent_card(), gateway)[0].endpoint
 
     response = await page(_request("GET", "/ui"))
 
     assert response.status_code == 200
     assert "test-agent" in response.body.decode()
-    assert "/ui/assets/test_ui.css" in response.body.decode()
-    assert "/ui/assets/test_ui.js" in response.body.decode()
+    assert "/ui/assets/console.css" in response.body.decode()
+    assert "/ui/assets/console.js" in response.body.decode()
 
 
 @pytest.mark.asyncio
-async def test_test_ui_run_calls_gateway() -> None:
+async def test_console_run_calls_gateway() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _test_ui_routes(_agent_card(), gateway)[1].endpoint
+    run = _console_routes(_agent_card(), gateway)[1].endpoint
 
     response = await run(
         _request(
@@ -397,9 +397,9 @@ async def test_test_ui_run_calls_gateway() -> None:
 
 
 @pytest.mark.asyncio
-async def test_test_ui_includes_telemetry_metadata() -> None:
+async def test_console_includes_telemetry_metadata() -> None:
     gateway = TelemetryUIGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _test_ui_routes(_agent_card(), gateway)[1].endpoint
+    run = _console_routes(_agent_card(), gateway)[1].endpoint
 
     response = await run(_request("POST", "/ui/run", {"objective": "hello"}))
 
@@ -420,9 +420,9 @@ async def test_test_ui_includes_telemetry_metadata() -> None:
 
 
 @pytest.mark.asyncio
-async def test_test_ui_streams_events() -> None:
+async def test_console_streams_events() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    stream = _test_ui_routes(_agent_card(), gateway)[3].endpoint
+    stream = _console_routes(_agent_card(), gateway)[3].endpoint
 
     response = await stream(_request("POST", "/ui/stream", {"objective": "hello"}))
 
@@ -446,9 +446,9 @@ async def test_test_ui_streams_events() -> None:
 
 
 @pytest.mark.asyncio
-async def test_test_ui_fetches_otel_trace_url() -> None:
+async def test_console_fetches_otel_trace_url() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    otel = _test_ui_routes(_agent_card(), gateway)[2].endpoint
+    otel = _console_routes(_agent_card(), gateway)[2].endpoint
 
     with patch("lughus.interfaces.ui_server._fetch_otel_url") as fetch:
         fetch.return_value = {
@@ -473,9 +473,9 @@ async def test_test_ui_fetches_otel_trace_url() -> None:
 
 
 @pytest.mark.asyncio
-async def test_test_ui_rejects_invalid_otel_trace_url() -> None:
+async def test_console_rejects_invalid_otel_trace_url() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    otel = _test_ui_routes(_agent_card(), gateway)[2].endpoint
+    otel = _console_routes(_agent_card(), gateway)[2].endpoint
 
     response = await otel(_request("POST", "/ui/otel/traces", {"url": "grpc://localhost:4317"}))
 
@@ -484,7 +484,7 @@ async def test_test_ui_rejects_invalid_otel_trace_url() -> None:
 
 
 @pytest.mark.asyncio
-async def test_test_ui_sanitizes_uploaded_file_name() -> None:
+async def test_console_sanitizes_uploaded_file_name() -> None:
     class NameGateway(BaseGateway):
         async def handle(
             self,
@@ -494,7 +494,7 @@ async def test_test_ui_sanitizes_uploaded_file_name() -> None:
             yield CompletionEvent(text=files[0][2])
 
     gateway = NameGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _test_ui_routes(_agent_card(), gateway)[1].endpoint
+    run = _console_routes(_agent_card(), gateway)[1].endpoint
 
     response = await run(
         _request(
@@ -518,10 +518,10 @@ async def test_test_ui_sanitizes_uploaded_file_name() -> None:
 
 
 @pytest.mark.asyncio
-async def test_test_ui_enforces_objective_limit(monkeypatch) -> None:
+async def test_console_enforces_objective_limit(monkeypatch) -> None:
     monkeypatch.setenv("MAX_OBJECTIVE_CHARS", "3")
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _test_ui_routes(_agent_card(), gateway)[1].endpoint
+    run = _console_routes(_agent_card(), gateway)[1].endpoint
 
     response = await run(_request("POST", "/ui/run", {"objective": "hello"}))
 
@@ -530,10 +530,10 @@ async def test_test_ui_enforces_objective_limit(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_test_ui_enforces_artifact_limit(monkeypatch) -> None:
+async def test_console_enforces_artifact_limit(monkeypatch) -> None:
     monkeypatch.setenv("MAX_ARTIFACT_BYTES", "1")
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _test_ui_routes(_agent_card(), gateway)[1].endpoint
+    run = _console_routes(_agent_card(), gateway)[1].endpoint
 
     response = await run(_request("POST", "/ui/run", {"objective": "ok"}))
 

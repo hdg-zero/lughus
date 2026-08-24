@@ -9,10 +9,9 @@ function toolName(event) {
 
 function eventLabel(event) {
   if (event.type === "progress") {
-    const text = String(event.text || "Working");
-    return text.startsWith("Loaded dataset") ? "Dataset loaded" : text;
+    return String(event.text || "Working");
   }
-  if (event.type === "completion") return "Report ready";
+  if (event.type === "completion") return "Execution completed";
   if (event.type === "error") return "Run failed";
   if (event.type === "tool_result") return `${toolName(event)} result`;
   if (event.type === "telemetry") return "Run metrics";
@@ -26,7 +25,7 @@ function eventDetail(event) {
       : `${event.elapsed_ms ?? 0} ms`;
   }
   if (event.type === "tool_start") return "Calling tool";
-  if (event.type === "completion") return "Open the generated artifact below";
+  if (event.type === "completion") return "Artifact or final output ready";
   return event.text || "";
 }
 
