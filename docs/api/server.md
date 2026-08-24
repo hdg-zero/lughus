@@ -1,7 +1,7 @@
 ---
 type: API Reference
 title: Server API
-description: API reference for the serve entrypoint function.
+description: API reference for the serve entrypoint function and developer console.
 ---
 
 # Server API
@@ -19,7 +19,7 @@ def build_app(
     *,
     task_store: TaskStore | None = None,
     setup_otel: bool = True,
-    enable_test_ui: bool = False,
+    enable_console: bool = False,
 ) -> object:
 ```
 
@@ -30,9 +30,9 @@ Returns the Starlette-compatible ASGI application built by the A2A SDK. Use this
 *   `gateway`: The [BaseGateway](gateway.md) instance that contains the executor logic.
 *   `task_store`: Custom persistent `TaskStore` instance. If `None`, defaults to `BoundedInMemoryTaskStore` using `TASK_STORE_TTL_SECONDS` and `TASK_STORE_MAX_TASKS`, and logs a production warning.
 *   `setup_otel`: If `True`, automatically configures standard OpenTelemetry exporters (traces and metrics). Set to `False` if your parent application already sets up custom OTel providers.
-*   `enable_test_ui`: If `True`, exposes a local testing interface at `/ui` and a JSON run endpoint at `/ui/run`.
+*   `enable_console`: If `True`, exposes the developer console at `/ui` and a JSON run endpoint at `/ui/run`.
 
-`build_app()` also installs `ProductionGuardMiddleware`, which enforces `MAX_HTTP_BODY_BYTES`, optional per-worker request backpressure through `MAX_CONCURRENT_REQUESTS` / `MAX_QUEUE_BACKLOG`, and, when `API_BEARER_TOKEN` is set (supports multiple comma-separated keys), timing-safe bearer-token auth on non-health routes. If `CORS_ORIGINS` is set, `build_app()` configures Starlette `CORSMiddleware` (with `CORS_ALLOW_CREDENTIALS` support; wildcard origins with credentials raise a `ValueError`). When `LUGHUS_ENV=production`, `build_app()` fails fast unless `PUBLIC_URL`, `API_BEARER_TOKEN`, and a custom persistent `task_store` (with `durable = True` capability) are configured and the test UI is disabled.
+`build_app()` also installs `ProductionGuardMiddleware`, which enforces `MAX_HTTP_BODY_BYTES`, optional per-worker request backpressure through `MAX_CONCURRENT_REQUESTS` / `MAX_QUEUE_BACKLOG`, and, when `API_BEARER_TOKEN` is set (supports multiple comma-separated keys), timing-safe bearer-token auth on non-health routes. If `CORS_ORIGINS` is set, `build_app()` configures Starlette `CORSMiddleware` (with `CORS_ALLOW_CREDENTIALS` support; wildcard origins with credentials raise a `ValueError`). When `LUGHUS_ENV=production`, `build_app()` fails fast unless `PUBLIC_URL`, `API_BEARER_TOKEN`, and a custom persistent `task_store` (with `durable = True` capability) are configured and the developer console is disabled.
 
 ## `serve`
 
@@ -48,7 +48,7 @@ def serve(
     log_level: str = "INFO",
     task_store: TaskStore | None = None,
     setup_otel: bool = True,
-    enable_test_ui: bool = False,
+    enable_console: bool = False,
 ) -> None:
 ```
 
@@ -60,20 +60,19 @@ def serve(
 *   `log_level`: Python and Uvicorn log level string (default: `"INFO"`).
 *   `task_store`: Custom persistent `TaskStore` instance. If `None`, defaults to the bounded in-memory store. Use Redis, SQL, or another SDK-compatible persistent store for horizontally scaled deployments.
 *   `setup_otel`: If `True`, automatically configures standard OpenTelemetry exporters (traces and metrics). Set to `False` if your parent application already sets up custom OTel providers.
-*   `enable_test_ui`: If `True`, exposes a local testing interface at `/ui` and a JSON run endpoint at `/ui/run`.
+*   `enable_console`: If `True`, exposes the developer console at `/ui` and a JSON run endpoint at `/ui/run`.
 
-## Test UI
+## Developer Console
 
 > [!WARNING]
-> The local test console is **strictly designed as a rapid local development and debugging tool**. Under no circumstances should it be publicly exposed in production or used as a final user interface.
+> The local developer console is **strictly designed as a rapid local development and debugging tool**. Under no circumstances should it be publicly exposed in production or used as a final user interface.
 > If `LUGHUS_ENV=production`, the application will raise a startup validation error if the console is enabled.
 
 
-The test UI is disabled by default. Enable it only for local development or private test
-deployments:
+The developer console is disabled by default. Enable it only for local development or private test deployments:
 
 ```python
-serve(agent_card, gateway, enable_test_ui=True)
+serve(agent_card, gateway, enable_console=True)
 ```
 
 Then open:
@@ -82,15 +81,7 @@ Then open:
 http://localhost:8080/ui
 ```
 
-The UI sends an objective and optional files directly to `gateway.handle()`, then renders
-`ProgressEvent`, `CompletionEvent`, tool call start/result events, and downloadable artifacts.
-The browser consumes `/ui/stream` as newline-delimited JSON so progress and tool events appear live;
-`/ui/run` remains available as a buffered JSON endpoint.
-Tool call entries include the tool name, raw JSON arguments, duration, status, output, and error
-type when applicable. The Agent Path renders every streamed progress, tool call, tool result,
-completion, and error as a clickable step that reveals the corresponding log entry. Tool payloads are
-collapsible, and the light/dark theme choice is retained in browser local storage. It uses the same
-timeout, objective, file-size, and artifact limits from `BaseSettings`.
+The UI sends an objective and optional files directly to `gateway.handle()`, then renders `ProgressEvent`, `CompletionEvent`, tool call start/result events, and downloadable artifacts. The browser consumes `/ui/stream` as newline-delimited JSON so progress and tool events appear live; `/ui/run` remains available as a buffered JSON endpoint. Tool call entries include the tool name, raw JSON arguments, duration, status, output, and error type when applicable. The Agent Path renders every streamed progress, tool call, tool result, completion, and error as a clickable step that reveals the corresponding log entry. Tool payloads are collapsible, and the light/dark theme choice is retained in browser local storage. It uses the same timeout, objective, file-size, and artifact limits from `BaseSettings`.
 
 ## `ProductionGuardMiddleware`
 

@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-08-24
+
+### Added
+- **Official Visual Identity**: Introduced new official SVG vector logo (`docs/logo.svg` and `lughus/ui/logo.svg`).
+- **Dynamic UI Asset Resolution**: Embedded SVG asset delivery with automatic MIME type mapping (`.svg`, `.css`, `.js`, `.html`, `.json`) in `ui_server`.
+- **System Theme Synchronization**: Added live `prefers-color-scheme` OS theme listener in Developer Console with local storage persistence.
+
+### Changed
+- **Modernized Developer Console**: Replaced `test_ui` with unified `console` naming (`enable_console`, `ENABLE_CONSOLE`, `console.html/css/js`), native system typography, anti-FOUC inline theme execution, and transparent vector logo embedding.
+- **Canonical Architecture Contracts**: Consolidated `docs/contracts/tools-v2.md` into `docs/contracts/tools.md`, harmonized SemVer 2.0 release policy, and purged historical freezing markers in preparation for v1.0.0.
+- **Single Canonical Runner**: Promoted `GovernedAgentRunner` as the single unified agent runner with optional governance pipeline.
+
+### Removed
+- **Legacy Aliases**: Removed legacy `AgentRunner = GovernedAgentRunner` alias and cleaned backward compatibility shims.
+- **Legacy Re-exports**: Removed `GovernedAgentRunner` re-export from `lughus.agent.application` (now cleanly imported from `lughus.agent.runner`).
+
 ## [0.14.1] — 2026-08-24
 
 ### Fixed

@@ -63,36 +63,35 @@ Composition root bundling process execution, policies, approval stores, idempote
 
 ---
 
-### `AgentRunner` & `GovernedAgentRunner`
+### `GovernedAgentRunner`
 
 ```python
-class AgentRunner:
+class GovernedAgentRunner:
     def __init__(
         self,
-        llm: LLM,
-        tools: ToolRegistry | None = None,
-        runtime: ExecutionRuntime | None = None,
+        runtime: AgentRuntime | None = None,
+        *,
         event_sink: EventSink | None = None,
     ) -> None: ...
 
-
-class GovernedAgentRunner:
-    def __init__(self, runtime: AgentRuntime) -> None: ...
     async def run(
         self,
         llm: Any,
         *,
-        objective: str,
-        principal: Principal,
-        registry: ToolRegistry,
+        objective: str = "",
+        principal: Principal | None = None,
+        registry: ToolRegistry | None = None,
         state: Any = None,
         context_items: Sequence[ContextItem] = (),
         max_iterations: int = 20,
         system: str = "You are a helpful assistant.",
+        context: str = "",
+        tool_names: Sequence[str] | None = None,
+        thread_id: str | None = None,
     ) -> LoopResult: ...
 ```
 
-`AgentRunner` provides event-streamed execution orchestration. `GovernedAgentRunner` unifies context selection, budget reservations, tool policy evaluation, and transactional state transitions via `RunCoordinator`.
+`GovernedAgentRunner` provides event-streamed execution orchestration. Without an `AgentRuntime`, it operates in lightweight event-emission mode; with an `AgentRuntime`, it applies the full governance pipeline (context selection, budget tracking, policy enforcement, approval gates, and state coordination).
 
 ---
 

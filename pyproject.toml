@@ -1,6 +1,6 @@
 [project]
 name = "lughus"
-version = "0.14.1"
+version = "0.15.0"
 description = "Micro-framework for building A2A agents with LiteLLM — agent loop, tool registry, A2A gateway."
 readme = "README.md"
 license = "MIT"
