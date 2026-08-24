@@ -74,21 +74,21 @@ html, body {
 
 /* Header Navbar */
 .app-header {
-  height: 48px;
-  min-height: 48px;
+  height: 52px;
+  min-height: 52px;
   background: var(--bg-sidebar);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 18px;
+  padding: 0 20px;
   z-index: 20;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .logo-container {
@@ -96,16 +96,17 @@ html, body {
   background: transparent;
   border-radius: 8px;
   display: flex;
-  height: 32px;
+  height: 38px;
   justify-content: center;
   overflow: hidden;
   position: relative;
-  width: 32px;
+  width: 38px;
+  flex-shrink: 0;
 }
 
 .lughus-mark {
-  height: 26px;
-  width: 26px;
+  height: 34px;
+  width: 34px;
 }
 
 .brand-info {
@@ -238,7 +239,7 @@ h1 {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
   flex: 1;
-  height: calc(100dvh - 48px);
+  height: calc(100dvh - 52px);
   overflow: hidden;
 }
 
@@ -539,6 +540,53 @@ h3 {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  position: relative;
+}
+
+.running-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.035;
+  transition: opacity 0.4s ease, transform 0.4s ease, filter 0.4s ease;
+  user-select: none;
+}
+
+.watermark-logo {
+  width: min(720px, 75vmin);
+  height: min(720px, 75vmin);
+  max-width: 85%;
+  max-height: 85%;
+  object-fit: contain;
+  filter: grayscale(1) drop-shadow(0 0 25px rgba(99, 102, 241, 0));
+  transition: filter 0.5s ease, transform 0.5s ease;
+}
+
+/* Active running watermark animation: glow and reflect without scaling */
+.app-viewport[data-status="running"] .running-watermark,
+.app-viewport[data-status="streaming"] .running-watermark {
+  opacity: 0.16;
+  animation: watermark-shimmer 3s ease-in-out infinite alternate;
+}
+
+.app-viewport[data-status="running"] .watermark-logo,
+.app-viewport[data-status="streaming"] .watermark-logo {
+  animation: watermark-glow 3s ease-in-out infinite alternate;
+}
+
+:root[data-theme="light"] .running-watermark {
+  opacity: 0.045;
+}
+
+:root[data-theme="light"] .app-viewport[data-status="running"] .running-watermark,
+:root[data-theme="light"] .app-viewport[data-status="streaming"] .running-watermark {
+  opacity: 0.14;
 }
 
 .console-header {
@@ -550,12 +598,20 @@ h3 {
   justify-content: space-between;
   padding: 0 20px;
   background: var(--bg-sidebar);
+  position: relative;
+  z-index: 2;
 }
 
 .agent-flow {
   border-bottom: 1px solid var(--border);
   background: rgba(18, 18, 21, 0.72);
   padding: 10px 20px 12px;
+  position: relative;
+  z-index: 2;
+}
+
+:root[data-theme="light"] .agent-flow {
+  background: rgba(241, 245, 249, 0.85);
 }
 
 .agent-flow-heading {
@@ -731,6 +787,8 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .empty {
@@ -833,6 +891,45 @@ h2 {
 .event.error { border-left-color: var(--accent-red); }
 .event.error .event-type-badge { background: var(--accent-red-bg); color: var(--accent-red); }
 
+/* ── Human approval cards ─────────────────────────────── */
+.event.approval_request {
+  border-left-color: var(--accent-amber, #f59e0b);
+  border-left-width: 3px;
+}
+.event.approval_request .event-type-badge {
+  background: rgba(245, 158, 11, .14);
+  color: var(--accent-amber, #f59e0b);
+}
+.approval-actions {
+  display: flex;
+  gap: .5rem;
+  margin-top: .6rem;
+}
+.approval-btn {
+  padding: .35rem .9rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.approval-btn[disabled] { opacity: .45; cursor: default; }
+.approval-btn.approve {
+  background: rgba(34, 197, 94, .16);
+  color: var(--accent-green, #22c55e);
+  border-color: rgba(34, 197, 94, .4);
+}
+.approval-btn.reject {
+  background: var(--accent-red-bg, rgba(248, 113, 113, .12));
+  color: var(--accent-red);
+  border-color: rgba(248, 113, 113, .4);
+}
+.approval-outcome {
+  margin-top: .45rem;
+  font-size: .78rem;
+  color: var(--text-muted, #94a3b8);
+}
+
 .event.event-focused {
   box-shadow: 0 0 0 1px var(--accent-indigo), 0 0 18px rgba(129, 140, 248, .22);
 }
@@ -862,6 +959,12 @@ pre {
 .json-number { color: #60a5fa; }
 .json-boolean { color: #fbbf24; }
 .json-null { color: #a78bfa; }
+
+:root[data-theme="light"] .json-key { color: #475569; font-weight: 600; }
+:root[data-theme="light"] .json-string { color: #059669; }
+:root[data-theme="light"] .json-number { color: #2563eb; }
+:root[data-theme="light"] .json-boolean { color: #d97706; }
+:root[data-theme="light"] .json-null { color: #7c3aed; }
 
 .artifacts-section {
   border-top: 1px solid var(--border);
@@ -929,6 +1032,30 @@ pre {
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes watermark-glow {
+  0% {
+    filter: grayscale(0.8) drop-shadow(0 0 15px rgba(99, 102, 241, 0.15)) brightness(0.92);
+  }
+  50% {
+    filter: grayscale(0.15) drop-shadow(0 0 45px rgba(129, 140, 248, 0.6)) drop-shadow(0 0 85px rgba(99, 102, 241, 0.35)) brightness(1.28);
+  }
+  100% {
+    filter: grayscale(0.8) drop-shadow(0 0 15px rgba(99, 102, 241, 0.15)) brightness(0.92);
+  }
+}
+
+@keyframes watermark-shimmer {
+  0% {
+    opacity: 0.08;
+  }
+  50% {
+    opacity: 0.22;
+  }
+  100% {
+    opacity: 0.08;
+  }
 }
 
 /* Responsive Breakpoints */

@@ -19,6 +19,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
+from ..core.errors import ApprovalRequired, ApprovalRequiredGroup, LoopLimitError, LughusError
 from ..core.events import CompletionEvent, ProgressEvent
 from ..engine.files import decode_files_payload
 from ..infra.telemetry import tracer
@@ -204,16 +205,55 @@ def _console_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
                     _enqueue_nowait(
                         {
                             "type": "error",
+                            "code": "agent_timeout",
                             "text": (
                                 f"Agent execution timed out after {gateway.settings.agent_timeout}s"
                             ),
                         }
                     )
+                except (ApprovalRequired, ApprovalRequiredGroup) as exc:
+                    requests = (
+                        exc.requests
+                        if isinstance(exc, ApprovalRequiredGroup)
+                        else [exc]
+                    )
+                    for req in requests:
+                        _enqueue_nowait(
+                            {
+                                "type": "error",
+                                "code": "approval_required",
+                                "request_id": getattr(req, "request_id", "") or "",
+                                "tool_name": getattr(req, "tool_name", "") or "",
+                                "text": (
+                                    f"Tool '{req.tool_name}' requires human approval. "
+                                    "Decide below; then re-run the objective."
+                                ),
+                            }
+                        )
+                except LoopLimitError as exc:
+                    _enqueue_nowait(
+                        {
+                            "type": "error",
+                            "code": "loop_limit",
+                            "text": (
+                                f"{exc} The agent kept requesting tool calls without producing "
+                                "a final answer — try a more specific objective, raise the "
+                                "iteration limit, or simplify the task."
+                            ),
+                        }
+                    )
+                except LughusError as exc:
+                    _enqueue_nowait({"type": "error", "code": type(exc).__name__, "text": str(exc)})
                 except ValueError as exc:
-                    _enqueue_nowait({"type": "error", "text": str(exc)})
+                    _enqueue_nowait({"type": "error", "code": "invalid_input", "text": str(exc)})
+                except asyncio.CancelledError:
+                    raise
                 except Exception:
                     _logger.exception("Developer console stream failed")
-                    _enqueue_nowait({"type": "error", "code": "internal_error"})
+                    _enqueue_nowait(
+                        {"type": "error", "code": "internal_error",
+                         "text": "An internal error occurred; see server logs for details."}
+                    )
                 finally:
                     queue.put_nowait(None)
 
@@ -247,8 +287,87 @@ def _console_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
         except (FileNotFoundError, IsADirectoryError, OSError, UnicodeError):
             return Response("Asset not found", status_code=404)
 
+    async def serve_favicon(request: Request) -> Response:
+        try:
+            content = _read_ui_asset("logo.svg")
+            return Response(content, media_type="image/svg+xml")
+        except (FileNotFoundError, OSError, UnicodeError):
+            return Response("Favicon not found", status_code=404)
+
+    async def decide_approval(request: Request) -> JSONResponse:
+        """Record a human approve/reject decision for a pending request.
+
+        The decision is stored in the gateway's approval store when one is
+        configured; the response mirrors the resulting record so the UI can
+        render the outcome without a second fetch.
+        """
+        store = getattr(gateway, "approval_store", None)
+        if store is None:
+            return JSONResponse(
+                {"error": "No approval store configured on this gateway"},
+                status_code=501,
+            )
+        try:
+            payload = await request.json()
+        except (json.JSONDecodeError, ValueError):
+            return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+        if not isinstance(payload, dict):
+            return JSONResponse({"error": "JSON body must be an object"}, status_code=400)
+
+        request_id = str(request.path_params.get("request_id", ""))
+        approved = payload.get("approved")
+        subject = str(payload.get("subject") or "ui-operator")
+        if not isinstance(approved, bool):
+            return JSONResponse({"error": "'approved' boolean required"}, status_code=400)
+
+        from ..governance.approval import ApprovalStatus
+
+        current = await store.get(request_id)
+        if current is None:
+            return JSONResponse(
+                {"error": f"Unknown approval request '{request_id}'"}, status_code=404
+            )
+
+        status = ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED
+        updated = await store.decide(request_id, status, subject)
+        return JSONResponse(
+            {
+                "request_id": updated.request_id,
+                "tool_name": updated.tool_name,
+                "status": str(updated.status.value),
+                "decided_by": updated.decided_by,
+                "decided_at": updated.decided_at,
+            }
+        )
+
+    async def get_approval(request: Request) -> JSONResponse:
+        store = getattr(gateway, "approval_store", None)
+        if store is None:
+            return JSONResponse(
+                {"error": "No approval store configured on this gateway"},
+                status_code=501,
+            )
+        request_id = str(request.path_params.get("request_id", ""))
+        current = await store.get(request_id)
+        if current is None:
+            return JSONResponse(
+                {"error": f"Unknown approval request '{request_id}'"}, status_code=404
+            )
+        return JSONResponse(
+            {
+                "request_id": current.request_id,
+                "tool_name": current.tool_name,
+                "run_id": current.run_id,
+                "risk": current.risk,
+                "status": str(current.status.value),
+            }
+        )
+
     return [
         Route("/ui", page, methods=["GET"]),
         Route("/ui/stream", stream, methods=["POST"]),
+        Route("/ui/approvals/{request_id}", decide_approval, methods=["POST"]),
+        Route("/ui/approvals/{request_id}", get_approval, methods=["GET"]),
         Route("/ui/assets/{filename:path}", serve_asset, methods=["GET"]),
+        Route("/favicon.ico", serve_favicon, methods=["GET"]),
     ]

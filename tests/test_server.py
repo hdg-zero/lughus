@@ -216,11 +216,13 @@ def test_build_app_can_expose_console() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
     app = build_app(_agent_card(), gateway, setup_otel=False, enable_console=True)
 
-    assert [route.path for route in app.routes[:6]] == [
+    assert [route.path for route in app.routes[:8]] == [
         "/health",
         "/healthz",
         "/ui",
         "/ui/stream",
+        "/ui/approvals/{request_id}",
+        "/ui/approvals/{request_id}",
         "/ui/assets/{filename:path}",
         "/favicon.ico",
     ]
