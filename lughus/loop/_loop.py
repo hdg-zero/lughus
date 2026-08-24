@@ -328,6 +328,11 @@ async def agent_loop(
                     msg = response.choices[0].message
 
                     if not msg.tool_calls:
+                        if not (msg.content or ""):
+                            _logger.warning(
+                                "LLM returned neither content nor tool calls at iteration %d",
+                                iteration + 1,
+                            )
                         return _finalize_loop(
                             loop_span,
                             msg.content or "",

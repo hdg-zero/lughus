@@ -258,8 +258,6 @@ class ToolRegistry:
 
         return decorator
 
-        return decorator
-
     def names(self) -> tuple[str, ...]:
         """Return the registered tool names, in registration order.
 
