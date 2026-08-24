@@ -216,18 +216,6 @@
     "kind": "dataclass"
   },
   {
-    "name": "ReplayBundle",
-    "kind": "dataclass"
-  },
-  {
-    "name": "ResumeAction",
-    "kind": "enum"
-  },
-  {
-    "name": "ResumeDecision",
-    "kind": "dataclass"
-  },
-  {
     "name": "Run",
     "kind": "dataclass"
   },
@@ -363,16 +351,6 @@
       "task_store",
       "setup_otel",
       "enable_console"
-    ]
-  },
-  {
-    "name": "decide_resume",
-    "kind": "function",
-    "parameters": [
-      "checkpoint",
-      "pending_action_idempotent",
-      "idempotency_store",
-      "run_id"
     ]
   },
   {

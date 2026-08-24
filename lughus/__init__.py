@@ -46,9 +46,6 @@ if TYPE_CHECKING:
     from .loop import agent_loop as agent_loop
     from .loop import agent_loop_stream as agent_loop_stream
     from .persistence.coordinator import RunCoordinator as RunCoordinator
-    from .persistence.resume import ResumeAction as ResumeAction
-    from .persistence.resume import ResumeDecision as ResumeDecision
-    from .persistence.resume import decide_resume as decide_resume
     from .persistence.store import Checkpoint as Checkpoint
     from .persistence.store import CheckpointStore as CheckpointStore
     from .persistence.store import ConcurrentUpdateError as ConcurrentUpdateError
@@ -84,7 +81,6 @@ from .governance.policy import (
     ToolProposal,
 )
 from .infra.config import BaseSettings
-from .persistence.replay import ReplayBundle
 from .testing.evaluation import EvaluationResult, Scenario, evaluate_scenario
 
 # ── Lazy-loaded symbols ─────────────────────────────────────────────
@@ -128,9 +124,6 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "IdempotencyKey": (".governance.idempotency", None),
     "IdempotencyStore": (".governance.idempotency", None),
     "InMemoryIdempotencyStore": (".governance.idempotency", None),
-    "ResumeAction": (".persistence.resume", None),
-    "ResumeDecision": (".persistence.resume", None),
-    "decide_resume": (".persistence.resume", None),
     # ── jsonschema + opentelemetry ───────────────────────────────────
     "LoopResult": (".loop", None),
     "StreamChunk": (".loop", None),
@@ -248,9 +241,6 @@ __all__ = [
     "Principal",
     "ProductionGuardMiddleware",
     "ProgressEvent",
-    "ReplayBundle",
-    "ResumeAction",
-    "ResumeDecision",
     "Run",
     "RunCoordinator",
     "RunEvent",
@@ -278,7 +268,6 @@ __all__ = [
     "agent_loop",
     "agent_loop_stream",
     "build_app",
-    "decide_resume",
     "evaluate_scenario",
     "serve",
     "setup_telemetry",

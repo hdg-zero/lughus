@@ -120,7 +120,6 @@ class BaseSettings:
     max_objective_chars: int = field(
         default_factory=lambda: _env_int("MAX_OBJECTIVE_CHARS", 100_000)
     )
-    max_source_chars: int = field(default_factory=lambda: _env_int("MAX_SOURCE_CHARS", 12_000))
     max_artifacts: int = field(default_factory=lambda: _env_int("MAX_ARTIFACTS", 10))
     max_artifact_bytes: int = field(
         default_factory=lambda: _env_int("MAX_ARTIFACT_BYTES", 50 * 1024 * 1024)

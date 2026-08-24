@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from lughus.core.domain import RunEvent
@@ -11,20 +9,7 @@ from lughus.engine.delegation import (
 )
 from lughus.governance.budget import BudgetLedger, BudgetLimit
 from lughus.interfaces.mcp import MCPAdapter, MCPServerConfig, MCPToolDescriptor
-from lughus.persistence.replay import ReplayBundle
 from lughus.testing.evaluation import Scenario, evaluate_scenario
-
-
-def test_replay_bundle_round_trip_and_tamper_detection():
-    bundle = ReplayBundle(
-        "0.5.0", "run", {"model": "test"}, (RunEvent("run.completed", "run", 0),)
-    ).seal()
-    restored = ReplayBundle.from_json(bundle.to_json())
-    assert restored.verify()
-    tampered = json.loads(bundle.to_json())
-    tampered["configuration"]["model"] = "other"
-    with pytest.raises(ValueError, match="integrity"):
-        ReplayBundle.from_json(json.dumps(tampered))
 
 
 @pytest.mark.asyncio

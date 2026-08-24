@@ -21,6 +21,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Removed
 - **Legacy Aliases**: Removed legacy `AgentRunner = GovernedAgentRunner` alias and cleaned backward compatibility shims.
 - **Legacy Re-exports**: Removed `GovernedAgentRunner` re-export from `lughus.agent.application` (now cleanly imported from `lughus.agent.runner`).
+- **Speculative Modules**: Removed orphaned and unconnected `lughus.persistence.resume` (`decide_resume`, `ResumeAction`, `ResumeDecision`) and `lughus.persistence.replay` (`ReplayBundle`, `RecordedCall`, `ReplayCapturePolicy`).
+- **Unused Settings**: Removed unused `max_source_chars` setting from `BaseSettings`.
 
 ## [0.14.1] — 2026-08-24
 
