@@ -92,6 +92,8 @@ class Run:
     context_id: str | None = None
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     usage: Usage = field(default_factory=Usage)
+    tenant_id: str = "default"
+    principal_id: str = "anonymous"
 ```
 
 Top-level execution run record.

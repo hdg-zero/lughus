@@ -4,13 +4,13 @@
 
 ## Architecture
 
-Budget governance follows a three-tier model:
+Budget governance follows a reserve/settle model:
 
 | Component | Role |
 |---|---|
-| `BudgetLimit` | Defines maximum allowed values (policy) |
-| `BudgetReservation` | Pre-dispatch authorization (reservation) |
-| `BudgetLedger` | Records observed actual usage (truth) |
+| `BudgetLimit` | Defines maximum allowed values per dimension (policy) |
+| `BudgetAmount` | Individual amounts reserved or settled |
+| `BudgetLedger` | Reserves before dispatch, records observed actual usage (truth) |
 
 ## Dimensions
 
@@ -20,30 +20,28 @@ Budgets track the following dimensions:
 |---|---|---|
 | Model calls | count | Per LLM invocation |
 | Tool calls | count | Per tool execution |
-| Input tokens | count | Provider-reported |
-| Output tokens | count | Provider-reported |
-| Cached tokens | count | Provider-reported |
-| Estimated cost | microunits | 1 microunit = 0.000001 currency unit |
+| Tokens | count | Prompt + completion tokens reported by the provider |
 | Delegation depth | level | Maximum nesting, not cumulative |
 
 ## Lifecycle
 
-1. **Reserve** — `BudgetLedger.reserve()` atomically checks remaining
-   capacity before dispatch.
+1. **Reserve** — `BudgetLedger.reserve()` atomically checks that consumed
+   totals plus all outstanding reservations plus the requested amount stay
+   within `BudgetLimit`. Raises `BudgetExceeded` otherwise.
 2. **Execute** — Model call or tool invocation proceeds.
-3. **Settle** — `BudgetLedger.settle()` records *actual* usage, which
-   may exceed the reservation.
+3. **Settle** — `BudgetLedger.settle(reservation_id, actual)` frees the
+   reservation and records actual consumption. Returns `False` if the
+   reservation id is unknown, making double-settles observable.
+   Alternatively, `release(reservation_id)` frees a reservation without
+   recording any usage (nothing happened).
+
+Delegation depth is settled as a maximum (`max(consumed, actual)`), not a
+sum: it tracks nesting level in the causal chain.
 
 ## Invariants
 
-- The ledger **never rejects already-consumed work**. If actual usage
-  exceeds the reservation, the ledger records the overage and enters
-  an `over_budget` state.
-- When `over_budget`, subsequent reservations are denied and the run
-  halts gracefully — exhaustion is a typed terminal condition or an
+- Exhaustion is a typed terminal condition (`BudgetExceeded`) or an
   explicit approval request, never silently ignored.
-- Child runs receive a bounded sub-allocation from the parent budget.
-  The parent's remaining capacity is atomically reduced.
 - Cost values are estimates, not billing records.
 - Delegation depth tracks maximum nesting level in the causal chain,
   not cumulative sequential calls.

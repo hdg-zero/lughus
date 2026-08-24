@@ -30,7 +30,7 @@ Returns the Starlette-compatible ASGI application built by the A2A SDK. Use this
 *   `gateway`: The [BaseGateway](gateway.md) instance that contains the executor logic.
 *   `task_store`: Custom persistent `TaskStore` instance. If `None`, defaults to `BoundedInMemoryTaskStore` using `TASK_STORE_TTL_SECONDS` and `TASK_STORE_MAX_TASKS`, and logs a production warning.
 *   `setup_otel`: If `True`, automatically configures standard OpenTelemetry exporters (traces and metrics). Set to `False` if your parent application already sets up custom OTel providers.
-*   `enable_console`: If `True`, exposes the developer console at `/ui` and a JSON run endpoint at `/ui/run`.
+*   `enable_console`: If `True`, exposes the developer console at `/ui`, a live-run SSE stream at `/ui/stream`, and embedded static assets under `/ui/assets/`.
 
 `build_app()` also installs `ProductionGuardMiddleware`, which enforces `MAX_HTTP_BODY_BYTES`, optional per-worker request backpressure through `MAX_CONCURRENT_REQUESTS` / `MAX_QUEUE_BACKLOG`, and, when `API_BEARER_TOKEN` is set (supports multiple comma-separated keys), timing-safe bearer-token auth on non-health routes. If `CORS_ORIGINS` is set, `build_app()` configures Starlette `CORSMiddleware` (with `CORS_ALLOW_CREDENTIALS` support; wildcard origins with credentials raise a `ValueError`). When `LUGHUS_ENV=production`, `build_app()` fails fast unless `PUBLIC_URL`, `API_BEARER_TOKEN`, and a custom persistent `task_store` (with `durable = True` capability) are configured and the developer console is disabled.
 
@@ -60,7 +60,7 @@ def serve(
 *   `log_level`: Python and Uvicorn log level string (default: `"INFO"`).
 *   `task_store`: Custom persistent `TaskStore` instance. If `None`, defaults to the bounded in-memory store. Use Redis, SQL, or another SDK-compatible persistent store for horizontally scaled deployments.
 *   `setup_otel`: If `True`, automatically configures standard OpenTelemetry exporters (traces and metrics). Set to `False` if your parent application already sets up custom OTel providers.
-*   `enable_console`: If `True`, exposes the developer console at `/ui` and a JSON run endpoint at `/ui/run`.
+*   `enable_console`: If `True`, exposes the developer console at `/ui`, a live-run SSE stream at `/ui/stream`, and embedded static assets under `/ui/assets/`.
 
 ## Developer Console
 

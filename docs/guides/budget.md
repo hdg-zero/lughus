@@ -1,32 +1,20 @@
 # Budget system
 
-## Cost representation: integer micros
+## Dimensions
 
-All monetary cost values in Lughus are expressed as **integer micros**
-(millionths of a currency unit).  One US dollar equals `1_000_000` micros.
+`BudgetLimit` (the cap) and `BudgetAmount` (individual amounts reserved or
+settled) carry four integer dimensions:
 
-```
-$1.00   = 1_000_000 micros
-$0.01   =    10_000 micros
-$0.0001 =       100 micros
-```
+| Dimension | Meaning |
+|---|---|
+| `model_calls` | Number of LLM invocations |
+| `tool_calls` | Number of tool executions |
+| `tokens` | Prompt + completion tokens reported by the provider |
+| `delegation_depth` | Maximum delegation nesting level |
 
-The field is named `estimated_cost_micros` on both `BudgetLimit` (the
-cap) and `BudgetAmount` (individual amounts reserved or settled).
-
-### Why not floats?
-
-IEEE 754 double-precision floats accumulate rounding error on repeated
-addition.  After 10 000 additions of `0.0001` the sum is
-`0.9999999999999062`, not `1.0`.  Budget limit comparisons on floats
-(`total >= limit`) are therefore unreliable.  Integers are exact.
-
-### Converting to display values
-
-```python
-micros = 1_234_567
-dollars = micros / 1_000_000  # 1.234567 -- convert only for display
-```
+All values are integers: budget comparisons are exact, with no
+floating-point rounding error. `delegation_depth` is settled as a maximum
+(`max(consumed, actual)`), never summed -- it tracks nesting, not call count.
 
 ## Reserve / settle lifecycle
 
@@ -34,22 +22,24 @@ Every external action (model call, tool call) follows a three-step
 protocol:
 
 1. **Reserve** -- `BudgetLedger.reserve(amount)` atomically checks that
-   the reservation plus all outstanding reservations plus consumed totals
-   stay within the `BudgetLimit`.  Returns a reservation id.
+   consumed totals plus all outstanding reservations plus the requested
+   amount stay within the `BudgetLimit`.  Returns a reservation id, or
+   raises `BudgetExceeded`.
 
 2. **Execute** -- The external call proceeds.
 
 3. **Settle or release**:
    - `settle(reservation_id, actual)` records the observed actual usage
-     and frees the reservation.
+     and frees the reservation.  Returns `True`.
    - `release(reservation_id)` frees the reservation without recording
-     any usage (nothing happened).
+     any usage (nothing happened).  Returns `True`.
 
-### Idempotency
+### Observability of accounting errors
 
-`settle()` is idempotent: calling it twice with the same reservation id
-is a no-op (the second call does nothing).  This simplifies error-
-handling paths that may settle defensively.
+Both methods return `False` when the reservation id does not match an
+outstanding reservation (double-settle, settle-after-release,
+double-release).  Treat a `False` return as an accounting bug in the
+caller rather than ignoring it.
 
 ## Streaming and aborted streams
 
@@ -71,4 +61,5 @@ spend without effective cap.
 
 `BudgetLedger.outstanding()` returns a snapshot of all currently
 outstanding (unsettled, unreleased) reservations as a mapping of
-reservation id to `BudgetAmount`.  Use it for monitoring and debugging.
+reservation id to `BudgetAmount`.  `snapshot()` returns consumed totals
+per dimension.  Use both for monitoring and debugging.
