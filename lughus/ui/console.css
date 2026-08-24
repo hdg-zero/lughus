@@ -193,7 +193,6 @@ h1 {
   background: rgba(255, 255, 255, 0.78);
 }
 
-:root[data-theme="light"] .otel-section pre,
 :root[data-theme="light"] .markdown-rendered .md-code-block {
   background: #e8edf5;
 }
@@ -531,58 +530,7 @@ h3 {
   font-weight: 500;
 }
 
-/* OTEL Section */
-.otel-section {
-  border-bottom: 0;
-  padding: 10px 18px;
-}
 
-.otel-summary {
-  font-size: 10.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-subtle);
-  cursor: pointer;
-}
-
-.otel-summary:hover {
-  color: var(--text-muted);
-}
-
-.otel-form {
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.otel-input-group {
-  display: flex;
-  gap: 5px;
-}
-
-input[type="url"] {
-  flex: 1;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 5px 8px;
-  color: var(--text-main);
-  background: rgba(0, 0, 0, 0.2);
-  font: 10.5px var(--mono);
-  height: 30px;
-}
-
-.otel-section pre {
-  max-height: 100px;
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 6px;
-  background: rgba(0, 0, 0, 0.25);
-  color: var(--text-subtle);
-  font-size: 10.5px;
-}
 
 /* Right Main Console Viewport */
 .console-viewport {

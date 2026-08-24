@@ -106,31 +106,6 @@ async def test_execution_runtime_loop_binding() -> None:
     await runtime.close()
 
 
-def test_resolve_and_validate_otel_url(monkeypatch) -> None:
-    import socket
-
-    from lughus.interfaces.ui_server import _resolve_and_validate_otel_url
-
-    # Mock resolution to a private IP
-    def mock_getaddrinfo_private(host, port):
-        return [(None, None, None, None, ("192.168.1.1", 0))]
-
-    monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo_private)
-
-    with pytest.raises(ValueError, match="not allowed"):
-        _resolve_and_validate_otel_url("http://attacker-rebinding.com/api/traces")
-
-    # Mock resolution to a safe IP
-    def mock_getaddrinfo_safe(host, port):
-        return [(None, None, None, None, ("127.0.0.1", 0))]
-
-    monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo_safe)
-
-    rewritten, host = _resolve_and_validate_otel_url("http://my-host:16686/api/traces")
-    assert rewritten == "http://127.0.0.1:16686/api/traces"
-    assert host == "my-host"
-
-
 @pytest.mark.asyncio
 async def test_stream_mid_stream_error_propagates() -> None:
     """Single retry layer lives at LLM.astream() level, not in the loop.

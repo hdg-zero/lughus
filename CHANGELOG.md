@@ -23,6 +23,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Legacy Re-exports**: Removed `GovernedAgentRunner` re-export from `lughus.agent.application` (now cleanly imported from `lughus.agent.runner`).
 - **Speculative Modules**: Removed orphaned and unconnected `lughus.persistence.resume` (`decide_resume`, `ResumeAction`, `ResumeDecision`) and `lughus.persistence.replay` (`ReplayBundle`, `RecordedCall`, `ReplayCapturePolicy`).
 - **Unused Settings**: Removed unused `max_source_chars` setting from `BaseSettings`.
+- **Dead UI Endpoints & Heavy Proxy**: Removed dead non-streaming `/ui/run` endpoint and eliminated the heavy server-side OpenTelemetry proxy (`/ui/otel/traces`, `_fetch_otel_url`, `_resolve_and_validate_otel_url`, `ui_otel.js`).
 
 ## [0.14.1] — 2026-08-24
 

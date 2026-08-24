@@ -216,12 +216,10 @@ def test_build_app_can_expose_console() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
     app = build_app(_agent_card(), gateway, setup_otel=False, enable_console=True)
 
-    assert [route.path for route in app.routes[:6]] == [
+    assert [route.path for route in app.routes[:4]] == [
         "/health",
         "/healthz",
         "/ui",
-        "/ui/run",
-        "/ui/otel/traces",
         "/ui/stream",
     ]
 
@@ -356,14 +354,14 @@ async def test_console_page_renders_agent_metadata() -> None:
 
 
 @pytest.mark.asyncio
-async def test_console_run_calls_gateway() -> None:
+async def test_console_stream_calls_gateway() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _console_routes(_agent_card(), gateway)[1].endpoint
+    stream = _console_routes(_agent_card(), gateway)[1].endpoint
 
-    response = await run(
+    response = await stream(
         _request(
             "POST",
-            "/ui/run",
+            "/ui/stream",
             {
                 "objective": "hello",
                 "files": [
@@ -378,34 +376,35 @@ async def test_console_run_calls_gateway() -> None:
     )
 
     assert response.status_code == 200
-    assert json.loads(response.body) == {
-        "events": [
-            {"type": "progress", "text": "received:hello:1"},
-            {
-                "type": "completion",
-                "text": "done",
-                "artifacts": [
-                    {
-                        "name": "result.txt",
-                        "mime_type": "text/plain",
-                        "data_base64": "aGVsbG8=",
-                    }
-                ],
-            },
-        ]
-    }
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    lines = [json.loads(line) for line in body.decode().splitlines() if line.strip()]
+    assert lines == [
+        {"type": "progress", "text": "received:hello:1"},
+        {
+            "type": "completion",
+            "text": "done",
+            "artifacts": [
+                {
+                    "name": "result.txt",
+                    "mime_type": "text/plain",
+                    "data_base64": "aGVsbG8=",
+                }
+            ],
+        },
+    ]
 
 
 @pytest.mark.asyncio
 async def test_console_includes_telemetry_metadata() -> None:
     gateway = TelemetryUIGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _console_routes(_agent_card(), gateway)[1].endpoint
+    stream = _console_routes(_agent_card(), gateway)[1].endpoint
 
-    response = await run(_request("POST", "/ui/run", {"objective": "hello"}))
+    response = await stream(_request("POST", "/ui/stream", {"objective": "hello"}))
 
     assert response.status_code == 200
-    events = json.loads(response.body)["events"]
-    telemetry = events[-1]
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    lines = [json.loads(line) for line in body.decode().splitlines() if line.strip()]
+    telemetry = lines[-1]
     assert telemetry["type"] == "telemetry"
     assert telemetry["model"] == "test/model"
     assert telemetry["iterations"] == 2
@@ -422,7 +421,7 @@ async def test_console_includes_telemetry_metadata() -> None:
 @pytest.mark.asyncio
 async def test_console_streams_events() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    stream = _console_routes(_agent_card(), gateway)[3].endpoint
+    stream = _console_routes(_agent_card(), gateway)[1].endpoint
 
     response = await stream(_request("POST", "/ui/stream", {"objective": "hello"}))
 
@@ -446,44 +445,6 @@ async def test_console_streams_events() -> None:
 
 
 @pytest.mark.asyncio
-async def test_console_fetches_otel_trace_url() -> None:
-    gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    otel = _console_routes(_agent_card(), gateway)[2].endpoint
-
-    with patch("lughus.interfaces.ui_server._fetch_otel_url") as fetch:
-        fetch.return_value = {
-            "url": "http://localhost:16686/api/traces/abc",
-            "status_code": 200,
-            "content_type": "application/json",
-            "text": '{"data": []}',
-            "json": {"data": []},
-        }
-        response = await otel(
-            _request(
-                "POST",
-                "/ui/otel/traces",
-                {"url": "http://localhost:16686/api/traces/abc"},
-            )
-        )
-
-    assert response.status_code == 200
-    payload = json.loads(response.body)
-    assert payload["json"] == {"data": []}
-    fetch.assert_called_once_with("http://localhost:16686/api/traces/abc")
-
-
-@pytest.mark.asyncio
-async def test_console_rejects_invalid_otel_trace_url() -> None:
-    gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    otel = _console_routes(_agent_card(), gateway)[2].endpoint
-
-    response = await otel(_request("POST", "/ui/otel/traces", {"url": "grpc://localhost:4317"}))
-
-    assert response.status_code == 400
-    assert "http(s)" in json.loads(response.body)["error"]
-
-
-@pytest.mark.asyncio
 async def test_console_sanitizes_uploaded_file_name() -> None:
     class NameGateway(BaseGateway):
         async def handle(
@@ -494,12 +455,12 @@ async def test_console_sanitizes_uploaded_file_name() -> None:
             yield CompletionEvent(text=files[0][2])
 
     gateway = NameGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _console_routes(_agent_card(), gateway)[1].endpoint
+    stream = _console_routes(_agent_card(), gateway)[1].endpoint
 
-    response = await run(
+    response = await stream(
         _request(
             "POST",
-            "/ui/run",
+            "/ui/stream",
             {
                 "objective": "hello",
                 "files": [
@@ -514,16 +475,18 @@ async def test_console_sanitizes_uploaded_file_name() -> None:
     )
 
     assert response.status_code == 200
-    assert json.loads(response.body)["events"][0]["text"] == "note.txt"
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    lines = [json.loads(line) for line in body.decode().splitlines() if line.strip()]
+    assert lines[0]["text"] == "note.txt"
 
 
 @pytest.mark.asyncio
 async def test_console_enforces_objective_limit(monkeypatch) -> None:
     monkeypatch.setenv("MAX_OBJECTIVE_CHARS", "3")
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _console_routes(_agent_card(), gateway)[1].endpoint
+    stream = _console_routes(_agent_card(), gateway)[1].endpoint
 
-    response = await run(_request("POST", "/ui/run", {"objective": "hello"}))
+    response = await stream(_request("POST", "/ui/stream", {"objective": "hello"}))
 
     assert response.status_code == 400
     assert "Objective exceeds" in json.loads(response.body)["error"]
@@ -533,12 +496,14 @@ async def test_console_enforces_objective_limit(monkeypatch) -> None:
 async def test_console_enforces_artifact_limit(monkeypatch) -> None:
     monkeypatch.setenv("MAX_ARTIFACT_BYTES", "1")
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _console_routes(_agent_card(), gateway)[1].endpoint
+    stream = _console_routes(_agent_card(), gateway)[1].endpoint
 
-    response = await run(_request("POST", "/ui/run", {"objective": "ok"}))
+    response = await stream(_request("POST", "/ui/stream", {"objective": "ok"}))
 
-    assert response.status_code == 400
-    assert "Artifact" in json.loads(response.body)["error"]
+    assert response.status_code == 200
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    lines = [json.loads(line) for line in body.decode().splitlines() if line.strip()]
+    assert any(line.get("type") == "error" and "Artifact" in line.get("text", "") for line in lines)
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 import os
@@ -29,7 +30,7 @@ async def decode_file_bytes(
     name: str | None,
     mime_type: str | None,
     settings: Any,
-    executor: ThreadPoolExecutor,
+    executor: ThreadPoolExecutor | None = None,
 ) -> tuple[bytes, str, str]:
     """Decode a single Base64 encoded file payload with size checks."""
     safe_name = _safe_filename(name)
@@ -44,11 +45,14 @@ async def decode_file_bytes(
         return base64.b64decode(s, validate=True)
 
     try:
-        data = await run_sync_in_thread(
-            _decode_enc,
-            executor=executor,
-            max_workers=getattr(settings, "max_sync_thread_workers", 32),
-        )
+        if executor is not None:
+            data = await run_sync_in_thread(
+                _decode_enc,
+                executor=executor,
+                max_workers=getattr(settings, "max_sync_thread_workers", 32),
+            )
+        else:
+            data = await asyncio.to_thread(_decode_enc)
     except (binascii.Error, OSError) as exc:
         raise ValueError("files is not valid base64") from exc
 
@@ -62,7 +66,7 @@ async def decode_file_bytes(
 async def decode_files_payload(
     raw_files: Any,
     settings: Any,
-    executor: ThreadPoolExecutor,
+    executor: ThreadPoolExecutor | None = None,
 ) -> list[tuple[bytes, str, str]]:
     """Decode and validate a list of Base64 file objects from a request body."""
     if raw_files is None:

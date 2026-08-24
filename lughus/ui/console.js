@@ -14,8 +14,6 @@ import {
   addRunToHistory,
   updateActiveRunStatus,
   appendEventToActiveRun,
-} from "/ui/assets/ui_history.js";
-import { initOtelForm } from "/ui/assets/ui_otel.js";
 import { renderAgentFlow } from "/ui/assets/ui_agent_flow.js";
 import { initTheme } from "/ui/assets/ui_theme.js";
 
@@ -238,7 +236,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  initOtelForm();
   initTheme();
 
   // Initial Render
