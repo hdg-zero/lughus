@@ -193,12 +193,19 @@ def _error_payload(exc: Exception) -> str:
     )
 
 
-def _success_payload(text: str, *, truncated: bool = False, original_bytes: int = 0) -> str:
+def _success_payload(
+    text: str,
+    *,
+    parsed: Any = None,
+    truncated: bool = False,
+    original_bytes: int = 0,
+) -> str:
     """Wrap a successful tool output in the standard JSON envelope."""
-    try:
-        parsed: Any = json.loads(text)
-    except (json.JSONDecodeError, ValueError):
-        parsed = text
+    if parsed is None:
+        try:
+            parsed = json.loads(text)
+        except (json.JSONDecodeError, ValueError):
+            parsed = text
     envelope: dict[str, Any] = {"ok": True, "result": parsed}
     if truncated:
         envelope["truncated"] = True
@@ -235,24 +242,33 @@ def _validate_tool_args(
 
 
 def _truncate_json(value: Any, max_chars: int) -> str:
-    """Structurally truncate a parsed JSON value to fit within *max_chars*."""
+    """Structurally truncate a parsed JSON value to fit within *max_chars* using binary search."""
     if isinstance(value, list):
-        result = list(value)
-        while result:
-            candidate = json.dumps(result, ensure_ascii=False, default=str)
+        lo, hi = 0, len(value)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            candidate = json.dumps(value[:mid], ensure_ascii=False, default=str)
             if len(candidate) <= max_chars:
-                return candidate
-            result.pop()
-        return "[]"
+                lo = mid
+            else:
+                hi = mid - 1
+        return json.dumps(value[:lo], ensure_ascii=False, default=str) if lo else "[]"
     if isinstance(value, dict):
         keys = list(value.keys())
-        dict_result = dict(value)
-        while keys:
-            candidate = json.dumps(dict_result, ensure_ascii=False, default=str)
+        lo, hi = 0, len(keys)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            subset = {k: value[k] for k in keys[:mid]}
+            candidate = json.dumps(subset, ensure_ascii=False, default=str)
             if len(candidate) <= max_chars:
-                return candidate
-            del dict_result[keys.pop()]
-        return "{}"
+                lo = mid
+            else:
+                hi = mid - 1
+        return (
+            json.dumps({k: value[k] for k in keys[:lo]}, ensure_ascii=False, default=str)
+            if lo
+            else "{}"
+        )
     if isinstance(value, str):
         safe_len = max(0, max_chars - 20)
         return json.dumps(value[:safe_len] + " [TRUNCATED]", ensure_ascii=False)
@@ -260,25 +276,53 @@ def _truncate_json(value: Any, max_chars: int) -> str:
 
 
 def _validate_tool_output(
-    name: str, output: Any, max_tool_output_chars: int
+    name: str,
+    output: Any,
+    max_tool_output_chars: int,
+    text: str | None = None,
 ) -> tuple[str, bool, int]:
     """Validate and possibly truncate tool output.
 
     Returns ``(text, truncated, original_bytes)`` where *truncated* is ``True``
     when the output exceeded *max_tool_output_chars* and was sliced.
     """
-    text = (
-        output if isinstance(output, str) else json.dumps(output, ensure_ascii=False, default=str)
-    )
+    if text is None:
+        text = (
+            output
+            if isinstance(output, str)
+            else json.dumps(output, ensure_ascii=False, default=str)
+        )
     original_bytes = len(text.encode("utf-8"))
     if max_tool_output_chars > 0 and len(text) > max_tool_output_chars:
-        try:
-            parsed = json.loads(text)
-            text = _truncate_json(parsed, max_tool_output_chars)
-        except (json.JSONDecodeError, ValueError):
-            text = text[:max_tool_output_chars] + " [TRUNCATED]"
+        if not isinstance(output, str):
+            text = _truncate_json(output, max_tool_output_chars)
+        else:
+            try:
+                parsed = json.loads(text)
+                text = _truncate_json(parsed, max_tool_output_chars)
+            except (json.JSONDecodeError, ValueError):
+                text = text[:max_tool_output_chars] + " [TRUNCATED]"
         return text, True, original_bytes
     return text, False, original_bytes
+
+
+def _normalize_tool_error(
+    exc: BaseException, name: str, timeout: float | None
+) -> tuple[Exception, str, str, bool]:
+    """Return (wrapped_exc, error_type, metric_error_type, needs_unknown_reconciliation)."""
+    if isinstance(exc, ToolTimeoutError):
+        return exc, type(exc).__name__, "timeout", False
+    if isinstance(exc, TimeoutError):
+        timeout_exc = ToolTimeoutError(f"Tool '{name}' timed out after {timeout}s")
+        return timeout_exc, type(timeout_exc).__name__, "timeout", False
+    if isinstance(exc, ToolValidationError):
+        return exc, type(exc).__name__, "validation", True
+    wrapped = (
+        exc
+        if isinstance(exc, (SafeToolError, ToolExecutionError))
+        else ToolExecutionError(f"Tool '{name}' failed")
+    )
+    return wrapped, type(wrapped).__name__, "exception", True
 
 
 def _unwrap_async_target(fn: Callable[..., Any]) -> Any:
@@ -526,12 +570,11 @@ async def _execute_tools(
                             f"Tool '{name}' returned an invalid result: "
                             f"{validation_errors[0].message}"
                         )
-                text = (
-                    output
-                    if isinstance(output, str)
-                    else json.dumps(output, ensure_ascii=False, default=str)
-                )
+                is_str = isinstance(output, str)
+                text = output if is_str else json.dumps(output, ensure_ascii=False, default=str)
                 original_bytes = len(text.encode("utf-8"))
+                parsed = None if is_str else output
+
                 # Artifact projection FIRST — store full content before truncation.
                 if (
                     cfg.artifact_projection
@@ -539,7 +582,10 @@ async def _execute_tools(
                     and len(text) > cfg.artifact_projection_threshold
                 ):
                     full_payload = _success_payload(
-                        text, truncated=False, original_bytes=original_bytes
+                        text,
+                        parsed=parsed,
+                        truncated=False,
+                        original_bytes=original_bytes,
                     )
                     artifact_id = cfg.artifact_store.store_artifact(full_payload)
                     summary = _summarize(text)
@@ -557,9 +603,13 @@ async def _execute_tools(
                         name=name,
                         output=output,
                         max_tool_output_chars=cfg.max_tool_output_chars,
+                        text=text,
                     )
                     output = _success_payload(
-                        text, truncated=truncated, original_bytes=original_bytes
+                        text,
+                        parsed=parsed if not truncated else None,
+                        truncated=truncated,
+                        original_bytes=original_bytes,
                     )
                 if idem_key is not None and cfg.idempotency_store is not None:
                     await cfg.idempotency_store.save(
@@ -568,44 +618,17 @@ async def _execute_tools(
                         )
                     )
                 span.set_status(StatusCode.OK)
-            except ToolTimeoutError as exc:
-                span.set_status(StatusCode.ERROR, str(exc))
-                _tool_errors.add(1, {"lughus.tool.name": name, "lughus.error.type": "timeout"})
-                output, status, error_type = _error_payload(exc), "error", type(exc).__name__
-            except TimeoutError:
-                timeout_exc = ToolTimeoutError(f"Tool '{name}' timed out after {timeout}s")
-                span.set_status(StatusCode.ERROR, str(timeout_exc))
-                # Timeout = outcome unknown: leave PENDING for reconciliation
-                _tool_errors.add(1, {"lughus.tool.name": name, "lughus.error.type": "timeout"})
-                output, status, error_type = (
-                    _error_payload(timeout_exc),
-                    "error",
-                    type(timeout_exc).__name__,
-                )
-            except ToolValidationError as exc:
-                span.set_status(StatusCode.ERROR, str(exc))
-                _tool_errors.add(1, {"lughus.tool.name": name, "lughus.error.type": "validation"})
-                if idem_key is not None and cfg.idempotency_store is not None:
-                    await cfg.idempotency_store.save(
-                        ExecutionAttempt(
-                            key=idem_key,
-                            status=AttemptStatus.OUTCOME_UNKNOWN,
-                            error="reconciliation required",
-                        )
-                    )
-                output, status, error_type = _error_payload(exc), "error", type(exc).__name__
             except ApprovalRequired:
                 raise  # propagate to task wrapper — not a tool error
-            except Exception as exc:  # noqa: BLE001 — boundary guard: tools execute arbitrary user code; the exception spectrum is unbounded by design
-                wrapped = (
-                    exc
-                    if isinstance(exc, (SafeToolError, ToolExecutionError))
-                    else ToolExecutionError(f"Tool '{name}' failed")
+            except Exception as exc:  # noqa: BLE001 — boundary guard: tools execute arbitrary user code
+                wrapped, error_type, metric_type, needs_reconcile = _normalize_tool_error(
+                    exc, name, timeout
                 )
                 span.set_status(StatusCode.ERROR, str(wrapped))
-                span.record_exception(exc)
-                _tool_errors.add(1, {"lughus.tool.name": name, "lughus.error.type": "exception"})
-                if idem_key is not None and cfg.idempotency_store is not None:
+                if metric_type == "exception":
+                    span.record_exception(exc)
+                _tool_errors.add(1, {"lughus.tool.name": name, "lughus.error.type": metric_type})
+                if idem_key is not None and cfg.idempotency_store is not None and needs_reconcile:
                     await cfg.idempotency_store.save(
                         ExecutionAttempt(
                             key=idem_key,
@@ -613,11 +636,7 @@ async def _execute_tools(
                             error="reconciliation required",
                         )
                     )
-                output, status, error_type = (
-                    _error_payload(wrapped),
-                    "error",
-                    type(wrapped).__name__,
-                )
+                output, status = _error_payload(wrapped), "error"
             finally:
                 if budget_reservation is not None and cfg.budget is not None:
                     await cfg.budget.settle(budget_reservation, BudgetAmount(tool_calls=1))

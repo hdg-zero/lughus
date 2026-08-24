@@ -17,6 +17,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Modernized Developer Console**: Replaced `test_ui` with unified `console` naming (`enable_console`, `ENABLE_CONSOLE`, `console.html/css/js`), native system typography, anti-FOUC inline theme execution, and transparent vector logo embedding.
 - **Canonical Architecture Contracts**: Consolidated `docs/contracts/tools-v2.md` into `docs/contracts/tools.md`, harmonized SemVer 2.0 release policy, and purged historical freezing markers in preparation for v1.0.0.
 - **Single Canonical Runner**: Promoted `GovernedAgentRunner` as the single unified agent runner with optional governance pipeline.
+- **Optimized Tool JSON Pipeline**: Eliminated redundant serializations and UTF-8 encodings in tool execution path, replaced linear JSON truncation with $O(\log N)$ binary search, and unified exception normalization.
 
 ### Removed
 - **Legacy Aliases**: Removed legacy `AgentRunner = GovernedAgentRunner` alias and cleaned backward compatibility shims.
