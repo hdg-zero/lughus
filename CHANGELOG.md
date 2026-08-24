@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.14.1] — 2026-08-24
+
+### Fixed
+- Fixed PyPI release workflow by granting `contents: write` permissions to the `build` job in `.github/workflows/publish.yml`, allowing `anchore/sbom-action` to attach the SBOM artifact to GitHub releases.
+
 ## [0.14.0] — 2026-08-19
 
 ### Fixed
