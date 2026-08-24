@@ -216,11 +216,13 @@ def test_build_app_can_expose_console() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
     app = build_app(_agent_card(), gateway, setup_otel=False, enable_console=True)
 
-    assert [route.path for route in app.routes[:4]] == [
+    assert [route.path for route in app.routes[:6]] == [
         "/health",
         "/healthz",
         "/ui",
         "/ui/stream",
+        "/ui/assets/{filename:path}",
+        "/favicon.ico",
     ]
 
 
@@ -351,6 +353,20 @@ async def test_console_page_renders_agent_metadata() -> None:
     assert "test-agent" in response.body.decode()
     assert "/ui/assets/console.css" in response.body.decode()
     assert "/ui/assets/console.js" in response.body.decode()
+    assert "/ui/assets/logo.svg" in response.body.decode()
+
+
+@pytest.mark.asyncio
+async def test_console_serves_favicon() -> None:
+    gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
+    routes = _console_routes(_agent_card(), gateway)
+    favicon_endpoint = next(r.endpoint for r in routes if r.path == "/favicon.ico")
+
+    response = await favicon_endpoint(_request("GET", "/favicon.ico"))
+
+    assert response.status_code == 200
+    assert response.media_type == "image/svg+xml"
+    assert "<svg" in response.body.decode()
 
 
 @pytest.mark.asyncio
@@ -620,3 +636,83 @@ def test_build_app_cors_credentials_default_false(monkeypatch) -> None:
 
     cors_mw = next(mw for mw in app.user_middleware if mw.cls is CORSMiddleware)
     assert cors_mw.kwargs.get("allow_credentials") is False
+
+
+def test_uvicorn_formatter_formats_startup_log() -> None:
+    import logging
+
+    from lughus.interfaces.server import _UvicornDefaultFormatter
+
+    formatter = _UvicornDefaultFormatter(fmt="%(levelprefix)s %(message)s")
+    record = logging.LogRecord(
+        name="uvicorn.error",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=10,
+        msg="Uvicorn running on %s://%s:%d (Press CTRL+C to quit)",
+        args=("http", "0.0.0.0", "8080"),
+        exc_info=None,
+    )
+    formatted = formatter.format(record)
+    assert "Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)" in formatted
+    assert "%s" not in formatted
+    assert "%d" not in formatted
+
+
+def test_uvicorn_startup_filter_coerces_str_port() -> None:
+    """The record-level filter fixes the raw '%s://%s:%d' banner even when
+    uvicorn's DEFAULT formatter is in play (plain `uvicorn app:app` launch)."""
+    import logging
+
+    from lughus.interfaces.server import _install_uvicorn_startup_filter
+
+    _install_uvicorn_startup_filter()
+    logger = logging.getLogger("uvicorn.error")
+
+    # str port: previously raised TypeError in getMessage() -> raw template printed.
+    record = logging.LogRecord(
+        name="uvicorn.error",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=10,
+        msg="Uvicorn running on %s://%s:%d (Press CTRL+C to quit)",
+        args=("http", "127.0.0.1", "8001"),
+        exc_info=None,
+    )
+    assert logger.filter(record)  # filter ran without raising
+    # args were coerced: getMessage() must now render cleanly.
+    rendered = record.getMessage()
+    assert rendered == "Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)"
+    assert "%s" not in rendered and "%d" not in rendered
+
+
+def test_uvicorn_default_config_with_filter_renders_banner() -> None:
+    """End-to-end through logging with uvicorn's stock LOGGING_CONFIG."""
+    import io
+    import logging
+
+    import lughus.interfaces.server  # noqa: F401  (installs the filter)
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    root = logging.getLogger("uvicorn.error")
+    old_handlers = root.handlers[:]
+    old_level = root.level
+    root.handlers = [handler]
+    root.setLevel(logging.INFO)
+    try:
+        root.info(
+            "Uvicorn running on %s://%s:%d (Press CTRL+C to quit)",
+            "http",
+            "127.0.0.1",
+            "8002",
+        )
+        for h in root.handlers:
+            h.flush()
+    finally:
+        root.handlers = old_handlers
+        root.setLevel(old_level)
+    out = stream.getvalue()
+    assert "http://127.0.0.1:8002" in out
+    assert "%s://%s:%d" not in out
