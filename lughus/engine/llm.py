@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import random
 import time
@@ -81,6 +82,29 @@ def _retry_after_seconds(exc: Exception) -> float | None:
         return max(0.0, float(value))
     except (TypeError, ValueError):
         return None
+
+
+def _prepare_tools_payload(
+    tools: Sequence[Mapping[str, Any]] | list[dict] | None,
+) -> list[dict] | None:
+    """Convert frozen tool declarations to standard mutable dicts/lists for LiteLLM.
+
+    Certain provider adapters in LiteLLM (e.g. Gemini/Vertex and Anthropic)
+    mutate tool schema dictionaries in-place (e.g. deleting 'additionalProperties').
+    Passing a mutable copy prevents FrozenDict mutation exceptions while preserving
+    the immutable declarations cache in ToolRegistry.
+    """
+    if not tools:
+        return None
+
+    def _to_mutable(obj: Any) -> Any:
+        if isinstance(obj, Mapping):
+            return {k: _to_mutable(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [_to_mutable(x) for x in obj]
+        return obj
+
+    return cast(list[dict], _to_mutable(tools))
 
 
 class LLM:
@@ -206,6 +230,7 @@ class LLM:
         tools: Sequence[Mapping[str, Any]] | list[dict] | None = None,
     ) -> litellm.ModelResponse:
         """Send messages (and optional tool declarations) to the LLM."""
+        tools_payload = _prepare_tools_payload(tools)
 
         async def _make() -> litellm.ModelResponse:
             kwargs: dict = {
@@ -214,8 +239,8 @@ class LLM:
                 "max_tokens": self.max_output_tokens,
                 **self.params,
             }
-            if tools:
-                kwargs["tools"] = tools
+            if tools_payload is not None:
+                kwargs["tools"] = copy.deepcopy(tools_payload)
             response = cast(litellm.ModelResponse, await litellm.acompletion(**kwargs))
             if not getattr(response, "choices", None):
                 raise LLMResponseError("LLM provider returned a completion without choices")
@@ -231,6 +256,7 @@ class LLM:
         tools: Sequence[Mapping[str, Any]] | list[dict] | None = None,
     ) -> Any:
         """Streaming variant — returns an async iterable of response chunks."""
+        tools_payload = _prepare_tools_payload(tools)
 
         def _make(include_usage: bool = True) -> Any:
             kwargs: dict = {
@@ -240,8 +266,8 @@ class LLM:
                 "stream": True,
                 **self.params,
             }
-            if tools:
-                kwargs["tools"] = tools
+            if tools_payload is not None:
+                kwargs["tools"] = copy.deepcopy(tools_payload)
             if include_usage:
                 kwargs["stream_options"] = {"include_usage": True}
             return litellm.acompletion(**kwargs)
