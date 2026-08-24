@@ -68,17 +68,26 @@ class BudgetLedger:
                 self._reserved_totals[field] += getattr(amount, field)
             return key
 
-    async def settle(self, reservation_id: str, actual: BudgetAmount) -> None:
+    async def settle(self, reservation_id: str, actual: BudgetAmount) -> bool:
+        """Settle a reservation with the actual consumption.
+
+        Returns ``True`` when *reservation_id* matched an outstanding
+        reservation.  Silently ignoring a double-settle or a
+        settle-after-release would hide accounting bugs, so the outcome is
+        made explicit instead.
+        """
         async with self._lock:
             amount = self._reserved.pop(reservation_id, None)
-            if amount is not None:
-                for field in self._FIELDS:
-                    self._reserved_totals[field] -= getattr(amount, field)
-                for field in self._FIELDS:
-                    if field == "delegation_depth":
-                        self._consumed[field] = max(self._consumed[field], actual.delegation_depth)
-                    else:
-                        self._consumed[field] += getattr(actual, field)
+            if amount is None:
+                return False
+            for field in self._FIELDS:
+                self._reserved_totals[field] -= getattr(amount, field)
+            for field in self._FIELDS:
+                if field == "delegation_depth":
+                    self._consumed[field] = max(self._consumed[field], actual.delegation_depth)
+                else:
+                    self._consumed[field] += getattr(actual, field)
+            return True
 
     async def would_exceed(self) -> tuple[str, ...]:
         async with self._lock:
@@ -88,12 +97,19 @@ class BudgetLedger:
                 if self._consumed[field] > getattr(self.limit, field)
             )
 
-    async def release(self, reservation_id: str) -> None:
+    async def release(self, reservation_id: str) -> bool:
+        """Release an outstanding reservation without consuming it.
+
+        Returns ``True`` when *reservation_id* matched a reservation, so that
+        double-releases are observable by the caller.
+        """
         async with self._lock:
             amount = self._reserved.pop(reservation_id, None)
-            if amount is not None:
-                for field in self._FIELDS:
-                    self._reserved_totals[field] -= getattr(amount, field)
+            if amount is None:
+                return False
+            for field in self._FIELDS:
+                self._reserved_totals[field] -= getattr(amount, field)
+            return True
 
     async def outstanding(self) -> Mapping[str, BudgetAmount]:
         """Return a snapshot of currently outstanding reservations."""

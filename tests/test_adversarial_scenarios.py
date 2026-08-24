@@ -39,6 +39,19 @@ async def test_budget_dos_prevents_exhaustion():
             await ledger.settle(key, BudgetAmount(tool_calls=1))
 
 
+@pytest.mark.asyncio
+async def test_budget_settle_and_release_report_unknown_reservations():
+    """Double-settle and settle-after-release must be observable (False), not silent."""
+    ledger = BudgetLedger(BudgetLimit(tool_calls=10))
+    key = await ledger.reserve(BudgetAmount(tool_calls=1))
+    assert await ledger.settle(key, BudgetAmount(tool_calls=1)) is True
+    assert await ledger.settle(key, BudgetAmount(tool_calls=1)) is False
+
+    other = await ledger.reserve(BudgetAmount(tool_calls=1))
+    assert await ledger.release(other) is True
+    assert await ledger.release(other) is False
+
+
 def test_secret_canary_redacted_from_error_payload():
     """An exception containing a secret must not leak it to the LLM."""
     secret = "API_KEY=sk-secret-xxx-12345"
