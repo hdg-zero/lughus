@@ -3,7 +3,7 @@
 Agent-to-Agent (A2A) delegation allows a primary Lughus run to orchestrate child agents across distributed environments.
 
 ## The Delegation Model
-Delegation in Lughus (`lughus.delegation`) revolves around safely requesting and tracking remote execution.
+Delegation in Lughus (`lughus.engine.delegation`) revolves around safely requesting and tracking remote execution.
 - `DelegationRequest`: Defines the target, required skill, objective, and crucially, the causal chain.
 - `RemoteAgentClient`: A protocol your application implements to handle the actual wire transport (e.g., gRPC, HTTP).
 - `Delegator`: The orchestrator that wraps requests, applying budget constraints before dispatch.
@@ -22,7 +22,7 @@ When a `DelegationResult` returns, any attached artifacts are treated strictly a
 
 ```python
 import asyncio
-from lughus.delegation import DelegationRequest, Delegator
+from lughus.engine.delegation import DelegationRequest, Delegator
 
 
 class MockBudgetLedger:
@@ -38,7 +38,7 @@ class MockBudgetLedger:
 
 class MockRemoteClient:
     async def delegate(self, request):
-        from lughus.delegation import DelegationResult
+        from lughus.engine.delegation import DelegationResult
 
         return DelegationResult(remote_task_id="task_123", status="success")
 

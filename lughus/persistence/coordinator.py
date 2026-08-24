@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .domain import EventVisibility, Run, RunEvent, RunStatus
-from .persistence import Checkpoint, RunUnitOfWork
+from ..core.domain import EventVisibility, Run, RunEvent, RunStatus
+from .store import Checkpoint, RunUnitOfWork
 
 _ALLOWED = {
     RunStatus.PENDING: {RunStatus.RUNNING, RunStatus.CANCELLED},

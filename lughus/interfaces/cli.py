@@ -109,7 +109,7 @@ def _env_example() -> str:
     import os
     from dataclasses import fields
 
-    from lughus.config import BaseSettings
+    from lughus.infra.config import BaseSettings
 
     # Temporarily isolate environment variables to get true defaults
     old_env = dict(os.environ)

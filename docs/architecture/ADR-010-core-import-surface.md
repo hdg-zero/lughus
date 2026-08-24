@@ -11,7 +11,7 @@ reached into optional extras:
 
 | Chain | Requires | Extra |
 |---|---|---|
-| `telemetry.py` module-level `opentelemetry.sdk.*` imports, pulled in by `llm.py` and `loop/_execute.py` via `from .telemetry import meter` | `opentelemetry-sdk` | `otel` |
+| `infra/telemetry.py` module-level `opentelemetry.sdk.*` imports, pulled in by `engine/llm.py` and `loop/_execute.py` via `from .telemetry import meter` | `opentelemetry-sdk` | `otel` |
 | `__init__.py` -> `.gateway` | `a2a-sdk` | `server` |
 | `__init__.py` -> `.server` | `uvicorn`, `starlette`, `a2a-sdk` | `server` |
 
@@ -33,7 +33,7 @@ raises `ImportError` naming the extra.
 
 **2. A misclassified dependency.** The OpenTelemetry **API** is genuinely
 cross-cutting in Lughus: `tracer` and `meter` are used in `loop/_loop.py`,
-`loop/_execute.py` and `llm.py`, and module-level counters are created at import
+`loop/_execute.py` and `engine/llm.py`, and module-level counters are created at import
 time. It moves from the `otel` extra into the base dependencies.
 `opentelemetry-sdk` and the OTLP exporter stay in `otel`.
 

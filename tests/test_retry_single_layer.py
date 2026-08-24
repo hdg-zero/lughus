@@ -16,7 +16,8 @@ from unittest.mock import AsyncMock
 import litellm
 import pytest
 
-from lughus.llm import LLM, retry_budget
+from lughus.engine.llm import LLM, retry_budget
+from lughus.engine.tools import ToolRegistry
 from lughus.loop import agent_loop_stream
 from lughus.testing import (
     FakeChunk,
@@ -24,7 +25,6 @@ from lughus.testing import (
     FakeStreamChoice,
     FakeUsage,
 )
-from lughus.tools import ToolRegistry
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 

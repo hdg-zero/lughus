@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from lughus import Artifact
-from lughus.config import BaseSettings
-from lughus.gateway import BaseGateway, _validate_artifacts
+from lughus.infra.config import BaseSettings
+from lughus.interfaces.gateway import BaseGateway, _validate_artifacts
 
 # this module exercises code that needs the 'server' extra.
 pytestmark = pytest.mark.extra_server
@@ -32,7 +32,7 @@ def _make_gateway(
 
     from unittest.mock import MagicMock
 
-    from lughus.llm import LLM
+    from lughus.engine.llm import LLM
 
     # We use a concrete subclass because BaseGateway.handle() is abstract
     class ConcreteGateway(BaseGateway):
@@ -150,7 +150,7 @@ async def test_extract_invalid_base64_skipped_with_warning(
     gw = _make_gateway(monkeypatch)
     ctx = _make_context([_text_part("Analyze"), _invalid_file_part("corrupt.bin")])
 
-    with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
+    with caplog.at_level(logging.WARNING, logger="lughus.interfaces.gateway"):
         objective, files = await gw._extract_async(ctx)
 
     assert objective == "Analyze"
@@ -168,7 +168,7 @@ async def test_extract_file_exceeding_max_size_skipped_with_warning(
     big_data = b"x" * 100  # 100 bytes > 10 bytes limit
     ctx = _make_context([_file_part(big_data, "application/octet-stream", "big.bin")])
 
-    with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
+    with caplog.at_level(logging.WARNING, logger="lughus.interfaces.gateway"):
         _objective, files = await gw._extract_async(ctx)
 
     assert files == []
@@ -184,7 +184,7 @@ async def test_extract_file_exceeding_encoded_max_size_skipped_before_decode(
     gw = _make_gateway(monkeypatch, max_file_bytes=3)
     ctx = _make_context([_file_part(b"x" * 10, "application/octet-stream", "encoded-big.bin")])
 
-    with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
+    with caplog.at_level(logging.WARNING, logger="lughus.interfaces.gateway"):
         objective, files = await gw._extract_async(ctx)
 
     assert objective == ""
@@ -204,7 +204,7 @@ async def test_extract_max_files_limit(monkeypatch, caplog: pytest.LogCaptureFix
         ]
     )
 
-    with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
+    with caplog.at_level(logging.WARNING, logger="lughus.interfaces.gateway"):
         _, files = await gw._extract_async(ctx)
 
     assert len(files) == 1
@@ -225,7 +225,7 @@ async def test_extract_max_request_bytes_limit(
         ]
     )
 
-    with caplog.at_level(logging.WARNING, logger="lughus.gateway"):
+    with caplog.at_level(logging.WARNING, logger="lughus.interfaces.gateway"):
         _, files = await gw._extract_async(ctx)
 
     assert len(files) == 1
@@ -324,7 +324,7 @@ async def test_extract_sanitizes_shell_injection_characters(monkeypatch) -> None
 @pytest.mark.asyncio
 async def test_gateway_execute_masks_unhandled_internal_exceptions(monkeypatch) -> None:
     """Unhandled internal exceptions are masked to generic error messages."""
-    from lughus.errors import LughusError, SafeToolError
+    from lughus.core.errors import LughusError, SafeToolError
 
     gw = _make_gateway(monkeypatch)
 

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from lughus import ToolRegistry
-from lughus.mcp import MCPAdapter, MCPServerConfig, MCPToolDescriptor
+from lughus.interfaces.mcp import MCPAdapter, MCPServerConfig, MCPToolDescriptor
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 

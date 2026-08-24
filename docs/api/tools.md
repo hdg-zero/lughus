@@ -102,14 +102,14 @@ def declarations(
     names: list[str],
     *,
     strict: bool = False,
-    compact: bool = False,
-) -> list[dict]:
+) -> tuple[dict, ...]:
 ```
 
 #### Parameters
 *   `names`: Names of tools to extract declarations for. If a name is unknown, a `WARNING` is logged and it is skipped.
 *   `strict`: If `True`, unknown names raise `ToolValidationError`. `agent_loop()` uses strict declarations so misconfigured `tool_names` fail before the first LLM request.
-*   `compact`: If `True`, parameter descriptions are stripped from the schemas to reduce repeated prompt tokens.
+
+The result is memoized and structurally immutable (`tuple` of frozen dicts). Parameter descriptions are preserved — they carry critical constraints (enum values, valid formats, value ranges) that the model needs for accurate tool calls. With prefix caching, tool declarations live in the cacheable prefix so the token cost is negligible.
 
 ### `get_fn`
 

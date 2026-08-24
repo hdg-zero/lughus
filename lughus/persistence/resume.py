@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from .idempotency import AttemptStatus, IdempotencyKey, IdempotencyStore
-from .persistence import Checkpoint
+from ..governance.idempotency import AttemptStatus, IdempotencyKey, IdempotencyStore
+from .store import Checkpoint
 
 
 class ResumeAction(StrEnum):

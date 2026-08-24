@@ -2,7 +2,7 @@
 
 import pytest
 
-from lughus.domain import Run, RunEvent, RunStatus
+from lughus.core.domain import Run, RunEvent, RunStatus
 from lughus.persistence import Checkpoint, ConcurrentUpdateError, InMemoryRunStore
 
 

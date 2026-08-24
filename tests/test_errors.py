@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from lughus.errors import SafeToolError, ToolExecutionError
+from lughus.core.errors import SafeToolError, ToolExecutionError
 from lughus.loop._execute import _error_payload
 
 

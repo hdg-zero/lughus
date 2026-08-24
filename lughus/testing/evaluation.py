@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 
-from .domain import RunEvent
+from ..core.domain import RunEvent
 
 
 @dataclass(frozen=True, slots=True)

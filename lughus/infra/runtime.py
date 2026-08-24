@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any
 
-from .errors import ToolTimeoutError
+from ..core.errors import ToolTimeoutError
 
 
 @dataclass(slots=True)

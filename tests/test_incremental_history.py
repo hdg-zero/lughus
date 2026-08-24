@@ -148,7 +148,6 @@ class TestEquivalence:
         h2.extend(msgs)
 
         assert list(h1.view) == list(h2.view)
-        assert h1.char_count == h2.char_count
 
 
 # ── Read-only view immutability ──────────────────────────────────────────────
@@ -216,104 +215,6 @@ class TestReadOnlyView:
         assert view[0] in view
         assert list(view) == [view[0], view[1]]
         assert view[0:2] == [view[0], view[1]]
-
-
-# ── Incremental token count ─────────────────────────────────────────────────
-
-
-class TestCharCount:
-    """Token count grows incrementally (not recomputed from scratch)."""
-
-    def test_empty_history_char_count(self) -> None:
-        history = MessageHistory()
-        # Empty list serializes to '[]' = 2 chars
-        assert history.char_count == 2
-        expected = len(json.dumps([], ensure_ascii=False, separators=(",", ":")))
-        assert history.char_count == expected
-
-    def test_single_message_char_count(self) -> None:
-        history = MessageHistory()
-        msg = {"role": "system", "content": "You are a helpful assistant."}
-        history.append(msg)
-        expected = len(json.dumps([msg], ensure_ascii=False, separators=(",", ":")))
-        assert history.char_count == expected
-
-    def test_multiple_messages_char_count(self) -> None:
-        history = MessageHistory()
-        messages = [
-            {"role": "system", "content": "sys"},
-            {"role": "user", "content": "hello"},
-            {"role": "assistant", "content": "hi there"},
-        ]
-        for m in messages:
-            history.append(m)
-        expected = len(json.dumps(messages, ensure_ascii=False, separators=(",", ":")))
-        assert history.char_count == expected
-
-    def test_char_count_grows_incrementally(self) -> None:
-        """Each append increases char_count by the msg size + separator."""
-        history = MessageHistory()
-        counts: list[int] = [history.char_count]
-
-        messages = [
-            {"role": "system", "content": "s"},
-            {"role": "user", "content": "u"},
-            {"role": "assistant", "content": "a"},
-        ]
-        for m in messages:
-            history.append(m)
-            counts.append(history.char_count)
-
-        # Verify monotonic increase
-        for i in range(1, len(counts)):
-            assert counts[i] > counts[i - 1], "char_count must increase on each append"
-
-        # Verify final matches json.dumps
-        expected = len(json.dumps(messages, ensure_ascii=False, separators=(",", ":")))
-        assert counts[-1] == expected
-
-    def test_char_count_with_complex_messages(self) -> None:
-        """Char count matches json.dumps for messages containing tool calls."""
-        history = MessageHistory()
-        messages = [
-            {"role": "system", "content": "sys"},
-            {"role": "user", "content": "call tool"},
-            {
-                "role": "assistant",
-                "tool_calls": [
-                    {
-                        "id": "call_1",
-                        "type": "function",
-                        "function": {
-                            "name": "greet",
-                            "arguments": '{"name":"World"}',
-                        },
-                    }
-                ],
-            },
-            {
-                "role": "tool",
-                "tool_call_id": "call_1",
-                "content": '{"greeting":"Hello World!"}',
-            },
-            {"role": "assistant", "content": "Done."},
-        ]
-        for m in messages:
-            history.append(m)
-        expected = len(json.dumps(messages, ensure_ascii=False, separators=(",", ":")))
-        assert history.char_count == expected
-
-    def test_char_count_with_unicode(self) -> None:
-        """Char count is correct for messages containing unicode."""
-        history = MessageHistory()
-        messages = [
-            {"role": "system", "content": "Aide en francais."},
-            {"role": "user", "content": "Bonjour le monde!"},
-        ]
-        for m in messages:
-            history.append(m)
-        expected = len(json.dumps(messages, ensure_ascii=False, separators=(",", ":")))
-        assert history.char_count == expected
 
 
 # ── Linear allocation growth ────────────────────────────────────────────────
@@ -395,5 +296,3 @@ class TestMessageHistoryMisc:
         ]
         history = MessageHistory(msgs)
         assert list(history.view) == msgs
-        expected = len(json.dumps(msgs, ensure_ascii=False, separators=(",", ":")))
-        assert history.char_count == expected

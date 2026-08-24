@@ -11,8 +11,8 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any, Protocol
 
-from .errors import IdempotencyCapacityError
-from .telemetry import meter
+from ..core.errors import IdempotencyCapacityError
+from ..infra.telemetry import meter
 
 # Eviction weakens the exactly-once guarantee, so it must be observable.
 # Without this counter an operator cannot know they crossed that line.
@@ -161,7 +161,7 @@ class InMemoryIdempotencyStore:
             _evictions.add(1, {"lughus.reason": "capacity"})
 
     async def save(self, attempt: ExecutionAttempt) -> None:
-        from .persistence import ConcurrentUpdateError
+        from ..persistence.store import ConcurrentUpdateError
 
         async with self._lock:
             existing = self._store.get(attempt.key)

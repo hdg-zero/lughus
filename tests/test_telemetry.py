@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-import lughus.telemetry
-from lughus.telemetry import setup_telemetry
+import lughus.infra.telemetry
+from lughus.infra.telemetry import setup_telemetry
 
 # this module exercises code that needs the 'otel' extra.
 pytestmark = pytest.mark.extra_otel
@@ -16,9 +16,9 @@ pytestmark = pytest.mark.extra_otel
 @pytest.fixture(autouse=True)
 def reset_telemetry_initialized():
     """Ensure _INITIALIZED is False before and after each test."""
-    lughus.telemetry._INITIALIZED = False
+    lughus.infra.telemetry._INITIALIZED = False
     yield
-    lughus.telemetry._INITIALIZED = False
+    lughus.infra.telemetry._INITIALIZED = False
 
 
 def test_telemetry_retryable_after_failure(monkeypatch) -> None:
@@ -31,12 +31,12 @@ def test_telemetry_retryable_after_failure(monkeypatch) -> None:
     ):
         setup_telemetry("test")
 
-    assert lughus.telemetry._INITIALIZED is False
+    assert lughus.infra.telemetry._INITIALIZED is False
 
     with patch("opentelemetry.sdk.resources.Resource.create"):
         setup_telemetry("test")
 
-    assert lughus.telemetry._INITIALIZED is True
+    assert lughus.infra.telemetry._INITIALIZED is True
 
 
 def test_telemetry_idempotent_after_success(monkeypatch) -> None:
@@ -50,7 +50,7 @@ def test_telemetry_idempotent_after_success(monkeypatch) -> None:
         patch("opentelemetry.metrics.set_meter_provider"),
     ):
         setup_telemetry("test")
-        assert lughus.telemetry._INITIALIZED is True
+        assert lughus.infra.telemetry._INITIALIZED is True
 
         setup_telemetry("test")
 

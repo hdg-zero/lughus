@@ -15,9 +15,9 @@ import threading
 import pytest
 
 from lughus import ExecutionRuntime, ToolExecutionConfig, ToolRegistry, agent_loop
-from lughus.errors import LoopLimitError
+from lughus.core.errors import LoopLimitError
+from lughus.infra.runtime import RuntimeConfig
 from lughus.loop._execute import _execute_tools
-from lughus.runtime import RuntimeConfig
 from lughus.testing import MockLLM
 
 
@@ -153,7 +153,7 @@ async def test_execute_tools_refuses_a_config_without_runtime(
 
 async def test_implicit_runtime_uses_module_defaults(registry: ToolRegistry) -> None:
     """The implicit runtime uses the module-level constants."""
-    from lughus.loop._config import DEFAULT_MAX_GLOBAL_TOOLS, DEFAULT_MAX_SYNC_THREAD_WORKERS
+    from lughus.core._defaults import DEFAULT_MAX_GLOBAL_TOOLS, DEFAULT_MAX_SYNC_THREAD_WORKERS
 
     seen: list[RuntimeConfig] = []
     original = ExecutionRuntime.__init__

@@ -1,7 +1,7 @@
 # ADR-007: Error Disclosure Policy
 
 ## Context
-When an AI agent executes tools, errors are an inevitable part of the process. Lughus needs a consistent strategy for handling execution exceptions (`lughus.errors`). We must balance the model's need for actionable error messages (so the agent can retry or correct its approach) with the critical security requirement of not leaking internal system details, stack traces, or credentials to the LLM context or upstream clients.
+When an AI agent executes tools, errors are an inevitable part of the process. Lughus needs a consistent strategy for handling execution exceptions (`lughus.core.errors`). We must balance the model's need for actionable error messages (so the agent can retry or correct its approach) with the critical security requirement of not leaking internal system details, stack traces, or credentials to the LLM context or upstream clients.
 
 ## Decision
 We implemented a strict, opt-in error disclosure policy (`lughus.loop._execute`).

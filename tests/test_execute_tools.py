@@ -13,9 +13,9 @@ from typing import Any
 import pytest
 
 from lughus import ConcurrencyMode, ToolRegistry
+from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 from lughus.loop import ToolExecutionConfig, collect_tool_events
 from lughus.loop import _execute_tools as _raw_execute_tools
-from lughus.runtime import ExecutionRuntime, RuntimeConfig
 
 
 def _test_runtime(max_workers: int = 32) -> ExecutionRuntime:
@@ -401,7 +401,7 @@ async def test_tool_output_size_limit() -> None:
     assert data["ok"] is True
     assert data["truncated"] is True
     assert data["original_bytes"] == 50
-    assert data["result"] == "x" * 10
+    assert data["result"] == "x" * 10 + " [TRUNCATED]"
 
 
 @pytest.mark.asyncio
@@ -547,7 +547,7 @@ async def test_sync_tool_worker_pool_is_bounded() -> None:
     running = 0
     max_seen = 0
 
-    from lughus.tools import ConcurrencyMode
+    from lughus.engine.tools import ConcurrencyMode
 
     @registry.tool(
         "blocking",

@@ -1,17 +1,17 @@
 import pytest
 
-from lughus.budget import BudgetAmount, BudgetLedger, BudgetLimit
-from lughus.delegation import DelegationRequest, DelegationResult, Delegator
-from lughus.domain import RunEvent
-from lughus.event_stream import InMemoryEventSink
-from lughus.idempotency import (
+from lughus.core.domain import RunEvent
+from lughus.core.event_stream import InMemoryEventSink
+from lughus.engine.delegation import DelegationRequest, DelegationResult, Delegator
+from lughus.governance.budget import BudgetAmount, BudgetLedger, BudgetLimit
+from lughus.governance.idempotency import (
     AttemptStatus,
     ExecutionAttempt,
     IdempotencyKey,
     InMemoryIdempotencyStore,
 )
 from lughus.persistence import Checkpoint
-from lughus.resume import ResumeAction, decide_resume
+from lughus.persistence.resume import ResumeAction, decide_resume
 
 
 @pytest.mark.asyncio

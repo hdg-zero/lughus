@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from .domain import RunEvent
+from ..core.domain import RunEvent
 
 REPLAY_SCHEMA_VERSION = "1.0"
 

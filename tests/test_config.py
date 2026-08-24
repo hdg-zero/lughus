@@ -6,9 +6,9 @@ import os
 
 import pytest
 
-from lughus.config import BaseSettings, _env_bool, _env_float, _env_int
+from lughus.infra.config import BaseSettings, _env_bool, _env_float, _env_int
+from lughus.infra.runtime import ExecutionRuntime
 from lughus.loop._config import ToolExecutionConfig
-from lughus.runtime import ExecutionRuntime
 
 
 def _test_runtime() -> ExecutionRuntime:
@@ -347,22 +347,22 @@ def test_tool_execution_config_requires_runtime():
     assert cfg.runtime is None
 
 
-def test_tool_config_rejects_max_global_tools_kwarg() -> None:
-    """max_global_tools is no longer a ToolExecutionConfig field."""
-    with pytest.raises(TypeError):
-        ToolExecutionConfig(max_global_tools=32)  # type: ignore[call-arg]
+def test_tool_config_accepts_max_global_tools_kwarg() -> None:
+    """max_global_tools is now a ToolExecutionConfig field."""
+    cfg = ToolExecutionConfig(max_global_tools=32)
+    assert cfg.max_global_tools == 32
 
 
-def test_tool_config_rejects_max_sync_thread_workers_kwarg() -> None:
-    """max_sync_thread_workers is no longer a ToolExecutionConfig field."""
-    with pytest.raises(TypeError):
-        ToolExecutionConfig(max_sync_thread_workers=4)  # type: ignore[call-arg]
+def test_tool_config_accepts_max_sync_thread_workers_kwarg() -> None:
+    """max_sync_thread_workers is now a ToolExecutionConfig field."""
+    cfg = ToolExecutionConfig(max_sync_thread_workers=4)
+    assert cfg.max_sync_thread_workers == 4
 
 
 @pytest.mark.asyncio
 async def test_implicit_runtime_uses_module_defaults() -> None:
     """The implicit runtime uses module-level constants."""
-    from lughus.loop._config import DEFAULT_MAX_GLOBAL_TOOLS, DEFAULT_MAX_SYNC_THREAD_WORKERS
+    from lughus.core._defaults import DEFAULT_MAX_GLOBAL_TOOLS, DEFAULT_MAX_SYNC_THREAD_WORKERS
     from lughus.loop._loop import _resolve_tool_config
 
     cfg, owned_runtime = _resolve_tool_config(ToolExecutionConfig())

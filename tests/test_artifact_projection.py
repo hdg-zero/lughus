@@ -12,7 +12,8 @@ from typing import Any
 import pytest
 
 from lughus import ToolRegistry
-from lughus.artifacts import ArtifactStore, _summarize
+from lughus.core.artifacts import ArtifactStore, _summarize
+from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 from lughus.loop import ToolExecutionConfig
 from lughus.loop import _execute_tools as _raw_execute_tools
 from lughus.loop._loop import (
@@ -20,7 +21,6 @@ from lughus.loop._loop import (
     _active_artifact_store,
     _setup_artifact_projection,
 )
-from lughus.runtime import ExecutionRuntime, RuntimeConfig
 
 # ── helpers ──────────────────────────────────────────────────────────
 

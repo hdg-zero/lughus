@@ -1,4 +1,4 @@
-"""Four benchmark scenarios measuring lughus framework overhead.
+"""Five benchmark scenarios measuring lughus framework overhead.
 
 Each scenario function returns a dict with metrics:
     tokens_in, tokens_out, provider_calls, wall_time_s, cpu_time_s, prefix_size_bytes
@@ -172,8 +172,8 @@ async def scenario_long() -> dict[str, Any]:
 
 
 async def scenario_large_outputs() -> dict[str, Any]:
-    """3-turn run with tools returning ~10KB each."""
-    registry, tool_names = _make_echo_registry(count=1, output_size=10_240)
+    """3-turn run with tools returning ~100KB each."""
+    registry, tool_names = _make_echo_registry(count=1, output_size=102_400)
     responses: list[Any] = [
         [{"id": "c1", "name": "echo_0", "arguments": {"input": "big_a"}}],
         [{"id": "c2", "name": "echo_0", "arguments": {"input": "big_b"}}],
@@ -210,11 +210,32 @@ async def scenario_many_tools() -> dict[str, Any]:
     )
 
 
+async def scenario_stress() -> dict[str, Any]:
+    """52-turn run: 51 tool calls then a text response."""
+    registry, tool_names = _make_echo_registry(count=1, output_size=512)
+    responses: list[Any] = [
+        [{"id": f"c{i}", "name": "echo_0", "arguments": {"input": f"stress_{i}"}}]
+        for i in range(51)
+    ]
+    responses.append("Stress benchmark complete.")
+    llm = build_mock_llm(responses)
+    return await _run_scenario(
+        "stress",
+        llm,
+        SYSTEM,
+        CONTEXT,
+        registry,
+        tool_names,
+        max_iterations=60,
+    )
+
+
 ALL_SCENARIOS = {
     "short": scenario_short,
     "long": scenario_long,
     "large_outputs": scenario_large_outputs,
     "many_tools": scenario_many_tools,
+    "stress": scenario_stress,
 }
 
 EXPECTED_METRIC_KEYS = frozenset(

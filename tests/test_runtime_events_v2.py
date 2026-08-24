@@ -2,9 +2,9 @@ import asyncio
 
 import pytest
 
-from lughus.domain import EventVisibility, Run, RunEvent, RunStatus
-from lughus.event_stream import InMemoryEventSink
-from lughus.runtime import ExecutionRuntime, RuntimeConfig
+from lughus.core.domain import EventVisibility, Run, RunEvent, RunStatus
+from lughus.core.event_stream import InMemoryEventSink
+from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 
 
 def test_run_event_round_trip_and_terminal_status():
@@ -147,9 +147,9 @@ async def test_event_sink_subscribe():
 
 @pytest.mark.asyncio
 async def test_agent_runner_run_success():
-    from lughus.runner import AgentRunner
+    from lughus.agent.runner import AgentRunner
+    from lughus.engine.tools import ToolRegistry
     from lughus.testing import MockLLM
-    from lughus.tools import ToolRegistry
 
     llm = MockLLM(["Hello from runner"])
     registry = ToolRegistry()
@@ -167,8 +167,8 @@ async def test_agent_runner_run_success():
 
 @pytest.mark.asyncio
 async def test_agent_runner_run_failure():
-    from lughus.runner import AgentRunner
-    from lughus.tools import ToolRegistry
+    from lughus.agent.runner import AgentRunner
+    from lughus.engine.tools import ToolRegistry
 
     class BrokenLLM:
         model = "broken"
@@ -190,9 +190,9 @@ async def test_agent_runner_run_failure():
 
 @pytest.mark.asyncio
 async def test_agent_runner_stream_success():
-    from lughus.runner import AgentRunner
+    from lughus.agent.runner import AgentRunner
+    from lughus.engine.tools import ToolRegistry
     from lughus.testing import MockStreamingLLM
-    from lughus.tools import ToolRegistry
 
     llm = MockStreamingLLM(["Hello world!"])
     registry = ToolRegistry()
@@ -211,8 +211,8 @@ async def test_agent_runner_stream_success():
 
 @pytest.mark.asyncio
 async def test_agent_runner_stream_failure():
-    from lughus.runner import AgentRunner
-    from lughus.tools import ToolRegistry
+    from lughus.agent.runner import AgentRunner
+    from lughus.engine.tools import ToolRegistry
 
     class BrokenStreamingLLM:
         model = "broken"

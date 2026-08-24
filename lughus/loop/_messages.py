@@ -18,8 +18,8 @@ from collections.abc import Iterable, Iterator, Sequence
 from typing import Any, overload
 from xml.sax.saxutils import escape
 
-from ..context import ContextItem
-from ..errors import ContextBudgetExceeded
+from ..core.context import ContextItem
+from ..core.errors import ContextBudgetExceeded
 
 _logger = logging.getLogger(__name__)
 
@@ -108,38 +108,24 @@ class _ReadOnlyMessageView(Sequence[dict[str, Any]]):
 
 
 class MessageHistory:
-    """Append-only message list with incremental char counting and a read-only view.
-
-    The char count tracks the exact value that ``json.dumps(messages,
-    ensure_ascii=False, separators=(",",":"))`` would produce, but is
-    maintained incrementally so that callers never pay O(n) to recompute
-    it from scratch.  This is the preparation step for token budgets.
+    """Append-only message list with a read-only view.
 
     The :attr:`view` property returns a :class:`~collections.abc.Sequence`
     that shares the backing list but raises ``TypeError`` on any mutation
     attempt, protecting the canonical history from accidental corruption.
     """
 
-    __slots__ = ("_char_count", "_messages", "_view")
+    __slots__ = ("_messages", "_view")
 
     def __init__(self, initial: Iterable[dict[str, Any]] | None = None) -> None:
         self._messages: list[dict[str, Any]] = []
-        self._char_count: int = 2  # accounts for enclosing '[]'
         self._view = _ReadOnlyMessageView(self._messages)
         if initial is not None:
             for msg in initial:
                 self.append(msg)
 
-    @staticmethod
-    def _msg_chars(msg: dict[str, Any]) -> int:
-        """JSON char count for a single message dict (compact separators)."""
-        return len(json.dumps(msg, ensure_ascii=False, separators=(",", ":")))
-
     def append(self, msg: dict[str, Any]) -> None:
-        """Append *msg* and update the incremental char count."""
-        if self._messages:
-            self._char_count += 1  # comma separator between elements
-        self._char_count += self._msg_chars(msg)
+        """Append *msg* to the history."""
         self._messages.append(msg)
 
     def extend(self, msgs: Iterable[dict[str, Any]]) -> None:
@@ -152,53 +138,47 @@ class MessageHistory:
         """Read-only view sharing the backing list — mutation raises TypeError."""
         return self._view
 
-    @property
-    def char_count(self) -> int:
-        """Exact JSON char count equivalent to ``len(json.dumps(list, ...))``."""
-        return self._char_count
-
     def __len__(self) -> int:
         return len(self._messages)
 
-    def prune(self, max_tokens: int, prefix_len: int) -> int:
+    def prune(self, max_tokens: int, prefix_len: int, model: str | None = None) -> int:
         """Drop oldest non-prefix atomic groups until estimated tokens fit *max_tokens*.
 
         Returns the number of groups pruned.  Raises :class:`ContextBudgetExceeded`
         if a single atomic group exceeds the entire budget.
         """
-        pruned = prune_history(self._messages, max_tokens, prefix_len)
-        # Recompute char count from scratch after mutation.
-        self._char_count = 2
-        for i, msg in enumerate(self._messages):
-            if i > 0:
-                self._char_count += 1  # comma
-            self._char_count += self._msg_chars(msg)
-        return pruned
+        return prune_history(self._messages, max_tokens, prefix_len, model=model)
 
     def __repr__(self) -> str:
-        return f"MessageHistory(len={len(self._messages)}, chars={self._char_count})"
+        return f"MessageHistory(len={len(self._messages)})"
 
 
 # ── Token estimation ────────────────────────────────────────────────────────
 
 
-def estimate_tokens(text: str) -> int:
-    """Return a conservative token estimate for *text*.
+def estimate_tokens(text: str, model: str | None = None) -> int:
+    """Return a token estimate for *text*.
 
-    Uses ``len(text) // 3`` which slightly over-counts compared to real
-    tokenizers (1 token ~ 4 chars for English).  Over-counting is safe: it
-    means we prune a little earlier than necessary rather than risking a
-    provider 400 error.
+    When *model* is provided, delegates to ``litellm.token_counter`` for an
+    accurate count.  Falls back to ``len(text) // 4`` (industry-standard
+    approximation of ~4 chars per token for English prose).
     """
     if not text:
         return 0
-    return max(1, len(text) // 3)
+    if model is not None:
+        try:
+            import litellm
+
+            return max(1, litellm.token_counter(model=model, text=text))
+        except Exception:  # noqa: BLE001
+            pass
+    return max(1, len(text) // 4)
 
 
-def _message_tokens(msg: dict[str, Any]) -> int:
+def _message_tokens(msg: dict[str, Any], model: str | None = None) -> int:
     """Estimate the token cost of a single message dict."""
     serialized = json.dumps(msg, ensure_ascii=False, separators=(",", ":"))
-    return estimate_tokens(serialized)
+    return estimate_tokens(serialized, model=model)
 
 
 # ── Atomic groups ────────────────────────────────────────────────────────────
@@ -239,6 +219,7 @@ def prune_history(
     messages: list[dict[str, Any]],
     max_tokens: int,
     prefix_len: int,
+    model: str | None = None,
 ) -> int:
     """Remove oldest non-prefix atomic groups from *messages* until under budget.
 
@@ -250,7 +231,7 @@ def prune_history(
     Raises :class:`ContextBudgetExceeded` if a single atomic group is larger
     than the entire *max_tokens* budget.
     """
-    total_tokens = sum(_message_tokens(m) for m in messages)
+    total_tokens = sum(_message_tokens(m, model=model) for m in messages)
     if total_tokens <= max_tokens:
         return 0
 
@@ -259,10 +240,10 @@ def prune_history(
         return 0
 
     # Check if any single group exceeds the budget on its own
-    prefix_tokens = sum(_message_tokens(messages[i]) for i in range(prefix_len))
+    prefix_tokens = sum(_message_tokens(messages[i], model=model) for i in range(prefix_len))
     available = max_tokens - prefix_tokens
     for group in groups:
-        group_tokens = sum(_message_tokens(messages[idx]) for idx in group)
+        group_tokens = sum(_message_tokens(messages[idx], model=model) for idx in group)
         if group_tokens > available:
             raise ContextBudgetExceeded(
                 f"A single atomic group ({group_tokens} estimated tokens) "
@@ -276,7 +257,7 @@ def prune_history(
     for group in groups:
         if total_tokens <= max_tokens:
             break
-        group_tokens = sum(_message_tokens(messages[idx]) for idx in group)
+        group_tokens = sum(_message_tokens(messages[idx], model=model) for idx in group)
         indices_to_remove.extend(group)
         total_tokens -= group_tokens
         pruned_count += 1

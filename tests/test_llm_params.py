@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import litellm
 import pytest
 
-from lughus.llm import LLM
+from lughus.engine.llm import LLM
 
 
 def _fake_response() -> litellm.ModelResponse:

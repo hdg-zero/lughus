@@ -1,12 +1,12 @@
 ---
 type: API Reference
 title: Execution Runtime & Event Stream API
-description: API reference for lughus.runtime, lughus.runner, and lughus.event_stream modules.
+description: API reference for lughus.infra.runtime, lughus.agent.runner, and lughus.core.event_stream modules.
 ---
 
 # Execution Runtime & Event Stream API
 
-The `lughus.runtime`, `lughus.runner`, and `lughus.event_stream` modules manage process-local resource pools, event streaming, and agent execution orchestration.
+The `lughus.infra.runtime`, `lughus.agent.runner`, and `lughus.core.event_stream` modules manage process-local resource pools, event streaming, and agent execution orchestration.
 
 ---
 

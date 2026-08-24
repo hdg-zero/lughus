@@ -16,11 +16,11 @@ from typing import Any
 import pytest
 
 from lughus import ToolRegistry
-from lughus.errors import ApprovalRequiredGroup
+from lughus.core.errors import ApprovalRequiredGroup
+from lughus.engine.tools import ConcurrencyMode
+from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 from lughus.loop import ToolExecutionConfig
 from lughus.loop import _execute_tools as _raw_execute_tools
-from lughus.runtime import ExecutionRuntime, RuntimeConfig
-from lughus.tools import ConcurrencyMode
 
 
 def _test_runtime(max_workers: int = 32) -> ExecutionRuntime:
@@ -145,7 +145,7 @@ async def test_approval_required_group_two_tools() -> None:
     async def needs_approval_b(*, state: Any) -> str:
         return json.dumps({"approved": True})
 
-    from lughus.approval import InMemoryApprovalStore
+    from lughus.governance.approval import InMemoryApprovalStore
 
     approval_store = InMemoryApprovalStore()
     runtime = _test_runtime()

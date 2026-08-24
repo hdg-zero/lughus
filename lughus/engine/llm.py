@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import random
 import time
@@ -11,9 +12,9 @@ from typing import Any, Protocol, cast
 
 import litellm
 
-from .errors import LLMResponseError
-from .retry import _retry_budget_var, _retry_used_var, retry_budget
-from .telemetry import meter
+from ..core.errors import LLMResponseError
+from ..infra.retry import _retry_budget_var, _retry_used_var, retry_budget
+from ..infra.telemetry import meter
 
 _logger = logging.getLogger(__name__)
 
@@ -215,7 +216,7 @@ class LLM:
                 **self.params,
             }
             if tools:
-                kwargs["tools"] = tools
+                kwargs["tools"] = copy.deepcopy(tools)
             response = cast(litellm.ModelResponse, await litellm.acompletion(**kwargs))
             if not getattr(response, "choices", None):
                 raise LLMResponseError("LLM provider returned a completion without choices")
@@ -241,7 +242,7 @@ class LLM:
                 **self.params,
             }
             if tools:
-                kwargs["tools"] = tools
+                kwargs["tools"] = copy.deepcopy(tools)
             if include_usage:
                 kwargs["stream_options"] = {"include_usage": True}
             return litellm.acompletion(**kwargs)

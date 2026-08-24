@@ -19,8 +19,8 @@ import time
 
 import pytest
 
-from lughus.errors import IdempotencyCapacityError
-from lughus.idempotency import (
+from lughus.core.errors import IdempotencyCapacityError
+from lughus.governance.idempotency import (
     AttemptStatus,
     ExecutionAttempt,
     IdempotencyKey,
@@ -179,7 +179,7 @@ async def test_genuine_backpressure_still_raises() -> None:
 
 
 async def test_capacity_error_is_catchable_as_lughus_error() -> None:
-    from lughus.errors import LughusError
+    from lughus.core.errors import LughusError
 
     assert issubclass(IdempotencyCapacityError, LughusError)
 

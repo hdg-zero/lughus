@@ -8,7 +8,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from lughus import BaseSettings, build_app
-from lughus.gateway import BaseGateway
+from lughus.interfaces.gateway import BaseGateway
 
 
 class SimpleGateway(BaseGateway):
@@ -82,10 +82,10 @@ def test_ensure_dotenv_loads_file(tmp_path, monkeypatch) -> None:
     try:
         os.chdir(str(tmp_path))
         # Reset loaded flag to force reload
-        import lughus.config
-        from lughus.config import _ensure_dotenv
+        import lughus.infra.config
+        from lughus.infra.config import _ensure_dotenv
 
-        lughus.config._DOTENV_LOADED = False
+        lughus.infra.config._DOTENV_LOADED = False
 
         _ensure_dotenv()
         assert os.environ.get("CUSTOM_ENV_VAR") == "audited_success"
@@ -96,7 +96,7 @@ def test_ensure_dotenv_loads_file(tmp_path, monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_execution_runtime_loop_binding() -> None:
-    from lughus.runtime import ExecutionRuntime
+    from lughus.infra.runtime import ExecutionRuntime
 
     runtime = ExecutionRuntime()
     assert runtime._loop is None
@@ -109,7 +109,7 @@ async def test_execution_runtime_loop_binding() -> None:
 def test_resolve_and_validate_otel_url(monkeypatch) -> None:
     import socket
 
-    from lughus.ui_server import _resolve_and_validate_otel_url
+    from lughus.interfaces.ui_server import _resolve_and_validate_otel_url
 
     # Mock resolution to a private IP
     def mock_getaddrinfo_private(host, port):
@@ -138,9 +138,9 @@ async def test_stream_mid_stream_error_propagates() -> None:
     Once streaming has begun and the first chunk is emitted, a mid-stream
     error propagates to the caller instead of silently retrying.
     """
+    from lughus.engine.tools import ToolRegistry
     from lughus.loop import agent_loop_stream
     from lughus.testing import _make_streaming_chunk
-    from lughus.tools import ToolRegistry
 
     class FaultyStreamingLLM:
         model = "test/mock-model"

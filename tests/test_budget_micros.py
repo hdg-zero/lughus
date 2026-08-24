@@ -2,7 +2,7 @@
 
 import pytest
 
-from lughus.budget import BudgetAmount, BudgetExceeded, BudgetLedger, BudgetLimit
+from lughus.governance.budget import BudgetAmount, BudgetExceeded, BudgetLedger, BudgetLimit
 
 
 @pytest.mark.asyncio

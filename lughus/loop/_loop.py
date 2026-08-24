@@ -10,15 +10,13 @@ from typing import TYPE_CHECKING, Any
 
 from opentelemetry.trace import StatusCode
 
-from ..artifacts import ArtifactStore
-from ..errors import LoopLimitError
-from ..retry import retry_budget
-from ..telemetry import meter, tracer
-from ..tools import ToolRegistry
+from ..core._defaults import DEFAULT_MAX_ITERATIONS
+from ..core.artifacts import ArtifactStore
+from ..core.errors import LoopLimitError
+from ..engine.tools import ToolRegistry
+from ..infra.retry import retry_budget
+from ..infra.telemetry import meter, tracer
 from ._config import (
-    DEFAULT_MAX_GLOBAL_TOOLS,
-    DEFAULT_MAX_ITERATIONS,
-    DEFAULT_MAX_SYNC_THREAD_WORKERS,
     StreamingMode,
     ToolExecutionConfig,
 )
@@ -43,9 +41,9 @@ _estimated_tokens_histogram = meter.create_histogram(
 )
 
 if TYPE_CHECKING:
-    from ..context import ContextItem
-    from ..llm import GenerateLLM, StreamingLLM
-    from ..runtime import ExecutionRuntime
+    from ..core.context import ContextItem
+    from ..engine.llm import GenerateLLM, StreamingLLM
+    from ..infra.runtime import ExecutionRuntime
 
 
 _FETCH_ARTIFACT_TOOL = "fetch_artifact"
@@ -146,11 +144,11 @@ def _prune_if_needed(
     telemetry when pruning occurs.
     """
     max_tokens = cfg.max_context_tokens
-    pruned = history.prune(max_tokens, prefix_len)
+    pruned = history.prune(max_tokens, prefix_len, model=model)
     if pruned > 0:
         attrs = {"gen_ai.request.model": model}
         _pruned_groups_counter.add(pruned, attrs)
-        estimated = sum(_message_tokens(m) for m in history.view)
+        estimated = sum(_message_tokens(m, model=model) for m in history.view)
         _estimated_tokens_histogram.record(estimated, attrs)
         _logger.info(
             "Context budget: pruned %d group(s), ~%d tokens remaining",
@@ -247,7 +245,7 @@ def _resolve_tool_config(
     runtime, not per-loop guardrails.  The implicit runtime is built from the
     module-level constants; ``tool_queue_timeout`` is still read from the config.
     """
-    from ..runtime import ExecutionRuntime, RuntimeConfig
+    from ..infra.runtime import ExecutionRuntime, RuntimeConfig
 
     cfg = tool_config if tool_config is not None else ToolExecutionConfig()
     if cfg.runtime is not None:
@@ -255,8 +253,8 @@ def _resolve_tool_config(
 
     runtime = ExecutionRuntime(
         RuntimeConfig(
-            max_global_tools=DEFAULT_MAX_GLOBAL_TOOLS,
-            max_sync_workers=DEFAULT_MAX_SYNC_THREAD_WORKERS,
+            max_global_tools=cfg.max_global_tools,
+            max_sync_workers=cfg.max_sync_thread_workers,
             queue_timeout=cfg.tool_queue_timeout,
         )
     )

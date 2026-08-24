@@ -7,9 +7,9 @@ from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 
-from lughus.config import BaseSettings
-from lughus.gateway import BaseGateway
-from lughus.llm import LLM
+from lughus.engine.llm import LLM
+from lughus.infra.config import BaseSettings
+from lughus.interfaces.gateway import BaseGateway
 
 # this module exercises code that needs the 'server' extra.
 pytestmark = pytest.mark.extra_server
@@ -19,7 +19,7 @@ class SlowGateway(BaseGateway):
     """Gateway that takes time to produce events."""
 
     async def handle(self, objective, files):
-        from lughus.events import ProgressEvent
+        from lughus.core.events import ProgressEvent
 
         yield ProgressEvent("started")
         await asyncio.sleep(0.5)
@@ -30,7 +30,7 @@ class NoCompletionGateway(BaseGateway):
     """Gateway that returns progress but never completes."""
 
     async def handle(self, objective, files):
-        from lughus.events import ProgressEvent
+        from lughus.core.events import ProgressEvent
 
         yield ProgressEvent("started")
 
@@ -44,7 +44,7 @@ class CancellableGateway(BaseGateway):
         self.cancelled = asyncio.Event()
 
     async def handle(self, objective, files):
-        from lughus.events import ProgressEvent
+        from lughus.core.events import ProgressEvent
 
         yield ProgressEvent("started")
         self.started.set()
@@ -83,7 +83,9 @@ async def test_gateway_execute_timeout(monkeypatch) -> None:
     mock_updater.complete = AsyncMock()
     mock_updater.new_agent_message = MagicMock(return_value="mock-message")
 
-    monkeypatch.setattr("lughus.gateway.TaskUpdater", lambda *args, **kwargs: mock_updater)
+    monkeypatch.setattr(
+        "lughus.interfaces.gateway.TaskUpdater", lambda *args, **kwargs: mock_updater
+    )
 
     event_queue = MagicMock()
 
@@ -127,7 +129,9 @@ async def test_gateway_execute_fails_without_completion(monkeypatch) -> None:
     mock_updater.complete = AsyncMock()
     mock_updater.new_agent_message = MagicMock(return_value="mock-message")
 
-    monkeypatch.setattr("lughus.gateway.TaskUpdater", lambda *args, **kwargs: mock_updater)
+    monkeypatch.setattr(
+        "lughus.interfaces.gateway.TaskUpdater", lambda *args, **kwargs: mock_updater
+    )
 
     await gateway.execute(context, MagicMock())
 
@@ -168,7 +172,9 @@ async def test_gateway_cancel_stops_running_execute(monkeypatch) -> None:
     mock_updater.cancel = AsyncMock()
     mock_updater.new_agent_message = MagicMock(return_value="mock-message")
 
-    monkeypatch.setattr("lughus.gateway.TaskUpdater", lambda *args, **kwargs: mock_updater)
+    monkeypatch.setattr(
+        "lughus.interfaces.gateway.TaskUpdater", lambda *args, **kwargs: mock_updater
+    )
 
     execute_task = asyncio.create_task(gateway.execute(context, MagicMock()))
     await asyncio.wait_for(gateway.started.wait(), timeout=1)

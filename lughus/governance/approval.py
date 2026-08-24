@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Protocol
 
-from .domain import new_id
+from ..core.domain import new_id
 
 
 class ApprovalStatus(StrEnum):

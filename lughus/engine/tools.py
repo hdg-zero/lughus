@@ -13,7 +13,7 @@ from typing import Any, cast
 
 from jsonschema import Draft202012Validator, SchemaError  # type: ignore[import-untyped]
 
-from .errors import ToolValidationError
+from ..core.errors import ToolValidationError
 
 __all__ = [
     "ConcurrencyMode",
@@ -81,22 +81,6 @@ def _deep_freeze(obj: Any) -> Any:
     if isinstance(obj, (list, tuple)):
         return tuple(_deep_freeze(item) for item in obj)
     return obj
-
-
-def _compact_schema(schema: Any) -> Any:
-    """Return a schema copy without descriptive prose.
-
-    Provider-side tool declarations are sent on every tool-capable LLM call.
-    JSON Schema metadata like ``description`` is helpful while developing but
-    can dominate prompt tokens for agents with many tools.
-    """
-    if isinstance(schema, dict):
-        return {
-            key: _compact_schema(value) for key, value in schema.items() if key != "description"
-        }
-    if isinstance(schema, list):
-        return [_compact_schema(item) for item in schema]
-    return schema  # primitives (str, int, bool, None) are already immutable
 
 
 def _validate_tool_callable(name: str, fn: Callable[..., Any], parameters_schema: dict) -> None:
@@ -290,8 +274,7 @@ class ToolRegistry:
 
         Unknown names are skipped with a WARNING log (or raise when
         *strict* is ``True``).  The returned tuple preserves the order of
-        ``names``.  Parameter schema descriptions are always stripped to
-        reduce repeated prompt tokens.
+        ``names``.
         """
         cache_key = (tuple(names), strict)
         cached = self._declarations_cache.get(cache_key)
@@ -312,7 +295,7 @@ class ToolRegistry:
                     "function": {
                         "name": td.name,
                         "description": td.description,
-                        "parameters": _compact_schema(td.parameters_schema),
+                        "parameters": td.parameters_schema,
                     },
                 }
             )

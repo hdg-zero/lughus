@@ -12,8 +12,12 @@ from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from starlette.requests import Request
 
 from lughus import Artifact, BaseSettings, CompletionEvent, ProgressEvent, build_app, serve
-from lughus.gateway import BaseGateway
-from lughus.server import BoundedInMemoryTaskStore, ProductionGuardMiddleware, _test_ui_routes
+from lughus.interfaces.gateway import BaseGateway
+from lughus.interfaces.server import (
+    BoundedInMemoryTaskStore,
+    ProductionGuardMiddleware,
+    _test_ui_routes,
+)
 
 # this module exercises code that needs the 'server' extra.
 pytestmark = pytest.mark.extra_server
@@ -157,10 +161,10 @@ async def _read_body_app(scope, receive, send) -> None:
     await send({"type": "http.response.body", "body": b"ok"})
 
 
-@patch("lughus.server.uvicorn.run")
-@patch("lughus.server.setup_telemetry")
-@patch("lughus.server.DefaultRequestHandler")
-@patch("lughus.server.A2AStarletteApplication")
+@patch("lughus.interfaces.server.uvicorn.run")
+@patch("lughus.interfaces.server.setup_telemetry")
+@patch("lughus.interfaces.server.DefaultRequestHandler")
+@patch("lughus.interfaces.server.A2AStarletteApplication")
 def test_serve_calls(
     mock_app_class,
     mock_handler_class,
@@ -446,7 +450,7 @@ async def test_test_ui_fetches_otel_trace_url() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
     otel = _test_ui_routes(_agent_card(), gateway)[2].endpoint
 
-    with patch("lughus.ui_server._fetch_otel_url") as fetch:
+    with patch("lughus.interfaces.ui_server._fetch_otel_url") as fetch:
         fetch.return_value = {
             "url": "http://localhost:16686/api/traces/abc",
             "status_code": 200,
@@ -553,7 +557,7 @@ async def test_bounded_in_memory_task_store_evicts_by_size() -> None:
 @pytest.mark.asyncio
 async def test_bounded_in_memory_task_store_expires_by_ttl(monkeypatch) -> None:
     now = 100.0
-    monkeypatch.setattr("lughus.server.time.monotonic", lambda: now)
+    monkeypatch.setattr("lughus.interfaces.server.time.monotonic", lambda: now)
     store = BoundedInMemoryTaskStore(ttl_seconds=10.0, max_tasks=None)
     task = MagicMock(id="task-ttl")
 

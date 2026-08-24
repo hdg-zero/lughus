@@ -12,16 +12,16 @@ from typing import Any
 import pytest
 
 from lughus import ToolRegistry
-from lughus.errors import (
+from lughus.core.errors import (
     SafeToolError,
     ToolExecutionError,
     ToolTimeoutError,
     ToolValidationError,
 )
+from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 from lughus.loop import ToolExecutionConfig
 from lughus.loop import _execute_tools as _raw_execute_tools
 from lughus.loop._execute import _error_payload, _success_payload
-from lughus.runtime import ExecutionRuntime, RuntimeConfig
 
 # ── helpers ──────────────────────────────────────────────────────────
 
@@ -162,7 +162,7 @@ async def test_truncated_output_has_truncation_metadata() -> None:
     assert data["ok"] is True
     assert data["truncated"] is True
     assert data["original_bytes"] == 200
-    assert data["result"] == "A" * 50
+    assert data["result"] == "A" * 50 + " [TRUNCATED]"
 
 
 @pytest.mark.asyncio

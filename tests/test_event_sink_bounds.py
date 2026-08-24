@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from lughus.domain import RunEvent
-from lughus.event_stream import InMemoryEventSink
+from lughus.core.domain import RunEvent
+from lughus.core.event_stream import InMemoryEventSink
 
 
 def event(run_id: str, sequence: int) -> RunEvent:
