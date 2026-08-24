@@ -96,8 +96,14 @@ def _extract_usage(usage: Any) -> tuple[int, int, int]:
     details = _usage_get(usage, "prompt_tokens_details", None)
     if details:
         cached += _usage_get(details, "cached_tokens", 0) or 0
-    cached += _usage_get(usage, "_cache_read_input_tokens", 0) or 0
-    cached += _usage_get(usage, "cache_read_input_tokens", 0) or 0
+    # `_cache_read_input_tokens` (leading underscore) is LiteLLM's internal
+    # alias of Anthropic's `cache_read_input_tokens`; a payload can carry BOTH,
+    # so take the max instead of summing to avoid double counting.
+    cached = max(
+        cached,
+        _usage_get(usage, "_cache_read_input_tokens", 0) or 0,
+        _usage_get(usage, "cache_read_input_tokens", 0) or 0,
+    )
     cached += _usage_get(usage, "cached_content_token_count", 0) or 0
     return prompt, completion, cached
 
