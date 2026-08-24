@@ -38,8 +38,6 @@ async def test_budget_reservation_is_atomic():
             model_calls=1,
             tool_calls=1,
             tokens=10,
-            bytes=10,
-            estimated_cost_micros=1,
             delegation_depth=1,
         )
     )

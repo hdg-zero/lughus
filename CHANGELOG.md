@@ -20,6 +20,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Optimized Tool JSON Pipeline**: Eliminated redundant serializations and UTF-8 encodings in tool execution path, replaced linear JSON truncation with $O(\log N)$ binary search, and unified exception normalization.
 - **Token Estimation Cache**: Added bounded token caching and single-pass message pruning in message history, dramatically reducing tokenizer overhead on iterative turns.
 - **Zero-Copy LLM Tool Declarations**: Eliminated recursive `copy.deepcopy` on tool declarations during LLM generation and streaming, leveraging immutable frozen schemas.
+- **O(1) Budget Ledger & Governance**: Replaced linear sums in `BudgetLedger` with $O(1)$ reserved counter tracking, and moved internal store imports to top-level.
 
 ### Removed
 - **Legacy Aliases**: Removed legacy `AgentRunner = GovernedAgentRunner` alias and cleaned backward compatibility shims.
@@ -27,6 +28,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Speculative Modules**: Removed orphaned and unconnected `lughus.persistence.resume` (`decide_resume`, `ResumeAction`, `ResumeDecision`) and `lughus.persistence.replay` (`ReplayBundle`, `RecordedCall`, `ReplayCapturePolicy`).
 - **Unused Settings**: Removed unused `max_source_chars` setting from `BaseSettings`.
 - **Dead UI Endpoints & Heavy Proxy**: Removed dead non-streaming `/ui/run` endpoint and eliminated the heavy server-side OpenTelemetry proxy (`/ui/otel/traces`, `_fetch_otel_url`, `_resolve_and_validate_otel_url`, `ui_otel.js`).
+- **Unused Budget Dimensions**: Removed unused `bytes` and `estimated_cost_micros` dimensions from `BudgetLimit` and `BudgetAmount`.
 
 ## [0.14.1] — 2026-08-24
 
