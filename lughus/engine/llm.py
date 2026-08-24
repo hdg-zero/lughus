@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import copy
 import logging
 import random
 import time
@@ -216,7 +215,7 @@ class LLM:
                 **self.params,
             }
             if tools:
-                kwargs["tools"] = copy.deepcopy(tools)
+                kwargs["tools"] = tools
             response = cast(litellm.ModelResponse, await litellm.acompletion(**kwargs))
             if not getattr(response, "choices", None):
                 raise LLMResponseError("LLM provider returned a completion without choices")
@@ -242,7 +241,7 @@ class LLM:
                 **self.params,
             }
             if tools:
-                kwargs["tools"] = copy.deepcopy(tools)
+                kwargs["tools"] = tools
             if include_usage:
                 kwargs["stream_options"] = {"include_usage": True}
             return litellm.acompletion(**kwargs)

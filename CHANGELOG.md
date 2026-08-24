@@ -19,6 +19,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Single Canonical Runner**: Promoted `GovernedAgentRunner` as the single unified agent runner with optional governance pipeline.
 - **Optimized Tool JSON Pipeline**: Eliminated redundant serializations and UTF-8 encodings in tool execution path, replaced linear JSON truncation with $O(\log N)$ binary search, and unified exception normalization.
 - **Token Estimation Cache**: Added bounded token caching and single-pass message pruning in message history, dramatically reducing tokenizer overhead on iterative turns.
+- **Zero-Copy LLM Tool Declarations**: Eliminated recursive `copy.deepcopy` on tool declarations during LLM generation and streaming, leveraging immutable frozen schemas.
 
 ### Removed
 - **Legacy Aliases**: Removed legacy `AgentRunner = GovernedAgentRunner` alias and cleaned backward compatibility shims.
