@@ -44,7 +44,7 @@ include = ["lughus*"]
 exclude = ["scratch*", "tests*", "examples*"]
 
 [tool.setuptools.package-data]
-lughus = ["ui/*.html", "ui/*.css", "ui/*.js"]
+lughus = ["ui/*.html", "ui/*.css", "ui/*.js", "ui/*.svg"]
 
 [project.optional-dependencies]
 server = [

@@ -11,6 +11,8 @@
       document.documentElement.dataset.theme = (saved === "light" || saved === "dark") ? saved : (prefersLight ? "light" : "dark");
     })();
   </script>
+  <link rel="icon" type="image/svg+xml" href="/ui/assets/logo.svg">
+  <link rel="alternate icon" href="/favicon.ico">
   <link rel="stylesheet" href="/ui/assets/console.css">
 </head>
 <body>
@@ -19,7 +21,7 @@
     <header class="app-header">
       <div class="brand">
         <div class="logo-container">
-          <img class="lughus-mark" src="/ui/assets/logo.svg" alt="Lughus Logo" width="28" height="28">
+          <img class="lughus-mark" src="/ui/assets/logo.svg" alt="Lughus Logo" width="36" height="36">
         </div>
         <div class="brand-info">
           <div class="brand-title-row"><h1>__AGENT_NAME__</h1><span class="lughus-signature">LUGHUS</span></div>
@@ -48,7 +50,7 @@
           <form id="form">
             <div class="field-group">
               <label for="objective">Objective</label>
-              <textarea id="objective" name="objective" autofocus placeholder="Enter agent objective or instructions..."></textarea>
+              <textarea id="objective" name="objective" autofocus placeholder="Enter agent objective or instructions... (Ctrl+Enter to run)"></textarea>
             </div>
             
             <div class="field-group margin-top">
@@ -105,6 +107,10 @@
           </div>
           <div id="agent-flow-steps" class="agent-flow-steps" role="list"></div>
         </section>
+
+        <div class="running-watermark" aria-hidden="true">
+          <img class="watermark-logo" src="/ui/assets/logo.svg" alt="" width="720" height="720">
+        </div>
 
         <div class="events-stream" id="events">
           <div class="empty">Execute the agent to see real-time logs and output artifacts here</div>

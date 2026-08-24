@@ -14,6 +14,7 @@ import {
   addRunToHistory,
   updateActiveRunStatus,
   appendEventToActiveRun,
+} from "/ui/assets/ui_history.js";
 import { renderAgentFlow } from "/ui/assets/ui_agent_flow.js";
 import { initTheme } from "/ui/assets/ui_theme.js";
 
@@ -139,6 +140,15 @@ document.addEventListener("DOMContentLoaded", () => {
     filesInput.addEventListener("change", () => {
       const count = filesInput.files.length;
       fileCount.textContent = `${count} file${count === 1 ? "" : "s"} attached`;
+    });
+  }
+
+  if (objective && form) {
+    objective.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        form.requestSubmit();
+      }
     });
   }
 

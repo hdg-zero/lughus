@@ -27,8 +27,11 @@ try {
 export function updateStatus(status) {
   const statusText = document.querySelector("#status");
   const statusIndicator = document.querySelector("#status-indicator");
+  const appViewport = document.querySelector(".app-viewport");
   if (statusText) statusText.textContent = status;
   if (statusIndicator) statusIndicator.className = "status-dot " + status;
+  if (appViewport) appViewport.dataset.status = status;
+  document.documentElement.dataset.agentStatus = status;
 }
 
 export function saveRuns() {
