@@ -11,13 +11,11 @@ from typing import Any
 async def run_sync_in_thread(
     call: Callable[[], Any],
     *,
-    executor: ThreadPoolExecutor,
+    executor: ThreadPoolExecutor | None = None,
     max_workers: int | None = None,
 ) -> Any:
-    """Run ``call`` on the provided executor with optional concurrency bounding."""
-    loop = asyncio.get_running_loop()
-    if max_workers and max_workers > 0:
-        sem = asyncio.Semaphore(max_workers)
-        async with sem:
-            return await loop.run_in_executor(executor, call)
-    return await loop.run_in_executor(executor, call)
+    """Run ``call`` on the provided executor or worker thread."""
+    if executor is not None:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(executor, call)
+    return await asyncio.to_thread(call)

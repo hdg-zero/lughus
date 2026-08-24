@@ -21,6 +21,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Token Estimation Cache**: Added bounded token caching and single-pass message pruning in message history, dramatically reducing tokenizer overhead on iterative turns.
 - **Zero-Copy LLM Tool Declarations**: Eliminated recursive `copy.deepcopy` on tool declarations during LLM generation and streaming, leveraging immutable frozen schemas.
 - **O(1) Budget Ledger & Governance**: Replaced linear sums in `BudgetLedger` with $O(1)$ reserved counter tracking, and moved internal store imports to top-level.
+- **Unified Agent Loop Engine**: Consolidated streaming and non-streaming loop drivers into a single canonical engine, precalculated `is_async` on `ToolDef`, and switched `ExecutionRuntime` to lazy worker threadpool initialization.
 
 ### Removed
 - **Legacy Aliases**: Removed legacy `AgentRunner = GovernedAgentRunner` alias and cleaned backward compatibility shims.

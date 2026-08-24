@@ -3,8 +3,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import contextvars
-import functools
-import inspect
 import json
 import logging
 import re
@@ -325,24 +323,6 @@ def _normalize_tool_error(
     return wrapped, type(wrapped).__name__, "exception", True
 
 
-def _unwrap_async_target(fn: Callable[..., Any]) -> Any:
-    target: Any = fn
-    while isinstance(target, functools.partial):
-        target = target.func
-    return inspect.unwrap(target)
-
-
-def _is_async_callable(fn: Callable[..., Any]) -> bool:
-    """Return True for coroutine functions, decorated async functions, and async callables."""
-    unwrapped = _unwrap_async_target(fn)
-    if inspect.iscoroutinefunction(unwrapped):
-        return True
-    if not callable(unwrapped):
-        return False
-    call = getattr(unwrapped, "__call__", None)  # noqa: B004
-    return bool(call and inspect.iscoroutinefunction(_unwrap_async_target(call)))
-
-
 def _runtime_of(cfg: ToolExecutionConfig) -> ExecutionRuntime:
     """Return the config's runtime, relying on the invariant _execute_tools enforces.
 
@@ -361,12 +341,13 @@ def _runtime_of(cfg: ToolExecutionConfig) -> ExecutionRuntime:
 
 async def _invoke_tool_callable(
     fn: Any,
+    is_async: bool,
     state: dict,
     args: dict,
     cfg: ToolExecutionConfig,
     timeout: float | None,
 ) -> Any:
-    if _is_async_callable(fn):
+    if is_async:
         call: Any = fn(state=state, **args)
     else:
         call = _runtime_of(cfg).run_sync(lambda: fn(state=state, **args))
@@ -549,17 +530,25 @@ async def _execute_tools(
                     mode = tool.concurrency
                     if mode == ConcurrencyMode.GLOBAL_EXCLUSIVE:
                         async with _runtime_of(cfg).global_exclusive_lock:
-                            output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
+                            output = await _invoke_tool_callable(
+                                fn, tool.is_async, state, args, cfg, timeout
+                            )
                     elif mode == ConcurrencyMode.SERIAL_PER_TOOL:
                         async with _runtime_of(cfg).resource_slot(name):
-                            output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
+                            output = await _invoke_tool_callable(
+                                fn, tool.is_async, state, args, cfg, timeout
+                            )
                     elif mode == ConcurrencyMode.SERIAL_PER_RESOURCE:
                         rk = f"{name}:{tool.resource_key(args)}"  # type: ignore[misc]
                         async with _runtime_of(cfg).resource_slot(rk):
-                            output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
+                            output = await _invoke_tool_callable(
+                                fn, tool.is_async, state, args, cfg, timeout
+                            )
                     else:
                         # PARALLEL_SAFE — no lock
-                        output = await _invoke_tool_callable(fn, state, args, cfg, timeout)
+                        output = await _invoke_tool_callable(
+                            fn, tool.is_async, state, args, cfg, timeout
+                        )
                 if tool.output_validator is not None:
                     validation_errors = sorted(
                         tool.output_validator.iter_errors(output),

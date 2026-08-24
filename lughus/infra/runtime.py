@@ -53,15 +53,20 @@ class ExecutionRuntime:
 
     def __init__(self, config: RuntimeConfig | None = None) -> None:
         self.config = config or RuntimeConfig()
-        self._executor = ThreadPoolExecutor(
-            max_workers=self.config.max_sync_workers,
-            thread_name_prefix="lughus-tool",
-        )
+        self._executor: ThreadPoolExecutor | None = None
         self._semaphore = asyncio.Semaphore(self.config.max_global_tools)
         self._resource_locks: dict[str, _LockEntry] = {}
         self._global_exclusive_lock = asyncio.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._closed = False
+
+    def _get_executor(self) -> ThreadPoolExecutor:
+        if self._executor is None:
+            self._executor = ThreadPoolExecutor(
+                max_workers=self.config.max_sync_workers,
+                thread_name_prefix="lughus-tool",
+            )
+        return self._executor
 
     def _bind(self) -> asyncio.AbstractEventLoop:
         if self._closed:
@@ -101,7 +106,7 @@ class ExecutionRuntime:
     async def run_sync(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
         loop = self._bind()
         context_call = partial(fn, *args, **kwargs)
-        return await loop.run_in_executor(self._executor, context_call)
+        return await loop.run_in_executor(self._get_executor(), context_call)
 
     @asynccontextmanager
     async def resource_slot(self, key: str) -> AsyncIterator[None]:
@@ -122,22 +127,15 @@ class ExecutionRuntime:
                 self._resource_locks.pop(key, None)
 
     async def close(self, *, wait: bool = True) -> None:
-        """Shut the thread pool down. Idempotent.
-
-        ``wait`` used to be ignored -- ``shutdown(wait=False)`` ran
-        whatever the caller asked, so ``await runtime.close(wait=True)`` could
-        return while synchronous tools were still executing side effects.
-
-        ``shutdown(wait=True)`` blocks, so it is offloaded to a thread: running it
-        on the event loop would stall every other task in the process.
-        """
+        """Shut the thread pool down if allocated. Idempotent."""
         if self._closed:
             return
         self._closed = True
-        if wait:
-            await asyncio.to_thread(self._executor.shutdown, True)
-        else:
-            self._executor.shutdown(wait=False, cancel_futures=True)
+        if self._executor is not None:
+            if wait:
+                await asyncio.to_thread(self._executor.shutdown, True)
+            else:
+                self._executor.shutdown(wait=False, cancel_futures=True)
 
     async def __aenter__(self) -> ExecutionRuntime:
         self._bind()
