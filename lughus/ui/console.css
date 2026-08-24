@@ -698,6 +698,42 @@ h3 {
 
 .agent-flow-empty { color: var(--text-subtle); font: italic 10px var(--mono); padding: 8px 0; }
 
+/* Expanded mode: the strip becomes a vertically scrollable, explorable panel */
+.agent-flow[data-expanded="true"] {
+  max-height: 42dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.agent-flow[data-expanded="true"] .agent-flow-steps {
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.agent-flow[data-expanded="true"] .agent-flow-step {
+  flex-basis: auto;
+}
+.flow-detail-full {
+  color: var(--text-subtle);
+  font-weight: 400;
+  white-space: normal;
+  word-break: break-word;
+}
+.agent-flow-expand {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: 600 10px var(--mono);
+  padding: 3px 10px;
+}
+.agent-flow-expand:hover { background: var(--panel-hover); color: var(--text); }
+.jump-to-latest {
+  bottom: 12px;
+  position: absolute;
+  right: 20px;
+}
+
 .console-title {
   display: flex;
   align-items: center;
