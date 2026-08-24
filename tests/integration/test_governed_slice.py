@@ -10,7 +10,8 @@ from typing import Any
 
 import pytest
 
-from lughus.agent.application import AgentRuntime, GovernedAgentRunner
+from lughus.agent.application import AgentRuntime
+from lughus.agent.runner import GovernedAgentRunner
 from lughus.core.context import ContextManager
 from lughus.core.event_stream import InMemoryEventSink
 from lughus.engine.tools import ToolRegistry

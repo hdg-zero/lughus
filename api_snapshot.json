@@ -1,9 +1,5 @@
 [
   {
-    "name": "AgentRunner",
-    "kind": "class"
-  },
-  {
     "name": "AgentRuntime",
     "kind": "dataclass"
   },
@@ -366,7 +362,7 @@
       "gateway",
       "task_store",
       "setup_otel",
-      "enable_test_ui"
+      "enable_console"
     ]
   },
   {
@@ -398,7 +394,7 @@
       "log_level",
       "task_store",
       "setup_otel",
-      "enable_test_ui"
+      "enable_console"
     ]
   },
   {

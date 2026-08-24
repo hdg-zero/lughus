@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     # Keep every lazily-exported symbol resolvable for mypy and IDEs.
     from .agent.application import AgentRuntime as AgentRuntime
-    from .agent.runner import AgentRunner as AgentRunner
     from .agent.runner import GovernedAgentRunner as GovernedAgentRunner
     from .core.artifacts import ArtifactStore as ArtifactStore
     from .core.event_stream import EventSink as EventSink
@@ -138,7 +137,6 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "ToolExecutionConfig": (".loop", None),
     "agent_loop": (".loop", None),
     "agent_loop_stream": (".loop", None),
-    "AgentRunner": (".agent.runner", None),
     "AgentRuntime": (".agent.application", None),
     "GovernedAgentRunner": (".agent.runner", None),
     # ── asyncio chain ────────────────────────────────────────────────
@@ -197,7 +195,6 @@ def __dir__() -> list[str]:
 
 __all__ = [
     "LLM",
-    "AgentRunner",
     "AgentRuntime",
     "ApprovalRequest",
     "ApprovalRequired",

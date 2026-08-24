@@ -147,13 +147,13 @@ async def test_event_sink_subscribe():
 
 @pytest.mark.asyncio
 async def test_agent_runner_run_success():
-    from lughus.agent.runner import AgentRunner
+    from lughus.agent.runner import GovernedAgentRunner
     from lughus.engine.tools import ToolRegistry
     from lughus.testing import MockLLM
 
     llm = MockLLM(["Hello from runner"])
     registry = ToolRegistry()
-    runner = AgentRunner()
+    runner = GovernedAgentRunner()
 
     res = await runner.run(llm, system=".", context="Hi", registry=registry, tool_names=[])
     assert res == "Hello from runner"
@@ -167,7 +167,7 @@ async def test_agent_runner_run_success():
 
 @pytest.mark.asyncio
 async def test_agent_runner_run_failure():
-    from lughus.agent.runner import AgentRunner
+    from lughus.agent.runner import GovernedAgentRunner
     from lughus.engine.tools import ToolRegistry
 
     class BrokenLLM:
@@ -176,7 +176,7 @@ async def test_agent_runner_run_failure():
         async def generate(self, **_):
             raise RuntimeError("LLM failure")
 
-    runner = AgentRunner()
+    runner = GovernedAgentRunner()
     registry = ToolRegistry()
     with pytest.raises(RuntimeError, match="LLM failure"):
         await runner.run(BrokenLLM(), system=".", context="Hi", registry=registry, tool_names=[])
@@ -190,13 +190,13 @@ async def test_agent_runner_run_failure():
 
 @pytest.mark.asyncio
 async def test_agent_runner_stream_success():
-    from lughus.agent.runner import AgentRunner
+    from lughus.agent.runner import GovernedAgentRunner
     from lughus.engine.tools import ToolRegistry
     from lughus.testing import MockStreamingLLM
 
     llm = MockStreamingLLM(["Hello world!"])
     registry = ToolRegistry()
-    runner = AgentRunner()
+    runner = GovernedAgentRunner()
 
     events: list[RunEvent] = []
     async for evt in runner.stream(llm, system=".", context="Hi", registry=registry, tool_names=[]):
@@ -211,7 +211,7 @@ async def test_agent_runner_stream_success():
 
 @pytest.mark.asyncio
 async def test_agent_runner_stream_failure():
-    from lughus.agent.runner import AgentRunner
+    from lughus.agent.runner import GovernedAgentRunner
     from lughus.engine.tools import ToolRegistry
 
     class BrokenStreamingLLM:
@@ -220,7 +220,7 @@ async def test_agent_runner_stream_failure():
         async def astream(self, **_):
             raise RuntimeError("Stream error")
 
-    runner = AgentRunner()
+    runner = GovernedAgentRunner()
     registry = ToolRegistry()
     events: list[RunEvent] = []
 

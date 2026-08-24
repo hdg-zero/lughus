@@ -1,7 +1,7 @@
 """Tests for the unified GovernedAgentRunner with optional governance.
 
-Verifies that a single runner class handles both ungoverned (legacy AgentRunner)
-and governed execution paths, and that the backward-compatible alias works.
+Verifies that a single runner class handles both ungoverned
+and governed execution paths.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from lughus.agent.application import AgentRuntime
-from lughus.agent.runner import AgentRunner, GovernedAgentRunner
+from lughus.agent.runner import GovernedAgentRunner
 from lughus.core.context import ContextManager
 from lughus.core.domain import RunEvent
 from lughus.core.event_stream import InMemoryEventSink
@@ -23,21 +23,6 @@ from lughus.governance.policy import AllowAllPolicy, Principal
 from lughus.infra.runtime import ExecutionRuntime
 from lughus.persistence import InMemoryRunStore
 from lughus.testing import MockLLM
-
-# ── Identity: AgentRunner is GovernedAgentRunner ─────────────────────
-
-
-def test_agent_runner_is_governed_agent_runner():
-    """The backward-compat alias points to the same class."""
-    assert AgentRunner is GovernedAgentRunner
-
-
-def test_top_level_imports_resolve_to_same_class():
-    """Both names are importable from the top-level package."""
-    import lughus
-
-    assert lughus.AgentRunner is lughus.GovernedAgentRunner
-
 
 # ── Ungoverned path (no runtime) ────────────────────────────────────
 
