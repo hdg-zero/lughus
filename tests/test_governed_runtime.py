@@ -145,7 +145,9 @@ async def test_event_stream_global_cursor():
 
 @pytest.mark.asyncio
 async def test_governed_runtime_060_e2e_gate():
-    """Gate 0.6.0: proposal -> approval -> claim -> execute -> receipt -> checkpoint."""
+    """Governance pipeline order:
+    proposal -> approval -> claim -> execute -> receipt -> checkpoint.
+    """
     execution = ExecutionRuntime()
     policy = LeastPrivilegePolicy()
     approvals = InMemoryApprovalStore()
