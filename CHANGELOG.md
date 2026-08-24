@@ -12,6 +12,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Official Visual Identity**: Introduced new official SVG vector logo (`docs/logo.svg` and `lughus/ui/logo.svg`).
 - **Dynamic UI Asset Resolution**: Embedded SVG asset delivery with automatic MIME type mapping (`.svg`, `.css`, `.js`, `.html`, `.json`) in `ui_server`.
 - **System Theme Synchronization**: Added live `prefers-color-scheme` OS theme listener in Developer Console with local storage persistence.
+- **Developer Console Running Watermark**: Added prominent animated SVG background logo with glowing light reflection and shimmering aura when agent status is running or streaming (without scaling distortion).
+- **Favicon Resolution**: Added explicit `<link rel="icon">` tags in `console.html` and dedicated ASGI `/favicon.ico` route serving `logo.svg`.
+- **Keyboard Shortcut**: Added `Ctrl+Enter` / `Cmd+Enter` keyboard shortcut on the objective textarea for instantaneous agent execution.
+- **Sandboxed Code Interpreter Tool**: Added `lughus.engine.interpreter` with `register_code_interpreter()` — executes agent-generated Python in an isolated subprocess (`python -I`) with per-call temp workspace, output truncation, and graceful timeout handling.
+- **Interactive Human Approval Cards**: Approval-required stream events now carry `request_id`/`tool_name` and render as amber cards with Approve/Reject buttons posting to the new `/ui/approvals/{request_id}` decision endpoint (GET for polling) backed by the gateway's `ApprovalStore`.
+- **Scrollable Agent Path**: The Expand toggle turns the agent path into a vertically scrollable panel with wrapping step details; auto-follow pauses when the operator scrolls up, with a floating "Latest" jump button.
 
 ### Changed
 - **Modernized Developer Console**: Replaced `test_ui` with unified `console` naming (`enable_console`, `ENABLE_CONSOLE`, `console.html/css/js`), native system typography, anti-FOUC inline theme execution, and transparent vector logo embedding.
@@ -19,9 +25,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Single Canonical Runner**: Promoted `GovernedAgentRunner` as the single unified agent runner with optional governance pipeline.
 - **Optimized Tool JSON Pipeline**: Eliminated redundant serializations and UTF-8 encodings in tool execution path, replaced linear JSON truncation with $O(\log N)$ binary search, and unified exception normalization.
 - **Token Estimation Cache**: Added bounded token caching and single-pass message pruning in message history, dramatically reducing tokenizer overhead on iterative turns.
-- **Zero-Copy LLM Tool Declarations**: Eliminated recursive `copy.deepcopy` on tool declarations during LLM generation and streaming, leveraging immutable frozen schemas.
+- **Zero-Copy LLM Tool Declarations**: Preserved immutable frozen schemas in `ToolRegistry` while safely converting payload copies for LiteLLM adapters that mutate tool schemas in-place.
 - **O(1) Budget Ledger & Governance**: Replaced linear sums in `BudgetLedger` with $O(1)$ reserved counter tracking, and moved internal store imports to top-level.
 - **Unified Agent Loop Engine**: Consolidated streaming and non-streaming loop drivers into a single canonical engine, precalculated `is_async` on `ToolDef`, and switched `ExecutionRuntime` to lazy worker threadpool initialization.
+
+### Fixed
+- **LiteLLM In-Place Tool Schema Mutation**: Fixed `TypeError: FrozenDict does not support item deletion` caused by LiteLLM provider adapters (e.g. Gemini/Vertex `_remove_additional_properties`) modifying tool schemas in-place.
+- **Developer Console Module Syntax Error**: Fixed unclosed import statement in `console.js`, restoring light/dark theme switching and form submission.
+- **Uvicorn Startup Log Formatting**: Enforced integer casting on `port` in `serve()` and added `_UvicornDefaultFormatter` to avoid literal `%s://%s:%d` format string output in Uvicorn logs.
+- **Uvicorn Startup Banner (record-level)**: Added `_UvicornStartupArgsFilter`, installed at import time on the uvicorn loggers, coercing `(protocol, host, port)` log args at the record level — `logging.Formatter.format()` calls `getMessage()` *before* `formatMessage()`, so a str port previously still leaked the raw `%s://%s:%d` template even with the custom formatter.
+- **Provider Token Accounting**: `_extract_usage()` now normalizes Anthropic (`input_tokens`/`output_tokens`/`cache_read_input_tokens`) and Gemini (`prompt_token_count`/`candidates_token_count`/`cached_content_token_count`) usage payloads surfaced by LiteLLM; previously only OpenAI-style fields were read, yielding `prompt=0 completion=0 cached=0`. LiteLLM cache-read aliases are max-merged instead of summed to prevent double counting.
+- **Package Data Configuration**: Included `"ui/*.svg"` in `[tool.setuptools.package-data]` in `pyproject.toml`.
 
 ### Removed
 - **Legacy Aliases**: Removed legacy `AgentRunner = GovernedAgentRunner` alias and cleaned backward compatibility shims.
