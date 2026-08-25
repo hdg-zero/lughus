@@ -43,41 +43,137 @@ export function parseMarkdown(text) {
   if (!text) return "";
   let html = escapeHtml(text);
 
-  // Fenced code blocks with placeholder extraction
+  // 1. Extract Fenced Code Blocks
   const codeBlocks = [];
-  html = html.replace(/```([a-z0-9_-]*)\n([\s\S]*?)```/g, (_match, _lang, code) => {
-    const placeholder = `___CODE_BLOCK_${codeBlocks.length}___`;
-    codeBlocks.push(`<pre class="md-code-block"><code>${code.trim()}</code></pre>`);
+  html = html.replace(/(?:^|\n)```([a-zA-Z0-9_-]*)[ \t]*\n([\s\S]*?)\n```[ \t]*(?:\n|$)/g, (_match, lang, code) => {
+    const placeholder = `\n@@@MDCODEBLOCK${codeBlocks.length}@@@\n`;
+    const langAttr = lang ? ` data-lang="${escapeHtml(lang)}"` : "";
+    codeBlocks.push(`<pre class="md-code-block"><code${langAttr}>${code}</code></pre>`);
     return placeholder;
   });
 
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>');
+  // 2. Extract Tables (GFM) with alignment support
+  const tables = [];
+  html = html.replace(
+    /(?:^|\n)((?:[^\n|]*\|[^\n]*\n)[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)+\|?[ \t]*\n(?:[^\n|]*\|[^\n]*\n?)*)/g,
+    (match, block) => {
+      const rows = block.trim().split("\n");
+      if (rows.length < 2) return match;
+      const splitRow = (row) =>
+        row.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
 
-  // Headers
-  html = html.replace(/^### (.*$)/gim, '<h4 class="md-h3">$1</h4>');
-  html = html.replace(/^## (.*$)/gim, '<h3 class="md-h2">$1</h3>');
-  html = html.replace(/^# (.*$)/gim, '<h2 class="md-h1">$1</h2>');
+      const alignSpecs = splitRow(rows[1]).map((cell) => {
+        const left = cell.startsWith(":");
+        const right = cell.endsWith(":");
+        if (left && right) return ' style="text-align: center;"';
+        if (right) return ' style="text-align: right;"';
+        if (left) return ' style="text-align: left;"';
+        return "";
+      });
 
-  // Bold & Italic
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      const headerCells = splitRow(rows[0]);
+      const thead = `<tr>${headerCells.map((c, i) => `<th${alignSpecs[i] || ""}>${inlineMarkdown(c)}</th>`).join("")}</tr>`;
 
-  // Unordered Lists
-  html = html.replace(/^\s*[-*]\s+(.*$)/gim, '<li class="md-li">$1</li>');
+      const bodyRows = rows.slice(2).map(splitRow);
+      const tbody = bodyRows
+        .map((cells) => `<tr>${cells.map((c, i) => `<td${alignSpecs[i] || ""}>${inlineMarkdown(c)}</td>`).join("")}</tr>`)
+        .join("");
 
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>');
+      const placeholder = `\n@@@MDTABLE${tables.length}@@@\n`;
+      tables.push(
+        `<div class="md-table-wrap"><table class="md-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`
+      );
+      return placeholder;
+    }
+  );
 
-  // Line breaks
-  html = html.replace(/\n/g, '<br>');
-
-  // Restore code blocks without corrupting them with <br>
-  codeBlocks.forEach((block, index) => {
-    html = html.replace(`___CODE_BLOCK_${index}___`, block);
+  // 3. Extract Blockquotes & GitHub-style Alerts
+  const blockquotes = [];
+  html = html.replace(/(?:^|\n)((?:>[^\n]*\n?)+)/g, (_match, block) => {
+    const lines = block.split("\n").map((l) => l.replace(/^>\s?/, ""));
+    const rawContent = lines.join("\n").trim();
+    const alertMatch = rawContent.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*\n?([\s\S]*)$/i);
+    const placeholder = `\n@@@MDQUOTE${blockquotes.length}@@@\n`;
+    if (alertMatch) {
+      const type = alertMatch[1].toLowerCase();
+      const body = inlineMarkdown(alertMatch[2].trim());
+      blockquotes.push(
+        `<div class="md-alert md-alert-${type}"><div class="md-alert-title">${alertMatch[1].toUpperCase()}</div><div>${body}</div></div>`
+      );
+    } else {
+      blockquotes.push(`<blockquote class="md-quote">${inlineMarkdown(rawContent)}</blockquote>`);
+    }
+    return placeholder;
   });
 
-  return html;
+  function inlineMarkdown(s) {
+    return s
+      .replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+      .replace(/(?:^|\W)_([^_]+)_(?:\W|$)/g, " <em>$1</em> ")
+      .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+      .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>');
+  }
+
+  // 4. Horizontal rules (---, ***, ___)
+  html = html.replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gim, '<hr class="md-hr">');
+
+  // 5. Headers (h1-h6)
+  html = html.replace(/^#{1,6}\s+(.*$)/gim, (match, content) => {
+    const level = match.trim().split(/\s+/)[0].length;
+    const tagLevel = Math.min(level + 1, 6);
+    const cls = `md-h${level <= 3 ? level : 4}`;
+    return `<h${tagLevel} class="${cls}">${inlineMarkdown(content)}</h${tagLevel}>`;
+  });
+
+  // 6. Lists (unordered, ordered, task lists)
+  html = html.replace(/^\s*([-*]|\d+\.)\s+\[([ xX])\]\s+(.*$)/gim, (_m, _bullet, check, content) => {
+    const checked = check.toLowerCase() === "x" ? " checked" : "";
+    return `<li class="md-li md-task"><input type="checkbox" disabled${checked}> ${inlineMarkdown(content)}</li>`;
+  });
+  html = html.replace(/^\s*[-*]\s+(.*$)/gim, (_m, content) => `<li class="md-li">${inlineMarkdown(content)}</li>`);
+  html = html.replace(/^\s*(\d+)\.\s+(.*$)/gim, (_m, _num, content) => `<li class="md-li md-ol-item">${inlineMarkdown(content)}</li>`);
+
+  // Wrap consecutive <li> in <ul> / <ol>
+  html = html.replace(/(<li class="md-li(?: md-ol-item| md-task)?">[\s\S]*?<\/li>(?:\n|$))+/g, (match) => {
+    if (match.includes("md-ol-item")) {
+      return `<ol class="md-ol">\n${match.trim()}\n</ol>\n`;
+    }
+    return `<ul class="md-ul">\n${match.trim()}\n</ul>\n`;
+  });
+
+  // 7. Inline formatting
+  html = inlineMarkdown(html);
+
+  // 8. Line breaks & spacing
+  const BLOCK_RE = /^\s*(<(h[1-6]|hr|ul|ol|li|blockquote|div)\b|<\/|@@@MD(CODEBLOCK|TABLE|QUOTE)\d+@@@\s*$)/;
+  const outLines = [];
+  const rawLines = html.split("\n");
+  for (const line of rawLines) {
+    if (BLOCK_RE.test(line) || /^@@@MD/.test(line.trim()) || line.trim() === "") {
+      outLines.push(line);
+    } else {
+      outLines.push(line + "<br>");
+    }
+  }
+  html = outLines.join("\n");
+
+  // 9. Restore placeholders
+  codeBlocks.forEach((block, index) => {
+    html = html.replace(`@@@MDCODEBLOCK${index}@@@`, block);
+  });
+  tables.forEach((table, index) => {
+    html = html.replace(`@@@MDTABLE${index}@@@`, table);
+  });
+  blockquotes.forEach((quote, index) => {
+    html = html.replace(`@@@MDQUOTE${index}@@@`, quote);
+  });
+
+  // Clean redundant linebreaks
+  html = html.replace(/(<br>\s*){3,}/g, "<br><br>");
+  return html.trim();
 }
 
 export function formatJSONString(str) {
