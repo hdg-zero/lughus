@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # ADR-010: Core Import Surface and Dependency Isolation
 
 - **Status:** Accepted

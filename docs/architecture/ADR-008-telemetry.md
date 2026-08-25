@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # ADR-008: Telemetry Ownership
 
 ## Context
@@ -23,3 +25,7 @@ The telemetry module gracefully degrades. If OTel SDKs are not present or not co
 
 ## Security
 By omitting prompt texts and tool arguments from telemetry by default, we eliminate a major vector for PII and credential leakage in centralized logging systems.
+
+---
+
+**Related:** [Production Guide — Telemetry](../guides/production.md) · [Server API](../api/server.md)

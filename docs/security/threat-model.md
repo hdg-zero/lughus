@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Threat model
 
 User objectives, uploaded files, model output, tool output, MCP servers and remote agents are

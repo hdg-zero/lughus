@@ -4,6 +4,8 @@ title: Lughus Overview
 description: High-level introduction to the lughus micro-framework for building A2A agents.
 ---
 
+> [← Documentation index](index.md)
+
 # Lughus Overview
 
 `lughus` is a lightweight micro-framework designed to build **Agent-to-Agent (A2A)** agents using [LiteLLM](https://github.com/BerriAI/litellm). It provides:
@@ -76,3 +78,7 @@ flowchart TD
   - [ADR-005 — Tool Capabilities and Policy Engine](architecture/ADR-005-tool-policy.md)
   - [ADR-006 — Persistence and Safe Resumption](architecture/ADR-006-persistence.md)
 
+
+---
+
+**Next steps:** [Guarantees](guarantees.md) · [Gateway API](api/gateway.md) · [Loop API](api/loop.md) · [Tool Registry](api/tools.md) · [Server API](api/server.md)

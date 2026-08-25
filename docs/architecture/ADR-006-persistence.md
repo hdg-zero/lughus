@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # ADR-006: Persistence and safe resumption
 
 Status: accepted

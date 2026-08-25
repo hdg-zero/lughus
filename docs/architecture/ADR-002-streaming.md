@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # ADR-002: Streaming and retries
 
 Status: accepted

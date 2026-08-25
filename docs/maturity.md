@@ -1,3 +1,5 @@
+> [← Documentation index](index.md)
+
 # Capability Maturity Matrix
 
 | Capability | Implemented | Integrated | Enforced by AgentRuntime | Production dependency |

@@ -4,6 +4,8 @@ title: Gateway API
 description: API reference for BaseGateway, RequestContext, EventQueue, ProgressEvent, CompletionEvent, and Artifact.
 ---
 
+> [← Documentation index](../index.md)
+
 # Gateway API
 
 The `gateway` module handles interfacing with the A2A request-response lifecycle.
@@ -126,3 +128,7 @@ class Artifact:
         self.mime_type = mime_type
         self.name = name
 ```
+
+---
+
+**Related:** [Server API](server.md) · [Loop API](loop.md) · [A2A Delegation](../integrations/a2a-delegation.md) · [Domain API](domain.md)

@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Budget system
 
 ## Dimensions
@@ -63,3 +65,7 @@ spend without effective cap.
 outstanding (unsettled, unreleased) reservations as a mapping of
 reservation id to `BudgetAmount`.  `snapshot()` returns consumed totals
 per dimension.  Use both for monitoring and debugging.
+
+---
+
+**Related:** [Budgets Contract](../contracts/budgets.md) · [Reliability Guide](reliability.md)

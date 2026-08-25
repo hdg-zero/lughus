@@ -4,6 +4,8 @@ title: Domain Models API
 description: API reference for lughus.core.domain domain records.
 ---
 
+> [← Documentation index](../index.md)
+
 # Domain Models API
 
 The `lughus.core.domain` module defines immutable, versioned domain models for observable agent execution.
@@ -97,3 +99,7 @@ class Run:
 ```
 
 Top-level execution run record.
+
+---
+
+**Related:** [Events Contract](../contracts/events.md) · [Runtime API](runtime.md)

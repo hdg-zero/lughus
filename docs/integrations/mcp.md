@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # MCP Integration Guide
 
 The Model Context Protocol (MCP) allows Lughus agents to dynamically interact with external, standardized tool servers. Our integration is designed to be policy-ready and secure by default.
@@ -75,3 +77,7 @@ adapter = MCPAdapter(MockClient(), config)
 # In application startup, you would refresh the adapter:
 # await adapter.refresh()
 ```
+
+---
+
+**Related:** [Tools API](../api/tools.md) · [Security: Threat Model](../security/threat-model.md)

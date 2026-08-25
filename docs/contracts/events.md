@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Run Event Contract
 
 > **Contract stability:** This specification is stable. Future changes follow standard SemVer policy (ADR-001).
@@ -52,3 +54,7 @@ crossing an API boundary.
 | `tool.executed` | AUDIT | Tool execution result |
 | `context.compacted` | INTERNAL | Context window compaction |
 | `budget.updated` | INTERNAL | Budget reservation/settlement |
+
+---
+
+**Related:** [Domain API](../api/domain.md) · [ADR-004 — Run Event Journal](../architecture/ADR-004-run-event.md)

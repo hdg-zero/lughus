@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Releasing Lughus
 
 ## Automated pipeline

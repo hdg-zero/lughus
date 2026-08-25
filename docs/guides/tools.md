@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Tool Concurrency Modes
 
 Lughus tools declare a `ConcurrencyMode` that controls how the runtime schedules concurrent invocations.
@@ -39,3 +41,7 @@ registry = ToolRegistry()
 async def update_record(*, record_id: str, value: str, state) -> str:
     ...
 ```
+
+---
+
+**Related:** [Tools API](../api/tools.md) · [Tools Contract](../contracts/tools.md)

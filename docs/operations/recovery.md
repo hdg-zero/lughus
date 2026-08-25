@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Execution Recovery Guide
 
 Lughus agents are designed to survive interruptions and network failures. The framework's contracts — checkpoints, idempotency receipts, and approval records — are designed so that a durable backend can resume runs predictably. The bundled in-memory implementations are compliance references and are explicitly not durable (see `docs/architecture/ADR-006-persistence.md`).
@@ -22,3 +24,7 @@ To unblock a run whose checkpoint has `outcome_unknown` set:
 4. The run is re-queued and resumes normally as if it had received the result natively.
 
 Application developers own this workflow: lughus enforces the halt but does not automate external-state verification.
+
+---
+
+**Related:** [ADR-006 — Persistence](../architecture/ADR-006-persistence.md) · [Scaling](scaling.md)

@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Scaling Guide
 
 Lughus is built as a lightweight framework. Moving from a local development environment to a multi-replica production deployment requires understanding the underlying persistence and concurrency guarantees.
@@ -19,3 +21,7 @@ Lughus does not implement distributed locking natively. The included `InMemoryRu
 ## Current Limitations
 - There is currently no native framework support for rebalancing active runs if a worker node dies unexpectedly. This relies on the surrounding infrastructure (like Kubernetes) and the polling/resume logic.
 - Long-polling subscriptions over the event stream currently require sticky sessions or an external pub/sub mechanism like Redis Streams to broadcast events across replicas.
+
+---
+
+**Related:** [Recovery](recovery.md) · [Production Guide](../guides/production.md)

@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # LLM Configuration
 
 ## Generation Parameters

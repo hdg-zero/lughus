@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Evaluations Guide
 
 Testing non-deterministic A2A agents presents a unique challenge. Lughus separates testing into two distinct phases: deterministic offline tests with mock transports, and probabilistic evaluation of scenario constraints.

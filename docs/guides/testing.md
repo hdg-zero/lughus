@@ -4,6 +4,8 @@ title: Testing Guide
 description: Best practices and instructions on how to test lughus agents offline using the testing module.
 ---
 
+> [← Documentation index](../index.md)
+
 # Testing Guide
 
 `lughus` comes with a public, opt-in testing utilities module `lughus.testing` to help agent authors build fast, deterministic unit tests without network dependency or LLM API usage.
@@ -197,3 +199,7 @@ assert not await entry_alive(store, key)
 The key constraint: **the test never supplies an explicit timestamp**.  If the
 test has to pass `created_at=clock.now` to make expiry work, the store is not
 stamping from its own clock and R12 is violated.
+
+---
+
+**Related:** [Evaluations Guide](evaluations.md) · [Loop API](../api/loop.md)

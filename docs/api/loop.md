@@ -4,6 +4,8 @@ title: Loop Module API
 description: API reference for agent_loop and agent_loop_stream functions.
 ---
 
+> [← Documentation index](../index.md)
+
 # Loop Module API
 
 The `loop` module contains the orchestrator functions that run the LLM tool-calling cycle.
@@ -175,3 +177,41 @@ class ToolExecutionConfig:
 *   `artifact_projection` / `artifact_projection_threshold`: When enabled, oversized tool outputs are stored whole in an `ArtifactStore` and replaced by a summary plus a `fetch_artifact` reference instead of being truncated.
 
 Tool errors are returned as structured JSON containing `error` and `error_type`. Loop iteration exhaustion raises `LoopLimitError`, which is both a `LughusError` and a `RuntimeError`.
+
+---
+
+## A2A exchange events
+
+When a tool delegates to a remote A2A agent, it can emit console events describing the exact exchange. Both functions are exported from `lughus` (and `lughus.loop`) and write to the same sink as `collect_tool_events`, so they surface automatically in the developer console and in A2A working-status streams.
+
+```python
+from lughus import emit_a2a_request, emit_a2a_response
+
+emit_a2a_request(
+    target_agent="research_agent",
+    url="http://localhost:9001",
+    method="message/send",          # default
+    objective="Survey recent RAG papers",
+    files=[(raw_bytes, mime, name)],  # optional attached files
+)
+
+emit_a2a_response(
+    target_agent="research_agent",
+    url="http://localhost:9001",
+    status="ok",                    # or "error"
+    text="<full response text>",
+    artifacts=[(data_bytes, mime, name)],  # base64-encoded for UI downloads
+    remote_task_id="task_42",
+    error_code=None,                # e.g. "DELEGATION_TIMEOUT"
+    elapsed_ms=1234.5,
+)
+```
+
+Event payloads seen by consumers:
+
+- `a2a_request`: `type`, `tool_name`, `target_agent`, `url`, `method`, `objective`, `file_count`, `files` (name/mime/size per file).
+- `a2a_response`: `type`, `tool_name`, `target_agent`, `url`, `status`, `text`, `artifacts` (`name` / `mime_type` / `data_base64`), `remote_task_id`, `error_code`, `elapsed_ms`.
+
+The developer console renders these as dedicated cards (request: purple, response: cyan) with downloadable artifact links and an "A2A" filter button; see [Server API](server.md). For a complete delegation example see [A2A Delegation](../integrations/a2a-delegation.md).
+
+**Related:** [Server API](server.md) · [A2A Delegation](../integrations/a2a-delegation.md)

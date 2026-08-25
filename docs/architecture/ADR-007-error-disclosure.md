@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # ADR-007: Error Disclosure Policy
 
 ## Context

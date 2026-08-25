@@ -4,6 +4,8 @@ title: Retry Budget & Reliability
 description: How lughus retries transient LLM errors and how to tune the retry budget.
 ---
 
+> [← Documentation index](../index.md)
+
 # Retry Budget & Reliability
 
 Lughus retries transient LLM errors (rate limits, connection failures, timeouts)
@@ -133,3 +135,7 @@ be attempted exactly once. This is recommended for:
 - Unit tests (combine with `LLM_RETRY_BASE_DELAY=0.0`)
 - Debugging (to surface errors immediately)
 - Environments where the caller manages retries externally
+
+---
+
+**Related:** [Budgets Guide](budget.md) · [Operations: Recovery](../operations/recovery.md) · [ADR-013 — Runtime Ownership](../architecture/ADR-013-runtime-ownership.md)

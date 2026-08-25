@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # ADR-001: Compatibility and Release Policy
 
 Status: accepted

@@ -4,6 +4,8 @@ title: Production Deployment Guide
 description: Checklist and best practices for running lughus agents in production.
 ---
 
+> [← Documentation index](../index.md)
+
 # Production Deployment Guide
 
 Before deploying your `lughus` agent to a production environment, ensure you review the following checklist to maintain reliability, observability, and efficient resource limits.
@@ -95,12 +97,20 @@ By default, `build_app()` / `serve()` initialize the A2A app with `BoundedInMemo
 ## 6. Telemetry & Monitoring
 
 Lughus exports standard traces and metrics using OpenTelemetry.
-*   **Collector Endpoint**: Set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. `http://otel-collector:4317`) to route telemetry data.
+*   **Collector Endpoint**: Set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. `http://otel-collector:4317`) to route telemetry data over OTLP gRPC. The SDK dependency comes with the `otel` extra (`pip install 'lughus[otel]'`).
 *   **Console Exporter**: Set `LUGHUS_TELEMETRY_CONSOLE=true` to view telemetry outputs in console logs. It is disabled by default to keep logs clean in production.
-*   **Traces**: View trace graphs of the core loop and individual tool call execution steps.
+*   **No-op by default**: With neither variable set, the OTel API returns no-op tracers and meters at near-zero cost — safe to leave enabled in every environment.
+*   **Opt-out**: Pass `setup_otel=False` to `build_app()` / `serve()` when your parent application already configures its own OTel providers.
+*   **Traces**: `a2a.request` (gateway entry, artifact counts) → `agent_loop` (iterations, duration) → `llm.generate` (per call, `gen_ai.*` token attributes) → one span per tool execution (`tool.<name>`). Errors are recorded on spans with their status code.
 *   **Key Observability Metrics**:
     *   `lughus.tool.errors` (Counter): Monitor spikes in this counter to detect failing tools.
     *   `lughus.loop.duration` (Histogram): Monitor P95 or P99 latency of the agentic loop.
+    *   `lughus.loop.tokens` (Counter): Prompt/completion/cached tokens per model, including provider cache-read visibility (`lughus.loop.cache_read_tokens`, `lughus.loop.cache_creation_tokens`).
+    *   `lughus.context.pruned_groups` (Counter): Context-window pruning pressure.
+
+For a self-contained walkthrough (Jaeger UI via docker-compose), see the `examples/otel_agent/` example.
+
+**Related:** [Server API](../api/server.md) · [ADR-008 — Telemetry](../architecture/ADR-008-telemetry.md) · [Guarantees](../guarantees.md)
 
 ## 7. High-Volume Scalability & File Offloading
 
