@@ -148,10 +148,9 @@ class InMemoryIdempotencyStore:
             _evictions.add(1, {"lughus.reason": "expired"})
 
         while len(self._store) >= self._max_entries:
-            oldest = min(
+            oldest = next(
                 (k for k, v in self._store.items() if v.status != AttemptStatus.PENDING),
-                key=lambda k: self._store[k].created_at,
-                default=None,
+                None,
             )
             if oldest is None:
                 raise IdempotencyCapacityError(
