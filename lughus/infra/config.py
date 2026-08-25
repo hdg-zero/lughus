@@ -49,6 +49,18 @@ def _ensure_dotenv() -> None:
                                 os.environ[k] = v
 
 
+def _getenv(key: str, default: str = "") -> str:
+    """os.getenv, but guarantees the .env file is loaded first.
+
+    Every BaseSettings field factory must go through this helper. Plain
+    ``os.getenv`` in a field factory silently misses the .env values when
+    that field is the *first* one dataclass instantiates — the dotenv load
+    only happened as a side effect of later ``_env_*`` helpers.
+    """
+    _ensure_dotenv()
+    return os.getenv(key, default)
+
+
 def _env_int(key: str, default: int) -> int:
     _ensure_dotenv()
     value = os.getenv(key)
@@ -96,17 +108,17 @@ class BaseSettings:
     If unset, the agent will fail at startup with a clear ``ValueError``.
     """
 
-    model: str = field(default_factory=lambda: os.getenv("AGENT_MODEL", ""))
+    model: str = field(default_factory=lambda: _getenv("AGENT_MODEL"))
     max_output_tokens: int = field(default_factory=lambda: _env_int("MAX_OUTPUT_TOKENS", 16384))
 
-    host: str = field(default_factory=lambda: os.getenv("HOST", "0.0.0.0"))
+    host: str = field(default_factory=lambda: _getenv("HOST", "0.0.0.0"))
     port: int = field(default_factory=lambda: _env_int("PORT", 8080))
-    public_url: str = field(default_factory=lambda: os.getenv("PUBLIC_URL", ""))
-    log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
-    environment: str = field(default_factory=lambda: os.getenv("LUGHUS_ENV", "development"))
+    public_url: str = field(default_factory=lambda: _getenv("PUBLIC_URL"))
+    log_level: str = field(default_factory=lambda: _getenv("LOG_LEVEL", "INFO"))
+    environment: str = field(default_factory=lambda: _getenv("LUGHUS_ENV", "development"))
     enable_console: bool = field(default_factory=lambda: _env_bool("ENABLE_CONSOLE", False))
-    api_bearer_token: str = field(default_factory=lambda: os.getenv("API_BEARER_TOKEN", ""))
-    cors_origins: str = field(default_factory=lambda: os.getenv("CORS_ORIGINS", ""))
+    api_bearer_token: str = field(default_factory=lambda: _getenv("API_BEARER_TOKEN"))
+    cors_origins: str = field(default_factory=lambda: _getenv("CORS_ORIGINS"))
 
     max_file_bytes: int = field(
         default_factory=lambda: _env_int("MAX_FILE_BYTES", 25 * 1024 * 1024)
