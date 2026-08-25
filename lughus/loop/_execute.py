@@ -421,22 +421,34 @@ async def _execute_tools(
         _emit_tool_event(
             {"type": "tool_start", "tool_call_id": tc_id, "tool_name": name, "arguments": raw_args}
         )
+
+        def _emit_result(
+            status_val: str,
+            out_val: str,
+            *,
+            err_type: str | None = None,
+            idem_hit: bool = False,
+        ) -> tuple[str, str]:
+            event: dict[str, Any] = {
+                "type": "tool_result",
+                "tool_call_id": tc_id,
+                "tool_name": name,
+                "status": status_val,
+                "output": out_val,
+                "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
+            }
+            if err_type:
+                event["error_type"] = err_type
+            if idem_hit:
+                event["idempotent_hit"] = True
+            _emit_tool_event(event)
+            return tc_id, out_val
+
         tool = registry.get_tool(name)
         if tool is None:
             unknown_exc = ToolValidationError(f"Unknown tool: {name}")
             output = _error_payload(unknown_exc)
-            _emit_tool_event(
-                {
-                    "type": "tool_result",
-                    "tool_call_id": tc_id,
-                    "tool_name": name,
-                    "status": "error",
-                    "error_type": type(unknown_exc).__name__,
-                    "output": output,
-                    "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
-                }
-            )
-            return tc_id, output
+            return _emit_result("error", output, err_type=type(unknown_exc).__name__)
 
         fn = tool.fn
         with tracer.start_as_current_span(f"tool.{name}") as span:
@@ -482,18 +494,7 @@ async def _execute_tools(
                         output = existing_completed.result or ""
                         span.set_attribute("lughus.tool.idempotent_hit", True)
                         span.set_status(StatusCode.OK)
-                        _emit_tool_event(
-                            {
-                                "type": "tool_result",
-                                "tool_call_id": tc_id,
-                                "tool_name": name,
-                                "status": "ok",
-                                "output": output,
-                                "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
-                                "idempotent_hit": True,
-                            }
-                        )
-                        return tc_id, output
+                        return _emit_result("ok", output, idem_hit=True)
 
                 # ── Step 3: Approval (check/create, WITHOUT consuming)
                 approval_to_consume: ApprovalRequest | None = None
@@ -529,18 +530,7 @@ async def _execute_tools(
                         output = existing.result or ""
                         span.set_attribute("lughus.tool.idempotent_hit", True)
                         span.set_status(StatusCode.OK)
-                        _emit_tool_event(
-                            {
-                                "type": "tool_result",
-                                "tool_call_id": tc_id,
-                                "tool_name": name,
-                                "status": "ok",
-                                "output": output,
-                                "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
-                                "idempotent_hit": True,
-                            }
-                        )
-                        return tc_id, output
+                        return _emit_result("ok", output, idem_hit=True)
                     if existing is not None:
                         raise ToolExecutionError("An idempotent execution is already in progress")
 
@@ -554,25 +544,19 @@ async def _execute_tools(
                     if approval_to_consume is not None and cfg.approval_store is not None:
                         await cfg.approval_store.consume(approval_to_consume.request_id)
                     # ── Step 8: Dispatch ────────────────────────────
+                    lock_ctx: Any
                     mode = tool.concurrency
                     if mode == ConcurrencyMode.GLOBAL_EXCLUSIVE:
-                        async with _runtime_of(cfg).global_exclusive_lock:
-                            output = await _invoke_tool_callable(
-                                fn, tool.is_async, state, args, cfg, timeout
-                            )
+                        lock_ctx = _runtime_of(cfg).global_exclusive_lock
                     elif mode == ConcurrencyMode.SERIAL_PER_TOOL:
-                        async with _runtime_of(cfg).resource_slot(name):
-                            output = await _invoke_tool_callable(
-                                fn, tool.is_async, state, args, cfg, timeout
-                            )
+                        lock_ctx = _runtime_of(cfg).resource_slot(name)
                     elif mode == ConcurrencyMode.SERIAL_PER_RESOURCE:
                         rk = f"{name}:{tool.resource_key(args)}"  # type: ignore[misc]
-                        async with _runtime_of(cfg).resource_slot(rk):
-                            output = await _invoke_tool_callable(
-                                fn, tool.is_async, state, args, cfg, timeout
-                            )
+                        lock_ctx = _runtime_of(cfg).resource_slot(rk)
                     else:
-                        # PARALLEL_SAFE — no lock
+                        lock_ctx = contextlib.nullcontext()
+
+                    async with lock_ctx:
                         output = await _invoke_tool_callable(
                             fn, tool.is_async, state, args, cfg, timeout
                         )
@@ -656,18 +640,7 @@ async def _execute_tools(
             finally:
                 if budget_reservation is not None and cfg.budget is not None:
                     await cfg.budget.settle(budget_reservation, BudgetAmount(tool_calls=1))
-        event: dict[str, Any] = {
-            "type": "tool_result",
-            "tool_call_id": tc_id,
-            "tool_name": name,
-            "status": status,
-            "output": output,
-            "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
-        }
-        if error_type:
-            event["error_type"] = error_type
-        _emit_tool_event(event)
-        return tc_id, output
+        return _emit_result(status, output, err_type=error_type)
 
     async def _run(tc_id: str, name: str, raw_args: str) -> tuple[str, str]:
         async with semaphore:
