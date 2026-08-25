@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 from dataclasses import dataclass, field
 
@@ -219,10 +220,8 @@ class BaseSettings:
 
     def __post_init__(self) -> None:
         if isinstance(self.port, str):
-            try:
+            with contextlib.suppress(ValueError):
                 object.__setattr__(self, "port", int(self.port))
-            except ValueError:
-                pass
         positive = {
             "port": self.port,
             "max_output_tokens": self.max_output_tokens,

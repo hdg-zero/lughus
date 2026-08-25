@@ -8,7 +8,7 @@ import hmac
 import logging
 import time
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, cast
 
 import uvicorn
@@ -400,14 +400,15 @@ def build_app(
     return app
 
 
-def _safe_render(template: str, args: tuple) -> str:
+def _safe_render(template: str, args: tuple[object, ...] | Mapping[str, object] | None) -> str:
     """Render a printf-style template coercing every argument to str."""
     rendered = template
-    for arg in args:
-        idx = rendered.find("%")
-        if idx == -1:
-            break
-        rendered = rendered[:idx] + str(arg) + rendered[idx + 2 :]
+    if isinstance(args, tuple):
+        for arg in args:
+            idx = rendered.find("%")
+            if idx == -1:
+                break
+            rendered = rendered[:idx] + str(arg) + rendered[idx + 2 :]
     return rendered
 
 

@@ -212,11 +212,7 @@ def _console_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
                         }
                     )
                 except (ApprovalRequired, ApprovalRequiredGroup) as exc:
-                    requests = (
-                        exc.requests
-                        if isinstance(exc, ApprovalRequiredGroup)
-                        else [exc]
-                    )
+                    requests = exc.requests if isinstance(exc, ApprovalRequiredGroup) else [exc]
                     for req in requests:
                         _enqueue_nowait(
                             {
@@ -251,8 +247,11 @@ def _console_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
                 except Exception:
                     _logger.exception("Developer console stream failed")
                     _enqueue_nowait(
-                        {"type": "error", "code": "internal_error",
-                         "text": "An internal error occurred; see server logs for details."}
+                        {
+                            "type": "error",
+                            "code": "internal_error",
+                            "text": "An internal error occurred; see server logs for details.",
+                        }
                     )
                 finally:
                     queue.put_nowait(None)

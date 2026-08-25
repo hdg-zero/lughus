@@ -44,10 +44,7 @@ class InterpreterResult:
 def _truncate(text: str, limit: int = MAX_OUTPUT_CHARS) -> str:
     if len(text) <= limit:
         return text
-    return (
-        text[:limit]
-        + f"\n… [truncated {len(text) - limit} characters]"
-    )
+    return text[:limit] + f"\n… [truncated {len(text) - limit} characters]"
 
 
 def run_python(code: str, timeout_s: float = 30.0) -> InterpreterResult:
@@ -65,9 +62,7 @@ def run_python(code: str, timeout_s: float = 30.0) -> InterpreterResult:
                 cwd=workdir,
             )
         except subprocess.TimeoutExpired as exc:
-            raise InterpreterTimeoutError(
-                f"code_interpreter exceeded {timeout_s}s"
-            ) from exc
+            raise InterpreterTimeoutError(f"code_interpreter exceeded {timeout_s}s") from exc
         produced = sorted(
             p.name for p in workdir.iterdir() if p.name != "snippet.py" and p.is_file()
         )

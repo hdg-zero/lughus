@@ -91,7 +91,7 @@ def test_declarations_tuple_return(registry: ToolRegistry) -> None:
 
 
 def test_prepare_tools_payload_allows_mutation(registry: ToolRegistry) -> None:
-    """_prepare_tools_payload produces a mutable copy allowing provider in-place schema modifications."""
+    """_prepare_tools_payload produces a mutable copy for schema modifications."""
     from lughus.engine.llm import _prepare_tools_payload
 
     decls = registry.declarations(["alpha"])

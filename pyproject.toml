@@ -103,8 +103,12 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = "litellm.*"
+module = [
+    "litellm.*",
+    "openai.*",
+]
 ignore_missing_imports = true
+follow_imports = "skip"
 no_implicit_reexport = false
 
 [build-system]
