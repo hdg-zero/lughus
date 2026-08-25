@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Complete GFM Markdown Interpretation**: Full client-side markdown engine in Developer Console with support for GFM tables with column alignment, GitHub alert callouts (`[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`), blockquotes, interactive task checkboxes, ordered/unordered lists, strikethrough, links, and code block headers with language badges.
+
+### Changed
+- **Tool Concurrency & Event Dispatch Consolidation**: Unified concurrency lock context resolution (`GLOBAL_EXCLUSIVE`, `SERIAL_PER_TOOL`, `SERIAL_PER_RESOURCE`, `PARALLEL_SAFE`) and normalized `tool_result` event generation into a shared helper in `_execute_tools`.
+- **Parallel Attachment Decoding**: `BaseGateway._extract_async` now decodes multiple base64 attachments concurrently in background threads via `asyncio.gather`.
+- **Persistent Token Cache**: `MessageHistory` now retains token estimation caches across turn iterations, eliminating tokenizer overhead during context budget pruning.
+- **Optimized Idempotency Eviction**: `InMemoryIdempotencyStore._make_room` uses $O(1)$ amortized FIFO iteration leveraging dictionary insertion order.
+
+### Fixed
+- **BaseSettings Dotenv Resolution**: Routed all string settings through `_getenv()` helper guaranteeing `.env` is loaded before any field factory runs.
+
+### Performance
+- **Lazy LiteLLM Resolution**: Deferred `import litellm` to runtime invocation via memoized `_litellm()` accessor, reducing engine cold start import time from ~7.5s to ~240ms.
+
 ## [0.15.0] — 2026-08-24
 
 ### Added
