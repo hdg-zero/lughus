@@ -45,6 +45,8 @@ if TYPE_CHECKING:
     from .loop import ToolExecutionConfig as ToolExecutionConfig
     from .loop import agent_loop as agent_loop
     from .loop import agent_loop_stream as agent_loop_stream
+    from .loop import emit_a2a_request as emit_a2a_request
+    from .loop import emit_a2a_response as emit_a2a_response
     from .persistence.coordinator import RunCoordinator as RunCoordinator
     from .persistence.store import Checkpoint as Checkpoint
     from .persistence.store import CheckpointStore as CheckpointStore
@@ -130,6 +132,8 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "ToolExecutionConfig": (".loop", None),
     "agent_loop": (".loop", None),
     "agent_loop_stream": (".loop", None),
+    "emit_a2a_request": (".loop", None),
+    "emit_a2a_response": (".loop", None),
     "AgentRuntime": (".agent.application", None),
     "GovernedAgentRunner": (".agent.runner", None),
     # ── asyncio chain ────────────────────────────────────────────────
@@ -268,6 +272,8 @@ __all__ = [
     "agent_loop",
     "agent_loop_stream",
     "build_app",
+    "emit_a2a_request",
+    "emit_a2a_response",
     "evaluate_scenario",
     "serve",
     "setup_telemetry",

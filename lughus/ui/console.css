@@ -924,6 +924,12 @@ h2 {
 .event.telemetry { border-left-color: var(--accent-indigo); }
 .event.telemetry .event-type-badge { background: var(--accent-indigo-bg); color: var(--accent-indigo); }
 
+.event.a2a_request { border-left-color: var(--accent-purple, #a78bfa); }
+.event.a2a_request .event-type-badge { background: rgba(167, 139, 250, 0.15); color: var(--accent-purple, #a78bfa); }
+
+.event.a2a_response { border-left-color: var(--accent-cyan, #22d3ee); }
+.event.a2a_response .event-type-badge { background: rgba(34, 211, 238, 0.15); color: var(--accent-cyan, #22d3ee); }
+
 .event.error { border-left-color: var(--accent-red); }
 .event.error .event-type-badge { background: var(--accent-red-bg); color: var(--accent-red); }
 

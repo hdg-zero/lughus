@@ -113,6 +113,10 @@ export function applyFilterToEvent(eventElement, filter = state.currentFilter, q
     else if (filter === "tool" && isTool) matchesFilter = true;
     else if (filter === "telemetry" && isTelemetry) matchesFilter = true;
     else if (filter === "error" && isError) matchesFilter = true;
+    else if (filter === "a2a") {
+      matchesFilter =
+        eventElement.classList.contains("a2a_request") || eventElement.classList.contains("a2a_response");
+    }
   }
 
   const textContent = eventElement.textContent.toLowerCase();
@@ -145,6 +149,9 @@ export function appendEvent(
   
   if (event.type === "tool_start" || event.type === "tool_result") {
     item.classList.add("tool");
+  }
+  if (event.type === "a2a_request" || event.type === "a2a_response") {
+    item.classList.add("a2a");
   }
   if (event.status === "error") {
     item.classList.add("error");
@@ -191,6 +198,30 @@ export function appendEvent(
       lines.push(`<strong>error:</strong> ${escapeHtml(event.error_type)}`);
     }
     lines.push(`<strong>output:</strong>\n${formatJSONString(event.output)}`);
+    body.innerHTML = lines.join("\n");
+  } else if (event.type === "a2a_request") {
+    const lines = [
+      `<strong>agent:</strong> ${escapeHtml(event.target_agent || "")}`,
+      `<strong>url:</strong> ${escapeHtml(event.url || "")}`,
+      `<strong>method:</strong> ${escapeHtml(event.method || "message/send")}`,
+    ];
+    if (event.tool_name) lines.push(`<strong>tool:</strong> ${escapeHtml(event.tool_name)}`);
+    if (event.file_count) {
+      lines.push(`<strong>files attached:</strong> ${event.file_count}`);
+    }
+    lines.push(`<strong>objective sent:</strong>\n${escapeHtml(event.objective || "")}`);
+    body.innerHTML = lines.join("\n");
+  } else if (event.type === "a2a_response") {
+    const isError = event.status === "error";
+    item.classList.add(isError ? "error" : "done");
+    const lines = [
+      `<strong>agent:</strong> ${escapeHtml(event.target_agent || "")}`,
+      `<strong>status:</strong> ${escapeHtml(event.status || "ok")}`,
+      `<strong>elapsed:</strong> ${event.elapsed_ms ?? 0}ms`,
+    ];
+    if (event.remote_task_id) lines.push(`<strong>remote task:</strong> ${escapeHtml(event.remote_task_id)}`);
+    if (event.error_code) lines.push(`<strong>error:</strong> ${escapeHtml(event.error_code)}`);
+    lines.push(`<strong>response text:</strong>\n${escapeHtml(event.text || "(none)")}`);
     body.innerHTML = lines.join("\n");
   } else if (event.type === "completion") {
     const rawText = event.text || "";

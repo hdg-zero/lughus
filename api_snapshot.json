@@ -354,6 +354,33 @@
     ]
   },
   {
+    "name": "emit_a2a_request",
+    "kind": "function",
+    "parameters": [
+      "target_agent",
+      "url",
+      "method",
+      "objective",
+      "files",
+      "tool_name"
+    ]
+  },
+  {
+    "name": "emit_a2a_response",
+    "kind": "function",
+    "parameters": [
+      "target_agent",
+      "url",
+      "status",
+      "text",
+      "artifacts",
+      "remote_task_id",
+      "error_code",
+      "elapsed_ms",
+      "tool_name"
+    ]
+  },
+  {
     "name": "evaluate_scenario",
     "kind": "function",
     "parameters": [

@@ -23,6 +23,15 @@ function eventLabel(event) {
     return codes[event.code] || "Run failed";
   }
   if (event.type === "tool_result") return `${toolName(event)} result`;
+  if (event.type === "a2a_request") {
+    return `→ A2A ${event.target_agent || "agent"}`;
+  }
+  if (event.type === "a2a_response") {
+    const agent = event.target_agent || "agent";
+    return event.status === "error"
+      ? `← A2A ${agent} failed (${event.error_code || "error"})`
+      : `← A2A ${agent} replied${event.artifacts?.length ? ` (+${event.artifacts.length} artifact(s))` : ""}`;
+  }
   if (event.type === "telemetry") return "Run metrics";
   return toolName(event);
 }
@@ -32,6 +41,15 @@ function eventDetail(event) {
     return event.status === "error"
       ? event.error_type || "Tool error"
       : `${event.elapsed_ms ?? 0} ms`;
+  }
+  if (event.type === "a2a_request") return `Objective sent to ${event.url || "remote agent"}`;
+  if (event.type === "a2a_response") {
+    const artifactCount = event.artifacts?.length ?? 0;
+    const parts = [];
+    if (event.text) parts.push(`${event.text.length} chars of text`);
+    if (artifactCount) parts.push(`${artifactCount} artifact(s)`);
+    if (event.remote_task_id) parts.push(`task ${event.remote_task_id}`);
+    return parts.length ? parts.join(", ") : `${event.elapsed_ms ?? 0} ms`;
   }
   if (event.type === "tool_start") return "Calling tool";
   if (event.type === "completion") return "Artifact or final output ready";
