@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import importlib
 import logging
 import random
 import time
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from typing import Any, Protocol, cast
-
-import litellm
 
 from ..core.errors import LLMResponseError
 from ..infra.retry import _retry_budget_var, _retry_used_var, retry_budget
@@ -31,7 +30,7 @@ class GenerateLLM(Protocol):
         *,
         messages: Sequence[Mapping[str, Any]] | list[dict],
         tools: Sequence[Mapping[str, Any]] | list[dict] | None = None,
-    ) -> litellm.ModelResponse: ...
+    ) -> Any: ...
 
 
 class StreamingLLM(Protocol):
@@ -48,14 +47,35 @@ class StreamingLLM(Protocol):
     ) -> AsyncIterator[Any]: ...
 
 
-# Transient errors that are safe to retry.
-_RETRYABLE_ERRORS = (
-    LLMResponseError,
-    litellm.RateLimitError,
-    litellm.ServiceUnavailableError,
-    litellm.APIConnectionError,
-    TimeoutError,
-)
+# ── Lazy litellm access ──────────────────────────────────────────────
+#
+# ``import litellm`` costs ~6.7 s at cold start (it eagerly wires every
+# provider SDK).  Nothing here needs it until an actual completion call
+# runs, so all touch points resolve through :func:`_litellm` at call
+# time.  The retryable-error tuple is rebuilt lazily too: exception
+# *classes* are only needed inside an ``except`` clause, which happens
+# at most once per failed attempt.
+_litellm_mod: Any = None
+
+
+def _litellm() -> Any:
+    global _litellm_mod
+    if _litellm_mod is None:
+        _litellm_mod = importlib.import_module("litellm")
+    return _litellm_mod
+
+
+def _retryable_errors() -> tuple[type[Exception], ...]:
+    """Return the transient litellm error classes safe to retry."""
+    lm = _litellm()
+    return (
+        LLMResponseError,
+        lm.RateLimitError,
+        lm.ServiceUnavailableError,
+        lm.APIConnectionError,
+        TimeoutError,
+    )
+
 
 _retry_counter = meter.create_counter(
     "lughus.llm.retries",
@@ -176,7 +196,7 @@ class LLM:
     async def _with_retry(self, coro_factory: Callable[[], Any], label: str) -> Any:
         """Execute ``coro_factory()`` with exponential backoff on transient errors.
 
-        Retries up to ``self.max_retries`` times on :data:`_RETRYABLE_ERRORS`.
+        Retries up to ``self.max_retries`` times on :func:`_retryable_errors`.
         The delay before attempt N (0-indexed) is ``retry_base_delay * 2**N``.
         Non-retryable errors are re-raised immediately.
         """
@@ -187,7 +207,7 @@ class LLM:
                 return await (
                     asyncio.wait_for(coro, timeout=self.timeout) if self.timeout else coro
                 )
-            except _RETRYABLE_ERRORS as exc:
+            except _retryable_errors() as exc:
                 if attempt >= self.max_retries:
                     raise
                 retry_after = _retry_after_seconds(exc)
@@ -228,11 +248,12 @@ class LLM:
         *,
         messages: Sequence[Mapping[str, Any]] | list[dict],
         tools: Sequence[Mapping[str, Any]] | list[dict] | None = None,
-    ) -> litellm.ModelResponse:
+    ) -> Any:
         """Send messages (and optional tool declarations) to the LLM."""
         tools_payload = _prepare_tools_payload(tools)
+        lm = _litellm()
 
-        async def _make() -> litellm.ModelResponse:
+        async def _make() -> Any:
             kwargs: dict = {
                 "model": self.model,
                 "messages": messages,
@@ -241,13 +262,12 @@ class LLM:
             }
             if tools_payload is not None:
                 kwargs["tools"] = copy.deepcopy(tools_payload)
-            response = cast(litellm.ModelResponse, await litellm.acompletion(**kwargs))
+            response = cast(Any, await lm.acompletion(**kwargs))
             if not getattr(response, "choices", None):
                 raise LLMResponseError("LLM provider returned a completion without choices")
             return response
 
-        res: litellm.ModelResponse = await self._with_retry(_make, label="LLM.generate")
-        return res
+        return await self._with_retry(_make, label="LLM.generate")
 
     async def astream(
         self,
@@ -257,6 +277,7 @@ class LLM:
     ) -> Any:
         """Streaming variant — returns an async iterable of response chunks."""
         tools_payload = _prepare_tools_payload(tools)
+        lm = _litellm()
 
         def _make(include_usage: bool = True) -> Any:
             kwargs: dict = {
@@ -270,9 +291,9 @@ class LLM:
                 kwargs["tools"] = copy.deepcopy(tools_payload)
             if include_usage:
                 kwargs["stream_options"] = {"include_usage": True}
-            return litellm.acompletion(**kwargs)
+            return lm.acompletion(**kwargs)
 
         try:
             return await self._with_retry(lambda: _make(include_usage=True), label="LLM.astream")
-        except (litellm.BadRequestError, litellm.UnsupportedParamsError):
+        except (lm.BadRequestError, lm.UnsupportedParamsError):
             return await self._with_retry(lambda: _make(include_usage=False), label="LLM.astream")
