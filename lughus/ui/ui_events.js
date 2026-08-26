@@ -41,6 +41,22 @@ export function syntaxHighlight(json) {
 
 export function parseMarkdown(text) {
   if (!text) return "";
+
+  // 0. Extract math expressions BEFORE escapeHtml (LaTeX may contain < > &)
+  const mathExprs = [];
+  // Display math: $$...$$
+  text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_match, latex) => {
+    const placeholder = `@@@MDMATH${mathExprs.length}@@@`;
+    mathExprs.push({ latex, display: true });
+    return placeholder;
+  });
+  // Inline math: $...$  (single $ — avoid matching $$ already extracted)
+  text = text.replace(/\$([^\$\n]+?)\$/g, (_match, latex) => {
+    const placeholder = `@@@MDMATH${mathExprs.length}@@@`;
+    mathExprs.push({ latex, display: false });
+    return placeholder;
+  });
+
   let html = escapeHtml(text);
 
   // 1. Extract Fenced Code Blocks
@@ -147,7 +163,7 @@ export function parseMarkdown(text) {
 
   // 7. Inline formatting — apply ONLY to plain-text lines
   //    Headers, lists, tables, blockquotes already applied inlineMarkdown during extraction.
-  const PLACEHOLDER_RE = /^\s*@@@MD(CODEBLOCK|TABLE|QUOTE)\d+@@@\s*$/;
+  const PLACEHOLDER_RE = /^\s*@@@MD(CODEBLOCK|TABLE|QUOTE|MATH)\d+@@@\s*$/;
   const BLOCK_TAG_RE = /^\s*<(h[1-6]|hr|ul|ol|li|blockquote|div)\b/;
   const CLOSE_TAG_RE = /^\s*<\//;
   html = html.split("\n").map((line) => {
@@ -185,6 +201,19 @@ export function parseMarkdown(text) {
   });
   blockquotes.forEach((quote, index) => {
     html = html.replace(`@@@MDQUOTE${index}@@@`, quote);
+  });
+  mathExprs.forEach(({ latex, display }, index) => {
+    let rendered;
+    if (typeof katex !== "undefined") {
+      try {
+        rendered = katex.renderToString(latex, { displayMode: display, throwOnError: false });
+      } catch (_e) {
+        rendered = `<code class="md-inline-code">${escapeHtml(display ? `$$${latex}$$` : `$${latex}$`)}</code>`;
+      }
+    } else {
+      rendered = `<code class="md-inline-code">${escapeHtml(display ? `$$${latex}$$` : `$${latex}$`)}</code>`;
+    }
+    html = html.replace(`@@@MDMATH${index}@@@`, rendered);
   });
 
   // Clean redundant linebreaks

@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - **Complete GFM Markdown Interpretation**: Full client-side markdown engine in Developer Console with support for GFM tables with column alignment, GitHub alert callouts (`[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`), blockquotes, interactive task checkboxes, ordered/unordered lists, strikethrough, links, and code block headers with language badges.
+- **LaTeX Math Rendering**: Developer Console now renders inline (`$...$`) and display (`$$...$$`) LaTeX math expressions via KaTeX, supporting scientific notation, chemical formulas (`$\text{Na}^+$`, `$\text{Mg}^{2+}$`), and standard mathematical typesetting.
 
 ### Changed
 - **Tool Concurrency & Event Dispatch Consolidation**: Unified concurrency lock context resolution (`GLOBAL_EXCLUSIVE`, `SERIAL_PER_TOOL`, `SERIAL_PER_RESOURCE`, `PARALLEL_SAFE`) and normalized `tool_result` event generation into a shared helper in `_execute_tools`.

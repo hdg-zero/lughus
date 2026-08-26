@@ -1098,6 +1098,10 @@ pre {
 :root[data-theme="light"] .markdown-rendered .md-code-block { background: rgba(0, 0, 0, 0.04); }
 :root[data-theme="light"] .markdown-rendered .md-inline-code { background: rgba(0, 0, 0, 0.05); }
 
+/* KaTeX Math */
+.markdown-rendered .katex-display { margin: 8px 0; text-align: center; }
+.markdown-rendered .katex { font-size: 1.05em; color: var(--text-main); }
+
 @keyframes pulse {
   0% { opacity: 0.6; }
   100% { opacity: 1; }
