@@ -224,15 +224,13 @@ class BaseGateway(AgentExecutor):
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def handle(
+    def handle(
         self,
         objective: str,
         files: list[tuple[bytes, str, str]],
     ) -> AsyncIterator[ProgressEvent | CompletionEvent]:
         """Implement in your agent. Yield ProgressEvent / CompletionEvent."""
         raise NotImplementedError
-        if False:
-            yield ProgressEvent("")
 
     # -- A2A message extraction -----------------------------------
 
