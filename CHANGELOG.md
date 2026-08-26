@@ -19,6 +19,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 - **BaseSettings Dotenv Resolution**: Routed all string settings through `_getenv()` helper guaranteeing `.env` is loaded before any field factory runs.
 - **Developer Console Markdown Tables**: Rewrote GFM table detection regex to correctly match pipe-delimited tables (including single-column tables); fixed double `inlineMarkdown()` application on already-processed block elements; eliminated spurious `<br>` tags around table/blockquote/code block placeholders.
+- **Developer Console Agent Path DOM Selector**: Fixed mismatch between `console.html` and `ui_agent_flow.js` by adding `id="agent-flow"` to the section element, restoring the Expand/Collapse step toggle and auto-follow button.
+- **BaseGateway Async Generator Signature**: Removed unreachable `if False: yield` statement in `BaseGateway.handle()`, preserving clean `raise NotImplementedError`.
+
+### Removed
+- **Orphan Directory**: Removed empty leftover `lughus/a2a/` directory from package root.
 
 ### Performance
 - **Lazy LiteLLM Resolution**: Deferred `import litellm` to runtime invocation via memoized `_litellm()` accessor, reducing engine cold start import time from ~7.5s to ~240ms.
