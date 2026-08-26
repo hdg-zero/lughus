@@ -88,3 +88,26 @@ def test_declarations_tuple_return(registry: ToolRegistry) -> None:
     """declarations() returns a tuple, not a list."""
     decls = registry.declarations(["alpha"])
     assert isinstance(decls, tuple)
+
+
+def test_prepare_tools_payload_allows_mutation(registry: ToolRegistry) -> None:
+    """_prepare_tools_payload produces a mutable copy for schema modifications."""
+    from lughus.engine.llm import _prepare_tools_payload
+
+    decls = registry.declarations(["alpha"])
+    payload = _prepare_tools_payload(decls)
+    assert payload is not None
+    assert isinstance(payload, list)
+    assert isinstance(payload[0], dict)
+
+    # Provider adapters like Gemini/Vertex delete or modify keys in-place
+    params = payload[0]["function"]["parameters"]
+    params["additionalProperties"] = False
+    del params["additionalProperties"]
+    params["properties"]["x"]["description"] = "modified"
+
+    # Original declarations remain completely intact and frozen
+    orig_params = decls[0]["function"]["parameters"]
+    assert "description" not in orig_params["properties"]["x"]
+    with pytest.raises(TypeError):
+        del orig_params["type"]

@@ -38,6 +38,7 @@ def tool(
     idempotent: bool = False,
     requires_approval: bool = False,
     concurrency: ConcurrencyMode = ConcurrencyMode.PARALLEL_SAFE,
+    resource_key: Callable[[Mapping[str, Any]], str] | None = None,
 ) -> Callable:
 ```
 
@@ -53,6 +54,7 @@ def tool(
 *   `idempotent`: Boolean indicating if repeated execution with identical arguments is side-effect safe.
 *   `requires_approval`: Boolean forcing a human approval request before execution.
 *   `concurrency`: `ConcurrencyMode` (`PARALLEL_SAFE`, `SERIAL_PER_TOOL`, `SERIAL_PER_RESOURCE`, `GLOBAL_EXCLUSIVE`).
+*   `resource_key`: Callable extracting a resource identifier from the tool arguments. Required when `concurrency` is `SERIAL_PER_RESOURCE`; omitting it raises `ToolValidationError` at registration. See [Tool Concurrency Modes](../guides/tools.md).
 
 Tool names must be unique in one registry. The callable must accept `state=...` as a keyword argument or through `**kwargs`; this catches signature mistakes when the tool is registered instead of during an LLM run. Positional-only parameters are rejected, and schema properties must match keyword-callable parameters unless the function accepts `**kwargs`.
 

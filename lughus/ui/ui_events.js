@@ -43,9 +43,12 @@ export function parseMarkdown(text) {
   if (!text) return "";
   let html = escapeHtml(text);
 
-  // Fenced code blocks
-  html = html.replace(/```([a-z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
-    return `<pre class="md-code-block"><code>${code.trim()}</code></pre>`;
+  // Fenced code blocks with placeholder extraction
+  const codeBlocks = [];
+  html = html.replace(/```([a-z0-9_-]*)\n([\s\S]*?)```/g, (_match, _lang, code) => {
+    const placeholder = `___CODE_BLOCK_${codeBlocks.length}___`;
+    codeBlocks.push(`<pre class="md-code-block"><code>${code.trim()}</code></pre>`);
+    return placeholder;
   });
 
   // Inline code
@@ -64,10 +67,15 @@ export function parseMarkdown(text) {
   html = html.replace(/^\s*[-*]\s+(.*$)/gim, '<li class="md-li">$1</li>');
 
   // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="md-link">$1</a>');
+  html = html.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>');
 
   // Line breaks
   html = html.replace(/\n/g, '<br>');
+
+  // Restore code blocks without corrupting them with <br>
+  codeBlocks.forEach((block, index) => {
+    html = html.replace(`___CODE_BLOCK_${index}___`, block);
+  });
 
   return html;
 }
@@ -193,6 +201,61 @@ export function appendEvent(
       body.className = "";
       body.innerHTML = escapeHtml(rawText);
     }
+  } else if (event.type === "error" && event.code === "approval_required") {
+    body.className = "";
+    const lines = [];
+    if (event.request_id) lines.push(`<strong>request:</strong> ${escapeHtml(event.request_id)}`);
+    if (event.tool_name) lines.push(`<strong>tool:</strong> ${escapeHtml(event.tool_name)}`);
+    if (event.text) lines.push(`<strong>message:</strong> ${escapeHtml(event.text)}`);
+    body.innerHTML = lines.join("\n") || "Approval required";
+
+    // Interactive approval card: Approve / Reject buttons POST to the
+    // decision endpoint and render the recorded outcome in place.
+    const actions = document.createElement("div");
+    actions.className = "approval-actions";
+    const requestId = event.request_id || "";
+    if (requestId) {
+      const mkBtn = (label, approvedValue) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `approval-btn ${approvedValue ? "approve" : "reject"}`;
+        btn.textContent = label;
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          const sibling = actions.querySelector(".approval-btn:not([disabled])");
+          if (sibling) sibling.disabled = true;
+          try {
+            const res = await fetch(`/ui/approvals/${encodeURIComponent(requestId)}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ approved: approvedValue, subject: "ui-operator" }),
+            });
+            const data = await res.json();
+            const outcome = document.createElement("p");
+            outcome.className = "approval-outcome";
+            outcome.textContent = res.ok
+              ? `Decision recorded: ${data.status} by ${data.decided_by}`
+              : `Decision failed: ${data.error || res.statusText}`;
+            item.append(outcome);
+          } catch (err) {
+            const outcome = document.createElement("p");
+            outcome.className = "approval-outcome";
+            outcome.textContent = `Decision failed: ${err.message || err}`;
+            item.append(outcome);
+          }
+        });
+        return btn;
+      };
+      actions.append(mkBtn("Approve", true), mkBtn("Reject", false));
+      item.classList.add("approval_request");
+    }
+    body.append(actions);
+  } else if (event.type === "error") {
+    body.className = "";
+    const lines = [];
+    if (event.code) lines.push(`<strong>code:</strong> ${escapeHtml(event.code)}`);
+    if (event.text) lines.push(`<strong>message:</strong> ${escapeHtml(event.text)}`);
+    body.innerHTML = lines.join("\n") || "Unknown error";
   } else {
     body.className = "";
     body.innerHTML = escapeHtml(event.text || "");

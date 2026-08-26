@@ -126,7 +126,6 @@ def test_settings_default_values(monkeypatch) -> None:
     assert s.max_request_bytes == 50 * 1024 * 1024
     assert s.max_http_body_bytes == 80 * 1024 * 1024
     assert s.max_objective_chars == 100_000
-    assert s.max_source_chars == 12_000
     assert s.max_artifacts == 10
     assert s.max_artifact_bytes == 50 * 1024 * 1024
     assert s.max_total_artifact_bytes == 100 * 1024 * 1024

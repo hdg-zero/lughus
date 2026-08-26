@@ -21,9 +21,9 @@ Lughus requires a **deterministic, code-enforced authorization and approval pipe
 
 ## 2. Decision Outcome
 
-We adopt a **governed tool architecture** (Tool Contract v2) composed of three core abstractions:
+We adopt a **governed tool architecture** (Tool Contract) composed of three core abstractions:
 
-### A. Rich Tool Metadata (`ToolDef` v2)
+### A. Rich Tool Metadata (`ToolDef`)
 Every registered tool declares explicit execution metadata:
 - **`effects`**: `frozenset[ToolEffect]` (`READ`, `WRITE`, `EXTERNAL`, `IRREVERSIBLE`).
 - **`risk`**: `ToolRisk` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, `UNKNOWN`).
@@ -32,7 +32,7 @@ Every registered tool declares explicit execution metadata:
 - **`requires_approval`**: `bool` forcing human-in-the-loop validation.
 - **`concurrency`**: `ConcurrencyMode` (`PARALLEL_SAFE`, `SERIAL_PER_TOOL`, `SERIAL_PER_RESOURCE`, `GLOBAL_EXCLUSIVE`).
 
-Legacy v1 tools default conservatively to `risk=ToolRisk.UNKNOWN`, `concurrency=ConcurrencyMode.SERIAL_PER_TOOL`, and empty scopes.
+Tools registered without explicit governance metadata default conservatively to `risk=ToolRisk.UNKNOWN`, `concurrency=ConcurrencyMode.SERIAL_PER_TOOL`, and empty scopes.
 
 ### B. Deterministic Policy Engine (`ToolPolicy`)
 Authorization decisions are evaluated before dispatch by a `ToolPolicy` implementation:

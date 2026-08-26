@@ -19,8 +19,6 @@ class BudgetLimit:
     model_calls: int = 100
     tool_calls: int = 100
     tokens: int = 1_000_000
-    bytes: int = 100_000_000
-    estimated_cost_micros: int = 100_000_000  # $100 in micros
     delegation_depth: int = 4
 
     def __post_init__(self) -> None:
@@ -33,8 +31,6 @@ class BudgetAmount:
     model_calls: int = 0
     tool_calls: int = 0
     tokens: int = 0
-    bytes: int = 0
-    estimated_cost_micros: int = 0
     delegation_depth: int = 0
 
     def __post_init__(self) -> None:
@@ -49,8 +45,6 @@ class BudgetLedger:
         "model_calls",
         "tool_calls",
         "tokens",
-        "bytes",
-        "estimated_cost_micros",
         "delegation_depth",
     )
 
@@ -58,33 +52,42 @@ class BudgetLedger:
         self.limit = limit
         self._consumed = {field: 0 for field in self._FIELDS}
         self._reserved: dict[str, BudgetAmount] = {}
+        self._reserved_totals = {field: 0 for field in self._FIELDS}
         self._lock = asyncio.Lock()
 
     async def reserve(self, amount: BudgetAmount) -> str:
         async with self._lock:
-            totals = {
-                field: self._consumed[field]
-                + sum(getattr(v, field) for v in self._reserved.values())
-                + getattr(amount, field)
-                for field in self._FIELDS
-            }
-            for field, total in totals.items():
-                if total > getattr(self.limit, field):
+            for field in self._FIELDS:
+                if self._consumed[field] + self._reserved_totals[field] + getattr(
+                    amount, field
+                ) > getattr(self.limit, field):
                     raise BudgetExceeded(field)
             key = uuid4().hex
             self._reserved[key] = amount
+            for field in self._FIELDS:
+                self._reserved_totals[field] += getattr(amount, field)
             return key
 
-    async def settle(self, reservation_id: str, actual: BudgetAmount) -> None:
+    async def settle(self, reservation_id: str, actual: BudgetAmount) -> bool:
+        """Settle a reservation with the actual consumption.
+
+        Returns ``True`` when *reservation_id* matched an outstanding
+        reservation.  Silently ignoring a double-settle or a
+        settle-after-release would hide accounting bugs, so the outcome is
+        made explicit instead.
+        """
         async with self._lock:
-            if reservation_id not in self._reserved:
-                return  # idempotent: already settled or released
-            self._reserved.pop(reservation_id)
+            amount = self._reserved.pop(reservation_id, None)
+            if amount is None:
+                return False
+            for field in self._FIELDS:
+                self._reserved_totals[field] -= getattr(amount, field)
             for field in self._FIELDS:
                 if field == "delegation_depth":
                     self._consumed[field] = max(self._consumed[field], actual.delegation_depth)
                 else:
                     self._consumed[field] += getattr(actual, field)
+            return True
 
     async def would_exceed(self) -> tuple[str, ...]:
         async with self._lock:
@@ -94,9 +97,19 @@ class BudgetLedger:
                 if self._consumed[field] > getattr(self.limit, field)
             )
 
-    async def release(self, reservation_id: str) -> None:
+    async def release(self, reservation_id: str) -> bool:
+        """Release an outstanding reservation without consuming it.
+
+        Returns ``True`` when *reservation_id* matched a reservation, so that
+        double-releases are observable by the caller.
+        """
         async with self._lock:
-            self._reserved.pop(reservation_id, None)
+            amount = self._reserved.pop(reservation_id, None)
+            if amount is None:
+                return False
+            for field in self._FIELDS:
+                self._reserved_totals[field] -= getattr(amount, field)
+            return True
 
     async def outstanding(self) -> Mapping[str, BudgetAmount]:
         """Return a snapshot of currently outstanding reservations."""

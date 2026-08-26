@@ -11,8 +11,7 @@ from lughus.governance.idempotency import (
     InMemoryIdempotencyStore,
     idempotency_hash,
 )
-from lughus.persistence import Checkpoint, ConcurrentUpdateError
-from lughus.persistence.resume import ResumeAction, decide_resume
+from lughus.persistence import ConcurrentUpdateError
 
 
 def _key(run_id: str = "run", tool: str = "send_email") -> IdempotencyKey:
@@ -76,11 +75,6 @@ async def test_timeout_leaves_pending_for_reconciliation():
     store = InMemoryIdempotencyStore(ttl_seconds=3600)
     key = _key()
     await store.save(ExecutionAttempt(key=key, status=AttemptStatus.PENDING))
-
-    # Without idempotency store, decide_resume requires reconciliation
-    checkpoint = Checkpoint("run", 1, 2, {}, pending_action="send_email", outcome_unknown=True)
-    decision = await decide_resume(checkpoint)
-    assert decision.action == ResumeAction.REQUIRE_RECONCILIATION
 
 
 @pytest.mark.asyncio

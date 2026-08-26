@@ -81,11 +81,23 @@ class MCPAdapter:
     async def _invoke(self, name: str, arguments: Mapping[str, Any]) -> Any:
         if name not in self._snapshot:
             raise PermissionError("MCP tool is not present in the approved snapshot")
-        current_fingerprint = self._compute_fingerprint(self._snapshot)
+        # Re-query the server and compare against the fingerprint captured at
+        # refresh() time.  Comparing a recomputed hash of the unchanged local
+        # snapshot would be vacuous; the point is to detect schema drift on
+        # the *remote* side between approval and invocation.
+        remote = {t.name: t for t in await self.client.list_tools()}
+        if len(remote) > self.config.max_tools:
+            raise ValueError("MCP server advertised too many tools")
+        remote_selected = {
+            n: d
+            for n, d in remote.items()
+            if n in self.config.allowed_tools and n in self._snapshot
+        }
+        current_fingerprint = self._compute_fingerprint(remote_selected)
         if current_fingerprint != self._schema_fingerprint:
             raise RuntimeError(
-                "MCP tool schema fingerprint changed since last refresh; "
-                "refusing to execute against an unvalidated schema"
+                "MCP tool schemas changed on the server since last refresh; "
+                "call refresh() to re-approve before invoking"
             )
         result = await self.client.call_tool(name, arguments)
         if len(str(result)) > self.config.max_output_characters:

@@ -1,41 +1,32 @@
-# ADR-001: Compatibility and release policy
+# ADR-001: Compatibility and Release Policy
 
-Status: accepted  
-Updated: 0.10.0
+Status: accepted
 
 ## Context
 
-Lughus is a pre-1.0 micro-framework for A2A agents. As the API surface grows, users
-need clear expectations about what can change and when.
+Lughus is an agent micro-framework for Autonomous Agent-to-Agent (A2A) workflows. Users and integrators require clear, stable, and deterministic expectations regarding API lifecycle and semantic versioning.
 
 ## Decision
 
-Lughus evolves additively through the 0.x series:
+Lughus strictly adheres to **Semantic Versioning 2.0 (SemVer)**:
 
-- **New features** are added in minor releases (0.x.0) with documentation and tests.
-- **Public removals** require a documented replacement, a deprecation warning period
-  of at least one minor release, contract fixtures, and a new minor release.
-- **Wire events** (the `RunEvent` schema) are independently versioned via
-  `SCHEMA_VERSION`. Changes to the wire format are always additive; the version
-  increments only on structural changes.
-- **Security corrections** may fail previously accepted unsafe configurations
-  without a deprecation period.
+- **Patch releases (`x.y.Z`)**: Bug fixes, security patches, performance enhancements, and internal refactorings. No breaking changes or new public interfaces.
+- **Minor releases (`x.Y.0`)**: Backward-compatible additive features, new configuration settings, and extensions to contracts.
+- **Major releases (`X.0.0`)**: Breaking API changes, schema removals, or architectural paradigm shifts.
+- **Wire contracts** (the `RunEvent` schema) are versioned via `SCHEMA_VERSION`. Wire format additions are backward-compatible.
+- **Security corrections** may reject previously accepted unsafe configurations when necessary to protect deployments.
 
-## Frozen contracts at 0.10.0
+## Core Architectural Contracts
 
-The following contracts are frozen — their schemas, field names, and invariants
-will not change until a major version:
+The following core contracts define the stability foundation of the framework:
 
-- Run event schema v1 (`docs/contracts/events.md`)
+- Run event schema (`docs/contracts/events.md`)
 - Streaming delivery (`docs/contracts/streaming.md`)
 - Run budgets (`docs/contracts/budgets.md`)
 - Context and provenance (`docs/contracts/context.md`)
-- Tool contract v2 (`docs/contracts/tools-v2.md`)
-
-See ADR-009 for the full rationale behind the contract freeze.
+- Tool execution contract (`docs/contracts/tools.md`)
 
 ## Consequences
 
-- Additive evolution allows early adopters to upgrade safely.
-- The freeze at 0.10.0 provides a stable foundation for production integrations.
-- Post-1.0, all breaking changes require a major version bump per semver.
+- Predictable upgrade paths across all major, minor, and patch releases.
+- Strong guarantees for production deployments and multi-agent systems.

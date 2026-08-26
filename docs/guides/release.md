@@ -8,8 +8,7 @@
 verify (reuses ci.yml)  ->  guard (tag == project.version)  ->  publish (environment: pypi)
 ```
 
-Three properties matter, and each fixes a specific defect found in the 0.10.1
-audit:
+Three core properties govern the release process:
 
 1. **Verification precedes publication.** Publishing to PyPI is irreversible: a
    deleted version can never be republished under the same number. `verify`
@@ -20,8 +19,7 @@ audit:
    `dist` artefact that CI built and that `dist-core` and `extras` exercised. It
    does not rebuild.
 3. **Every action is pinned by commit SHA**, including
-   `pypa/gh-action-pypi-publish`. The previous `@release/v1` was a mutable ref: the
-   code that published the package was unknown at review time.
+   `pypa/gh-action-pypi-publish`, guaranteeing reproducible and auditable releases.
 
 ## One-time manual setup (not verifiable from the repository)
 

@@ -23,8 +23,7 @@ Error visibility is classified across three boundaries:
 - Tool authors must be diligent about explicitly raising `SafeToolError` for expected failure modes if they want the AI to intelligently recover.
 - Security audits are simplified as the framework handles redaction centrally.
 
-## Compatibility
-Fully backwards compatible with standard Python exceptions. Existing tools that raise `ValueError` or `RuntimeError` will safely degrade to generic failure messages.
+Standard Python exceptions like `ValueError` or `RuntimeError` safely degrade to generic failure messages without leaking internal tracebacks.
 
 ## Security
 This approach ensures zero secrets leak into error payloads. Correlation IDs are used in the diagnostic spans to link the redacted public errors back to their true root causes in the telemetry system.

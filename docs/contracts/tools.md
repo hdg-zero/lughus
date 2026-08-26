@@ -1,13 +1,12 @@
-# Tool Contract v2
+# Tool Contract
 
 This specification defines the formal contract for tool registration, policy evaluation, and human-in-the-loop approvals in `lughus`.
 
-> **Contract stability:** This specification is frozen as of Lughus 0.10.0.
-> Future changes follow the compatibility policy in ADR-001.
+> **Contract stability:** This specification is stable. Future changes follow standard SemVer policy (ADR-001).
 
 ---
 
-## 1. Tool Metadata Contract (`ToolDef` v2)
+## 1. Tool Metadata Contract (`ToolDef`)
 
 Every tool registered in `ToolRegistry` contains formal execution metadata:
 

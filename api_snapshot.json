@@ -1,9 +1,5 @@
 [
   {
-    "name": "AgentRunner",
-    "kind": "class"
-  },
-  {
     "name": "AgentRuntime",
     "kind": "dataclass"
   },
@@ -220,18 +216,6 @@
     "kind": "dataclass"
   },
   {
-    "name": "ReplayBundle",
-    "kind": "dataclass"
-  },
-  {
-    "name": "ResumeAction",
-    "kind": "enum"
-  },
-  {
-    "name": "ResumeDecision",
-    "kind": "dataclass"
-  },
-  {
     "name": "Run",
     "kind": "dataclass"
   },
@@ -366,17 +350,7 @@
       "gateway",
       "task_store",
       "setup_otel",
-      "enable_test_ui"
-    ]
-  },
-  {
-    "name": "decide_resume",
-    "kind": "function",
-    "parameters": [
-      "checkpoint",
-      "pending_action_idempotent",
-      "idempotency_store",
-      "run_id"
+      "enable_console"
     ]
   },
   {
@@ -398,7 +372,7 @@
       "log_level",
       "task_store",
       "setup_otel",
-      "enable_test_ui"
+      "enable_console"
     ]
   },
   {

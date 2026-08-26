@@ -169,7 +169,7 @@ def estimate_tokens(text: str, model: str | None = None) -> int:
         try:
             import litellm
 
-            return max(1, litellm.token_counter(model=model, text=text))
+            return max(1, int(litellm.token_counter(model=model, text=text)))
         except Exception:  # noqa: BLE001
             pass
     return max(1, len(text) // 4)
@@ -231,7 +231,16 @@ def prune_history(
     Raises :class:`ContextBudgetExceeded` if a single atomic group is larger
     than the entire *max_tokens* budget.
     """
-    total_tokens = sum(_message_tokens(m, model=model) for m in messages)
+    token_cache: dict[int, int] = {}
+
+    def _msg_tokens(idx: int) -> int:
+        msg = messages[idx]
+        mid = id(msg)
+        if mid not in token_cache:
+            token_cache[mid] = _message_tokens(msg, model=model)
+        return token_cache[mid]
+
+    total_tokens = sum(_msg_tokens(i) for i in range(len(messages)))
     if total_tokens <= max_tokens:
         return 0
 
@@ -240,10 +249,10 @@ def prune_history(
         return 0
 
     # Check if any single group exceeds the budget on its own
-    prefix_tokens = sum(_message_tokens(messages[i], model=model) for i in range(prefix_len))
+    prefix_tokens = sum(_msg_tokens(i) for i in range(prefix_len))
     available = max_tokens - prefix_tokens
     for group in groups:
-        group_tokens = sum(_message_tokens(messages[idx], model=model) for idx in group)
+        group_tokens = sum(_msg_tokens(idx) for idx in group)
         if group_tokens > available:
             raise ContextBudgetExceeded(
                 f"A single atomic group ({group_tokens} estimated tokens) "
@@ -257,14 +266,15 @@ def prune_history(
     for group in groups:
         if total_tokens <= max_tokens:
             break
-        group_tokens = sum(_message_tokens(messages[idx], model=model) for idx in group)
+        group_tokens = sum(_msg_tokens(idx) for idx in group)
         indices_to_remove.extend(group)
         total_tokens -= group_tokens
         pruned_count += 1
 
-    # Remove indices in reverse order to preserve positions
-    for idx in sorted(indices_to_remove, reverse=True):
-        del messages[idx]
+    # Remove indices in a single pass
+    to_remove = set(indices_to_remove)
+    if to_remove:
+        messages[:] = [m for i, m in enumerate(messages) if i not in to_remove]
 
     if pruned_count > 0:
         _logger.debug(

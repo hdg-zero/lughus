@@ -71,7 +71,7 @@ async def handle(
 
 ### File Extraction Limits
 
-`BaseGateway._extract()` applies the common file safety limits from `BaseSettings`:
+`BaseGateway._extract_async()` applies the common file safety limits from `BaseSettings`:
 
 *   `MAX_FILE_BYTES`: maximum decoded bytes per file.
 *   `MAX_FILES`: maximum number of accepted files per request.

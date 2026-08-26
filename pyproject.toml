@@ -1,6 +1,6 @@
 [project]
 name = "lughus"
-version = "0.14.1"
+version = "0.15.0"
 description = "Micro-framework for building A2A agents with LiteLLM — agent loop, tool registry, A2A gateway."
 readme = "README.md"
 license = "MIT"
@@ -44,7 +44,7 @@ include = ["lughus*"]
 exclude = ["scratch*", "tests*", "examples*"]
 
 [tool.setuptools.package-data]
-lughus = ["ui/*.html", "ui/*.css", "ui/*.js"]
+lughus = ["ui/*.html", "ui/*.css", "ui/*.js", "ui/*.svg"]
 
 [project.optional-dependencies]
 server = [
@@ -103,8 +103,12 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = "litellm.*"
+module = [
+    "litellm.*",
+    "openai.*",
+]
 ignore_missing_imports = true
+follow_imports = "skip"
 no_implicit_reexport = false
 
 [build-system]

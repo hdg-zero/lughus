@@ -19,8 +19,7 @@ class GovernedAgentRunner:
     """Unified runner with optional governance.
 
     Without an *AgentRuntime* the runner wraps :func:`agent_loop` /
-    :func:`agent_loop_stream` with lightweight event emission — identical
-    behaviour to the legacy ``AgentRunner``.
+    :func:`agent_loop_stream` with lightweight event emission.
 
     With an *AgentRuntime* the full governance pipeline is applied:
     run coordination, budget tracking, policy enforcement, approval gates,
@@ -227,8 +226,3 @@ class GovernedAgentRunner:
             {"iterations": result.iterations, "tokens": result.total_tokens},
         )
         return result
-
-
-# Backward-compatible alias — the old AgentRunner is now GovernedAgentRunner
-# with governance disabled (runtime=None).
-AgentRunner = GovernedAgentRunner

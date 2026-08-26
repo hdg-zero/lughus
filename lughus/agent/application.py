@@ -13,10 +13,8 @@ from ..governance.policy import Principal, ToolPolicy
 from ..infra.runtime import ExecutionRuntime
 from ..loop import ToolExecutionConfig
 from ..persistence.store import CheckpointStore, EventStore, RunStore
-from .runner import GovernedAgentRunner  # re-export for backward compatibility
 
-# Re-export so ``from lughus.application import GovernedAgentRunner`` still works.
-__all__ = ["AgentRuntime", "GovernedAgentRunner"]
+__all__ = ["AgentRuntime"]
 
 
 @dataclass(frozen=True, slots=True)

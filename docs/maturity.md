@@ -1,4 +1,4 @@
-# Capability maturity matrix — 0.10.0
+# Capability Maturity Matrix
 
 | Capability | Implemented | Integrated | Enforced by AgentRuntime | Production dependency |
 |---|---:|---:|---:|---:|
@@ -10,7 +10,5 @@
 | Transactional transitions | yes | yes | yes | RunUnitOfWork backend |
 | Budget/context | yes | yes | yes | persistent ledger/artifact store |
 | MCP/A2A adapters | yes | ToolRegistry | yes | authenticated transports |
-| Replay redaction/signature | yes | optional capture | policy-dependent | key management |
 
-In-memory stores are compliance references and do not qualify a multi-replica deployment. Legacy
-loop APIs remain compatible but governance is mandatory only through AgentRuntime.
+In-memory stores are compliance references and do not qualify a multi-replica deployment. Direct loop APIs provide lightweight execution, while full governance pipelines operate through `AgentRuntime` and `GovernedAgentRunner`.

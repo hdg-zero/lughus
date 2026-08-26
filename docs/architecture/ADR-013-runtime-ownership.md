@@ -79,6 +79,5 @@ conflict. Flagged for re-examination once there is usage data.
 
 ## Enforcement
 
-`tests/test_runtime_ownership.py`:
-`test_repeated_loops_do_not_leak_threads` (40 loops, thread count must return to
-baseline) and `test_config_limits_reach_the_implicit_runtime` both fail on 0.10.1.
+`tests/test_runtime_ownership.py` validates thread pool cleanup:
+`test_repeated_loops_do_not_leak_threads` (verifies thread count returns to baseline after repeated loops) and `test_config_limits_reach_the_implicit_runtime`.

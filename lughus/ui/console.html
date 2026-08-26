@@ -3,11 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>__AGENT_NAME__ — Lughus Debug Console</title>
-  <link rel="stylesheet" href="/ui/assets/test_ui.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <title>__AGENT_NAME__ — Lughus Developer Console</title>
+  <script>
+    (function() {
+      const saved = localStorage.getItem("lughus_ui_theme");
+      const prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+      document.documentElement.dataset.theme = (saved === "light" || saved === "dark") ? saved : (prefersLight ? "light" : "dark");
+    })();
+  </script>
+  <link rel="icon" type="image/svg+xml" href="/ui/assets/logo.svg">
+  <link rel="alternate icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/ui/assets/console.css">
 </head>
 <body>
   <div class="app-viewport">
@@ -15,23 +21,7 @@
     <header class="app-header">
       <div class="brand">
         <div class="logo-container">
-          <svg class="lughus-mark" viewBox="0 0 100 100" aria-label="Lughus logo" role="img">
-            <defs>
-              <linearGradient id="lughus-logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#0f172a"/><stop offset="50%" stop-color="#1e3a8a"/><stop offset="100%" stop-color="#475569"/>
-              </linearGradient>
-              <mask id="lughus-logo-cutout"><rect width="100" height="100" fill="white"/><circle cx="50" cy="14.5" r="6" fill="black"/><circle cx="80.74" cy="67.75" r="6" fill="black"/><circle cx="19.26" cy="67.75" r="6" fill="black"/></mask>
-              <g id="lughus-logo-triangle"><path d="M 50 18 L 74 60 L 26 60 Z" fill="none" stroke="url(#lughus-logo-gradient)" stroke-width="3.2" stroke-linejoin="round"/></g>
-            </defs>
-            <g mask="url(#lughus-logo-cutout)">
-              <use href="#lughus-logo-triangle" transform="translate(0, -3.5)"/>
-              <use href="#lughus-logo-triangle" transform="rotate(120, 50, 50) translate(0, -3.5)"/>
-              <use href="#lughus-logo-triangle" transform="rotate(240, 50, 50) translate(0, -3.5)"/>
-            </g>
-            <circle cx="50" cy="14.5" r="3.8" fill="url(#lughus-logo-gradient)"/>
-            <circle cx="80.74" cy="67.75" r="3.8" fill="url(#lughus-logo-gradient)"/>
-            <circle cx="19.26" cy="67.75" r="3.8" fill="url(#lughus-logo-gradient)"/>
-          </svg>
+          <img class="lughus-mark" src="/ui/assets/logo.svg" alt="Lughus Logo" width="36" height="36">
         </div>
         <div class="brand-info">
           <div class="brand-title-row"><h1>__AGENT_NAME__</h1><span class="lughus-signature">LUGHUS</span></div>
@@ -60,14 +50,14 @@
           <form id="form">
             <div class="field-group">
               <label for="objective">Objective</label>
-              <textarea id="objective" name="objective" autofocus placeholder="Explain what the agent should accomplish...">Analyze the provided dataset, compute statistics, generate charts, and produce the report.</textarea>
+              <textarea id="objective" name="objective" autofocus placeholder="Enter agent objective or instructions... (Ctrl+Enter to run)"></textarea>
             </div>
             
             <div class="field-group margin-top">
               <label for="files">Attached Files</label>
               <div class="file-dropzone">
                 <input id="files" name="files" type="file" multiple>
-                <div class="dropzone-text">Click or drag dataset files (.csv, .xlsx)</div>
+                <div class="dropzone-text">Drop files or click to attach</div>
               </div>
               <div class="file-meta">
                 <span id="file-count" class="meta">0 files attached</span>
@@ -91,18 +81,6 @@
             <div class="empty-history">No runs in this session</div>
           </div>
         </section>
-
-        <!-- OpenTelemetry Accordion -->
-        <details class="sidebar-section otel-section">
-          <summary class="otel-summary">OpenTelemetry Traces</summary>
-          <form id="otel-form" class="otel-form">
-            <div class="otel-input-group">
-              <input id="otel-url" name="otel-url" type="url" placeholder="http://localhost:16686/api/traces/{trace_id}">
-              <button id="load-otel" type="submit" class="btn-secondary">Load</button>
-            </div>
-            <pre id="otel-output">No trace query yet</pre>
-          </form>
-        </details>
       </aside>
 
       <!-- Right Main Workspace: Events & Outputs -->
@@ -130,6 +108,10 @@
           <div id="agent-flow-steps" class="agent-flow-steps" role="list"></div>
         </section>
 
+        <div class="running-watermark" aria-hidden="true">
+          <img class="watermark-logo" src="/ui/assets/logo.svg" alt="" width="720" height="720">
+        </div>
+
         <div class="events-stream" id="events">
           <div class="empty">Execute the agent to see real-time logs and output artifacts here</div>
         </div>
@@ -137,6 +119,6 @@
     </div>
   </div>
 
-  <script type="module" src="/ui/assets/test_ui.js"></script>
+  <script type="module" src="/ui/assets/console.js"></script>
 </body>
 </html>

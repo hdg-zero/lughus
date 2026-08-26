@@ -280,7 +280,6 @@ async def agent_loop(
     ``completion_tokens``, ``cached_tokens``, ``total_tokens``).
     """
     cfg, _owned_runtime = _resolve_tool_config(tool_config)
-    # artifact projection setup — copy tool_names to avoid mutating caller's list
     effective_tool_names = list(tool_names)
     cfg = _setup_artifact_projection(registry, effective_tool_names, cfg)
     _artifact_token = _active_artifact_store.set(cfg.artifact_store)
@@ -307,7 +306,6 @@ async def agent_loop(
                 cached_tokens = 0
 
                 for iteration in range(max_iterations):
-                    # Prune oldest atomic groups before each LLM call.
                     _prune_if_needed(history, cfg, prefix_len, llm.model)
                     with tracer.start_as_current_span("llm.generate") as llm_span:
                         llm_span.set_attribute("gen_ai.request.model", llm.model)
@@ -330,6 +328,11 @@ async def agent_loop(
                     msg = response.choices[0].message
 
                     if not msg.tool_calls:
+                        if not (msg.content or ""):
+                            _logger.warning(
+                                "LLM returned neither content nor tool calls at iteration %d",
+                                iteration + 1,
+                            )
                         return _finalize_loop(
                             loop_span,
                             msg.content or "",
@@ -371,8 +374,6 @@ async def agent_loop(
                 raise LoopLimitError(f"Agent loop exceeded {max_iterations} iterations")
     finally:
         _active_artifact_store.reset(_artifact_token)
-        # Only close what this call created; an injected runtime is the
-        # caller's to manage.
         if _owned_runtime is not None:
             await _owned_runtime.close()
 
@@ -401,7 +402,6 @@ async def agent_loop_stream(
         raise ValueError("streaming_mode must be 'buffered' or 'live'")
     streaming_mode_normalized = mode_str
     cfg, _owned_runtime = _resolve_tool_config(tool_config)
-    # artifact projection setup — copy tool_names to avoid mutating caller's list
     effective_tool_names = list(tool_names)
     cfg = _setup_artifact_projection(registry, effective_tool_names, cfg)
     _artifact_token = _active_artifact_store.set(cfg.artifact_store)
@@ -429,7 +429,6 @@ async def agent_loop_stream(
                 cached_tokens = 0
 
                 for iteration in range(max_iterations):
-                    # Prune oldest atomic groups before each LLM call.
                     _prune_if_needed(history, cfg, prefix_len, llm.model)
                     content_parts: list[str] = []
                     tc_map: dict[int, dict[str, str]] = {}
@@ -538,7 +537,5 @@ async def agent_loop_stream(
                 raise LoopLimitError(f"Agent loop exceeded {max_iterations} iterations")
     finally:
         _active_artifact_store.reset(_artifact_token)
-        # Only close what this call created; an injected runtime is the
-        # caller's to manage.
         if _owned_runtime is not None:
             await _owned_runtime.close()

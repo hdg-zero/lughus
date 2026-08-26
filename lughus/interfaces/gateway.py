@@ -38,7 +38,6 @@ from concurrent.futures import ThreadPoolExecutor
 __all__ = ["BaseGateway"]
 
 _logger = logging.getLogger(__name__)
-_executor = ThreadPoolExecutor(thread_name_prefix="lughus-gateway")
 
 
 def _validate_objective(objective: str, settings: BaseSettings) -> None:
@@ -74,6 +73,9 @@ class BaseGateway(AgentExecutor):
         self.llm = llm
         self.settings = settings
         self._running_tasks: dict[str, asyncio.Task[None]] = {}
+        # Instance-scoped so that shutting one gateway down cannot kill the
+        # decoder threads of unrelated gateways living in the same process.
+        self._executor = ThreadPoolExecutor(thread_name_prefix="lughus-gateway")
 
     async def execute(
         self,
@@ -213,7 +215,7 @@ class BaseGateway(AgentExecutor):
 
     async def shutdown(self) -> None:
         """Cancel all currently running A2A tasks and release process-local resources."""
-        _executor.shutdown(wait=False, cancel_futures=True)
+        self._executor.shutdown(wait=False, cancel_futures=True)
         tasks = list(self._running_tasks.values())
         if not tasks:
             return
@@ -333,7 +335,7 @@ class BaseGateway(AgentExecutor):
 
                 raw = await run_sync_in_thread(
                     _decode_b64,
-                    executor=_executor,
+                    executor=self._executor,
                     max_workers=self.settings.max_sync_thread_workers,
                 )
             except (binascii.Error, OSError) as exc:

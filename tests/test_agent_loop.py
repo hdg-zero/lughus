@@ -55,7 +55,19 @@ def test_extract_usage_supports_dict_payloads() -> None:
         "_cache_read_input_tokens": 2,
     }
 
+    # prompt_tokens_details and the LiteLLM alias are separate cache sources:
+    # details are summed, then max-merged with the alias (2 vs 3 -> keep 3+2=5).
     assert _extract_usage(usage) == (12, 5, 5)
+
+
+def test_extract_usage_does_not_double_count_alias_pair() -> None:
+    usage = {
+        "input_tokens": 80,
+        "output_tokens": 40,
+        "_cache_read_input_tokens": 32,
+        "cache_read_input_tokens": 32,  # both aliases present
+    }
+    assert _extract_usage(usage) == (80, 40, 32)
 
 
 def test_loop_result_reports_uncached_prompt_tokens() -> None:

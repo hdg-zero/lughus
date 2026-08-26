@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 from dataclasses import dataclass, field
 
@@ -103,7 +104,7 @@ class BaseSettings:
     public_url: str = field(default_factory=lambda: os.getenv("PUBLIC_URL", ""))
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
     environment: str = field(default_factory=lambda: os.getenv("LUGHUS_ENV", "development"))
-    enable_test_ui: bool = field(default_factory=lambda: _env_bool("ENABLE_TEST_UI", False))
+    enable_console: bool = field(default_factory=lambda: _env_bool("ENABLE_CONSOLE", False))
     api_bearer_token: str = field(default_factory=lambda: os.getenv("API_BEARER_TOKEN", ""))
     cors_origins: str = field(default_factory=lambda: os.getenv("CORS_ORIGINS", ""))
 
@@ -120,7 +121,6 @@ class BaseSettings:
     max_objective_chars: int = field(
         default_factory=lambda: _env_int("MAX_OBJECTIVE_CHARS", 100_000)
     )
-    max_source_chars: int = field(default_factory=lambda: _env_int("MAX_SOURCE_CHARS", 12_000))
     max_artifacts: int = field(default_factory=lambda: _env_int("MAX_ARTIFACTS", 10))
     max_artifact_bytes: int = field(
         default_factory=lambda: _env_int("MAX_ARTIFACT_BYTES", 50 * 1024 * 1024)
@@ -219,6 +219,9 @@ class BaseSettings:
     )
 
     def __post_init__(self) -> None:
+        if isinstance(self.port, str):
+            with contextlib.suppress(ValueError):
+                object.__setattr__(self, "port", int(self.port))
         positive = {
             "port": self.port,
             "max_output_tokens": self.max_output_tokens,

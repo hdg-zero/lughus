@@ -16,8 +16,8 @@ from lughus.interfaces.gateway import BaseGateway
 from lughus.interfaces.server import (
     BoundedInMemoryTaskStore,
     ProductionGuardMiddleware,
-    _test_ui_routes,
 )
+from lughus.interfaces.ui_server import _console_routes
 
 # this module exercises code that needs the 'server' extra.
 pytestmark = pytest.mark.extra_server
@@ -212,17 +212,19 @@ def test_serve_calls(
     assert mock_handler_class.call_args[1]["task_store"] is not None
 
 
-def test_build_app_can_expose_test_ui() -> None:
+def test_build_app_can_expose_console() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    app = build_app(_agent_card(), gateway, setup_otel=False, enable_test_ui=True)
+    app = build_app(_agent_card(), gateway, setup_otel=False, enable_console=True)
 
-    assert [route.path for route in app.routes[:6]] == [
+    assert [route.path for route in app.routes[:8]] == [
         "/health",
         "/healthz",
         "/ui",
-        "/ui/run",
-        "/ui/otel/traces",
         "/ui/stream",
+        "/ui/approvals/{request_id}",
+        "/ui/approvals/{request_id}",
+        "/ui/assets/{filename:path}",
+        "/favicon.ico",
     ]
 
 
@@ -343,27 +345,41 @@ def test_build_app_rejects_unsafe_production_config(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_test_ui_page_renders_agent_metadata() -> None:
+async def test_console_page_renders_agent_metadata() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    page = _test_ui_routes(_agent_card(), gateway)[0].endpoint
+    page = _console_routes(_agent_card(), gateway)[0].endpoint
 
     response = await page(_request("GET", "/ui"))
 
     assert response.status_code == 200
     assert "test-agent" in response.body.decode()
-    assert "/ui/assets/test_ui.css" in response.body.decode()
-    assert "/ui/assets/test_ui.js" in response.body.decode()
+    assert "/ui/assets/console.css" in response.body.decode()
+    assert "/ui/assets/console.js" in response.body.decode()
+    assert "/ui/assets/logo.svg" in response.body.decode()
 
 
 @pytest.mark.asyncio
-async def test_test_ui_run_calls_gateway() -> None:
+async def test_console_serves_favicon() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _test_ui_routes(_agent_card(), gateway)[1].endpoint
+    routes = _console_routes(_agent_card(), gateway)
+    favicon_endpoint = next(r.endpoint for r in routes if r.path == "/favicon.ico")
 
-    response = await run(
+    response = await favicon_endpoint(_request("GET", "/favicon.ico"))
+
+    assert response.status_code == 200
+    assert response.media_type == "image/svg+xml"
+    assert "<svg" in response.body.decode()
+
+
+@pytest.mark.asyncio
+async def test_console_stream_calls_gateway() -> None:
+    gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
+    stream = _console_routes(_agent_card(), gateway)[1].endpoint
+
+    response = await stream(
         _request(
             "POST",
-            "/ui/run",
+            "/ui/stream",
             {
                 "objective": "hello",
                 "files": [
@@ -378,34 +394,35 @@ async def test_test_ui_run_calls_gateway() -> None:
     )
 
     assert response.status_code == 200
-    assert json.loads(response.body) == {
-        "events": [
-            {"type": "progress", "text": "received:hello:1"},
-            {
-                "type": "completion",
-                "text": "done",
-                "artifacts": [
-                    {
-                        "name": "result.txt",
-                        "mime_type": "text/plain",
-                        "data_base64": "aGVsbG8=",
-                    }
-                ],
-            },
-        ]
-    }
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    lines = [json.loads(line) for line in body.decode().splitlines() if line.strip()]
+    assert lines == [
+        {"type": "progress", "text": "received:hello:1"},
+        {
+            "type": "completion",
+            "text": "done",
+            "artifacts": [
+                {
+                    "name": "result.txt",
+                    "mime_type": "text/plain",
+                    "data_base64": "aGVsbG8=",
+                }
+            ],
+        },
+    ]
 
 
 @pytest.mark.asyncio
-async def test_test_ui_includes_telemetry_metadata() -> None:
+async def test_console_includes_telemetry_metadata() -> None:
     gateway = TelemetryUIGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _test_ui_routes(_agent_card(), gateway)[1].endpoint
+    stream = _console_routes(_agent_card(), gateway)[1].endpoint
 
-    response = await run(_request("POST", "/ui/run", {"objective": "hello"}))
+    response = await stream(_request("POST", "/ui/stream", {"objective": "hello"}))
 
     assert response.status_code == 200
-    events = json.loads(response.body)["events"]
-    telemetry = events[-1]
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    lines = [json.loads(line) for line in body.decode().splitlines() if line.strip()]
+    telemetry = lines[-1]
     assert telemetry["type"] == "telemetry"
     assert telemetry["model"] == "test/model"
     assert telemetry["iterations"] == 2
@@ -420,9 +437,9 @@ async def test_test_ui_includes_telemetry_metadata() -> None:
 
 
 @pytest.mark.asyncio
-async def test_test_ui_streams_events() -> None:
+async def test_console_streams_events() -> None:
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    stream = _test_ui_routes(_agent_card(), gateway)[3].endpoint
+    stream = _console_routes(_agent_card(), gateway)[1].endpoint
 
     response = await stream(_request("POST", "/ui/stream", {"objective": "hello"}))
 
@@ -446,45 +463,7 @@ async def test_test_ui_streams_events() -> None:
 
 
 @pytest.mark.asyncio
-async def test_test_ui_fetches_otel_trace_url() -> None:
-    gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    otel = _test_ui_routes(_agent_card(), gateway)[2].endpoint
-
-    with patch("lughus.interfaces.ui_server._fetch_otel_url") as fetch:
-        fetch.return_value = {
-            "url": "http://localhost:16686/api/traces/abc",
-            "status_code": 200,
-            "content_type": "application/json",
-            "text": '{"data": []}',
-            "json": {"data": []},
-        }
-        response = await otel(
-            _request(
-                "POST",
-                "/ui/otel/traces",
-                {"url": "http://localhost:16686/api/traces/abc"},
-            )
-        )
-
-    assert response.status_code == 200
-    payload = json.loads(response.body)
-    assert payload["json"] == {"data": []}
-    fetch.assert_called_once_with("http://localhost:16686/api/traces/abc")
-
-
-@pytest.mark.asyncio
-async def test_test_ui_rejects_invalid_otel_trace_url() -> None:
-    gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    otel = _test_ui_routes(_agent_card(), gateway)[2].endpoint
-
-    response = await otel(_request("POST", "/ui/otel/traces", {"url": "grpc://localhost:4317"}))
-
-    assert response.status_code == 400
-    assert "http(s)" in json.loads(response.body)["error"]
-
-
-@pytest.mark.asyncio
-async def test_test_ui_sanitizes_uploaded_file_name() -> None:
+async def test_console_sanitizes_uploaded_file_name() -> None:
     class NameGateway(BaseGateway):
         async def handle(
             self,
@@ -494,12 +473,12 @@ async def test_test_ui_sanitizes_uploaded_file_name() -> None:
             yield CompletionEvent(text=files[0][2])
 
     gateway = NameGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _test_ui_routes(_agent_card(), gateway)[1].endpoint
+    stream = _console_routes(_agent_card(), gateway)[1].endpoint
 
-    response = await run(
+    response = await stream(
         _request(
             "POST",
-            "/ui/run",
+            "/ui/stream",
             {
                 "objective": "hello",
                 "files": [
@@ -514,31 +493,35 @@ async def test_test_ui_sanitizes_uploaded_file_name() -> None:
     )
 
     assert response.status_code == 200
-    assert json.loads(response.body)["events"][0]["text"] == "note.txt"
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    lines = [json.loads(line) for line in body.decode().splitlines() if line.strip()]
+    assert lines[0]["text"] == "note.txt"
 
 
 @pytest.mark.asyncio
-async def test_test_ui_enforces_objective_limit(monkeypatch) -> None:
+async def test_console_enforces_objective_limit(monkeypatch) -> None:
     monkeypatch.setenv("MAX_OBJECTIVE_CHARS", "3")
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _test_ui_routes(_agent_card(), gateway)[1].endpoint
+    stream = _console_routes(_agent_card(), gateway)[1].endpoint
 
-    response = await run(_request("POST", "/ui/run", {"objective": "hello"}))
+    response = await stream(_request("POST", "/ui/stream", {"objective": "hello"}))
 
     assert response.status_code == 400
     assert "Objective exceeds" in json.loads(response.body)["error"]
 
 
 @pytest.mark.asyncio
-async def test_test_ui_enforces_artifact_limit(monkeypatch) -> None:
+async def test_console_enforces_artifact_limit(monkeypatch) -> None:
     monkeypatch.setenv("MAX_ARTIFACT_BYTES", "1")
     gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
-    run = _test_ui_routes(_agent_card(), gateway)[1].endpoint
+    stream = _console_routes(_agent_card(), gateway)[1].endpoint
 
-    response = await run(_request("POST", "/ui/run", {"objective": "ok"}))
+    response = await stream(_request("POST", "/ui/stream", {"objective": "ok"}))
 
-    assert response.status_code == 400
-    assert "Artifact" in json.loads(response.body)["error"]
+    assert response.status_code == 200
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    lines = [json.loads(line) for line in body.decode().splitlines() if line.strip()]
+    assert any(line.get("type") == "error" and "Artifact" in line.get("text", "") for line in lines)
 
 
 @pytest.mark.asyncio
@@ -655,3 +638,83 @@ def test_build_app_cors_credentials_default_false(monkeypatch) -> None:
 
     cors_mw = next(mw for mw in app.user_middleware if mw.cls is CORSMiddleware)
     assert cors_mw.kwargs.get("allow_credentials") is False
+
+
+def test_uvicorn_formatter_formats_startup_log() -> None:
+    import logging
+
+    from lughus.interfaces.server import _UvicornDefaultFormatter
+
+    formatter = _UvicornDefaultFormatter(fmt="%(levelprefix)s %(message)s")
+    record = logging.LogRecord(
+        name="uvicorn.error",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=10,
+        msg="Uvicorn running on %s://%s:%d (Press CTRL+C to quit)",
+        args=("http", "0.0.0.0", "8080"),
+        exc_info=None,
+    )
+    formatted = formatter.format(record)
+    assert "Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)" in formatted
+    assert "%s" not in formatted
+    assert "%d" not in formatted
+
+
+def test_uvicorn_startup_filter_coerces_str_port() -> None:
+    """The record-level filter fixes the raw '%s://%s:%d' banner even when
+    uvicorn's DEFAULT formatter is in play (plain `uvicorn app:app` launch)."""
+    import logging
+
+    from lughus.interfaces.server import _install_uvicorn_startup_filter
+
+    _install_uvicorn_startup_filter()
+    logger = logging.getLogger("uvicorn.error")
+
+    # str port: previously raised TypeError in getMessage() -> raw template printed.
+    record = logging.LogRecord(
+        name="uvicorn.error",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=10,
+        msg="Uvicorn running on %s://%s:%d (Press CTRL+C to quit)",
+        args=("http", "127.0.0.1", "8001"),
+        exc_info=None,
+    )
+    assert logger.filter(record)  # filter ran without raising
+    # args were coerced: getMessage() must now render cleanly.
+    rendered = record.getMessage()
+    assert rendered == "Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)"
+    assert "%s" not in rendered and "%d" not in rendered
+
+
+def test_uvicorn_default_config_with_filter_renders_banner() -> None:
+    """End-to-end through logging with uvicorn's stock LOGGING_CONFIG."""
+    import io
+    import logging
+
+    import lughus.interfaces.server  # noqa: F401  (installs the filter)
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    root = logging.getLogger("uvicorn.error")
+    old_handlers = root.handlers[:]
+    old_level = root.level
+    root.handlers = [handler]
+    root.setLevel(logging.INFO)
+    try:
+        root.info(
+            "Uvicorn running on %s://%s:%d (Press CTRL+C to quit)",
+            "http",
+            "127.0.0.1",
+            "8002",
+        )
+        for h in root.handlers:
+            h.flush()
+    finally:
+        root.handlers = old_handlers
+        root.setLevel(old_level)
+    out = stream.getvalue()
+    assert "http://127.0.0.1:8002" in out
+    assert "%s://%s:%d" not in out

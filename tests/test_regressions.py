@@ -4,14 +4,6 @@ from lughus.core.domain import RunEvent
 from lughus.core.event_stream import InMemoryEventSink
 from lughus.engine.delegation import DelegationRequest, DelegationResult, Delegator
 from lughus.governance.budget import BudgetAmount, BudgetLedger, BudgetLimit
-from lughus.governance.idempotency import (
-    AttemptStatus,
-    ExecutionAttempt,
-    IdempotencyKey,
-    InMemoryIdempotencyStore,
-)
-from lughus.persistence import Checkpoint
-from lughus.persistence.resume import ResumeAction, decide_resume
 
 
 @pytest.mark.asyncio
@@ -31,23 +23,6 @@ async def test_budget_records_observed_overage():
     await ledger.settle(b, BudgetAmount(tokens=4))
     assert (await ledger.snapshot())["tokens"] == 11
     assert await ledger.would_exceed() == ("tokens",)
-
-
-@pytest.mark.asyncio
-async def test_resume_uses_persisted_arguments_hash():
-    store = InMemoryIdempotencyStore()
-    key = IdempotencyKey.from_args("run", "charge", {"amount": 1})
-    await store.save(ExecutionAttempt(key, AttemptStatus.COMPLETED, result="ok"))
-    cp = Checkpoint(
-        "run",
-        1,
-        1,
-        {},
-        pending_action="charge",
-        outcome_unknown=True,
-        pending_arguments_hash=key.arguments_hash,
-    )
-    assert (await decide_resume(cp, idempotency_store=store)).action == ResumeAction.COMPLETE
 
 
 class _Remote:

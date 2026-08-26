@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import functools
 import inspect
 import json
 import logging
@@ -81,6 +82,24 @@ def _deep_freeze(obj: Any) -> Any:
     if isinstance(obj, (list, tuple)):
         return tuple(_deep_freeze(item) for item in obj)
     return obj
+
+
+def _unwrap_async_target(fn: Callable[..., Any]) -> Any:
+    target: Any = fn
+    while isinstance(target, functools.partial):
+        target = target.func
+    return inspect.unwrap(target)
+
+
+def _is_async_callable(fn: Callable[..., Any]) -> bool:
+    """Return True for coroutine functions, decorated async functions, and async callables."""
+    unwrapped = _unwrap_async_target(fn)
+    if inspect.iscoroutinefunction(unwrapped):
+        return True
+    if not callable(unwrapped):
+        return False
+    call = getattr(unwrapped, "__call__", None)  # noqa: B004
+    return bool(call and inspect.iscoroutinefunction(_unwrap_async_target(call)))
 
 
 def _validate_tool_callable(name: str, fn: Callable[..., Any], parameters_schema: dict) -> None:
@@ -169,6 +188,7 @@ class ToolDef:
     requires_approval: bool = False
     concurrency: ConcurrencyMode = ConcurrencyMode.PARALLEL_SAFE
     resource_key: Callable[[Mapping[str, Any]], str] | None = None
+    is_async: bool = True
 
 
 class ToolRegistry:
@@ -214,6 +234,7 @@ class ToolRegistry:
 
         def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
             _validate_tool_callable(name, fn, parameters)
+            is_async = _is_async_callable(fn)
             self._tools[name] = ToolDef(
                 name=name,
                 description=description,
@@ -230,6 +251,7 @@ class ToolRegistry:
                 requires_approval=requires_approval,
                 concurrency=concurrency,
                 resource_key=resource_key,
+                is_async=is_async,
             )
             self._declarations_cache.clear()
             return fn

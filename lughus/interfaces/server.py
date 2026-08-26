@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import hmac
 import logging
 import time
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, cast
 
 import uvicorn
+import uvicorn.logging
 from a2a.server.apps.jsonrpc.starlette_app import A2AStarletteApplication
 from a2a.server.request_handlers.default_request_handler import (
     DefaultRequestHandler,
@@ -20,10 +22,11 @@ from a2a.types import AgentCard
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
+from uvicorn.config import LOGGING_CONFIG
 
 from ..infra.telemetry import setup_telemetry
 from .gateway import BaseGateway
-from .ui_server import _test_ui_routes, shutdown_ui_server
+from .ui_server import _console_routes, shutdown_ui_server
 
 __all__ = [
     "BoundedInMemoryTaskStore",
@@ -291,7 +294,7 @@ def _validate_production_config(
     *,
     gateway: BaseGateway,
     task_store: TaskStore | None,
-    enable_test_ui: bool,
+    enable_console: bool,
 ) -> None:
     """Fail fast for configurations that are unsafe in production mode."""
     settings = gateway.settings
@@ -303,8 +306,8 @@ def _validate_production_config(
         errors.append("API_BEARER_TOKEN must be set")
     if not getattr(settings, "public_url", ""):
         errors.append("PUBLIC_URL must be set")
-    if enable_test_ui:
-        errors.append("ENABLE_TEST_UI must be false")
+    if enable_console:
+        errors.append("ENABLE_CONSOLE must be false")
     if task_store is None or not bool(getattr(task_store, "durable", False)):
         errors.append("a persistent task_store must be provided")
     if errors:
@@ -317,7 +320,7 @@ def build_app(
     *,
     task_store: TaskStore | None = None,
     setup_otel: bool = True,
-    enable_test_ui: bool = False,
+    enable_console: bool = False,
 ) -> Any:
     """Build a complete A2A Starlette app without starting uvicorn.
 
@@ -326,7 +329,7 @@ def build_app(
         gateway: The BaseGateway executor instance.
         task_store: Optional custom task store. Defaults to BoundedInMemoryTaskStore.
         setup_otel: If True, calls setup_telemetry() automatically.
-        enable_test_ui: If True, exposes the local testing interface at /ui.
+        enable_console: If True, exposes the developer console at /ui.
     """
     if setup_otel:
         setup_telemetry(service_name=agent_card.name)
@@ -334,7 +337,7 @@ def build_app(
     _validate_production_config(
         gateway=gateway,
         task_store=task_store,
-        enable_test_ui=enable_test_ui,
+        enable_console=enable_console,
     )
 
     if task_store is None:
@@ -366,8 +369,8 @@ def build_app(
         Route("/health", _health),
         Route("/healthz", _health),
     ]
-    if enable_test_ui:
-        utility_routes.extend(_test_ui_routes(agent_card, gateway))
+    if enable_console:
+        utility_routes.extend(_console_routes(agent_card, gateway))
     app.routes[0:0] = utility_routes
     app.add_middleware(
         ProductionGuardMiddleware,
@@ -397,6 +400,123 @@ def build_app(
     return app
 
 
+def _safe_render(template: str, args: tuple[object, ...] | Mapping[str, object] | None) -> str:
+    """Render a printf-style template coercing every argument to str."""
+    rendered = template
+    if isinstance(args, tuple):
+        for arg in args:
+            idx = rendered.find("%")
+            if idx == -1:
+                break
+            rendered = rendered[:idx] + str(arg) + rendered[idx + 2 :]
+    return rendered
+
+
+class _UvicornStartupArgsFilter(logging.Filter):
+    """Coerce uvicorn startup log args at the record level.
+
+    Uvicorn logs its startup banner as ``'%s://%s:%d ...'`` with
+    ``(protocol, host, port)`` positional args. When the port is a ``str``
+    the ``%d`` substitution raises ``TypeError`` inside ``getMessage()``;
+    logging then swallows the error and prints the RAW template —
+    ``INFO: Uvicorn running on %s://%s:%d``. This filter coerces the args
+    on the record itself so ANY formatter (ours or uvicorn's default,
+    e.g. when the app is launched via plain ``uvicorn app:app``) renders
+    a clean connection string.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        self._coerce(record)
+        return True
+
+    def _coerce(self, record: logging.LogRecord) -> None:
+        args = record.args
+        if not isinstance(args, tuple) or len(args) != 3:
+            return
+        protocol, host, port = args
+        if isinstance(port, str):
+            try:
+                port = int(port)
+            except ValueError:
+                return
+        if not isinstance(port, int) or "%d" not in str(record.msg):
+            return
+        record.args = (str(protocol), str(host), port)
+
+
+def _install_uvicorn_startup_filter() -> None:
+    """Attach the arg-coercion filter to every uvicorn logger, once."""
+    flt = _UvicornStartupArgsFilter()
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        logging.getLogger(name).addFilter(flt)
+
+
+_install_uvicorn_startup_filter()
+
+
+class _UvicornDefaultFormatter(uvicorn.logging.DefaultFormatter):
+    """Ensures startup connection strings are always cleanly formatted.
+
+    ``logging.Formatter.format()`` calls ``record.getMessage()`` BEFORE
+    ``formatMessage()``, so a str port would raise TypeError there and
+    logging's handleError() prints the RAW ``%s://%s:%d`` template. We
+    therefore coerce the args on the record itself in ``format()`` first.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                int(arg) if isinstance(arg, str) and arg.isdigit() else arg for arg in record.args
+            )
+        return super().format(record)
+
+    def formatMessage(self, record: logging.LogRecord) -> str:
+        recordcopy = copy.copy(record)
+        levelname = recordcopy.levelname
+        seperator = " " * (8 - len(recordcopy.levelname))
+        if self.use_colors:
+            levelname = self.color_level_name(levelname, recordcopy.levelno)
+            if "color_message" in recordcopy.__dict__:
+                recordcopy.msg = recordcopy.__dict__["color_message"]
+
+        # Coerce positional args so %d placeholders always receive numbers.
+        # A str port reaching this point would otherwise make getMessage()
+        # raise TypeError, and logging then prints the RAW "%s://%s:%d"
+        # template — the exact bug this formatter exists to prevent.
+        if recordcopy.args:
+            if isinstance(recordcopy.args, tuple):
+                coerced: list[Any] = []
+                for arg in recordcopy.args:
+                    if isinstance(arg, (bool, int)):
+                        coerced.append(arg)
+                    elif isinstance(arg, float):
+                        coerced.append(int(arg) if arg.is_integer() else arg)
+                    elif isinstance(arg, str):
+                        try:
+                            coerced.append(int(arg))
+                        except ValueError:
+                            coerced.append(arg)
+                    else:
+                        coerced.append(arg)
+                recordcopy.args = tuple(coerced)
+
+            try:
+                message = recordcopy.getMessage()
+            except Exception:  # noqa: BLE001 - logging must never raise
+                # Last resort: render the template ourselves with str(),
+                # guaranteeing no raw %s placeholder can ever leak out.
+                try:
+                    message = _safe_render(recordcopy.msg, recordcopy.args)
+                except Exception:  # noqa: BLE001 - idem
+                    message = str(recordcopy.msg)
+            recordcopy.msg = message
+            recordcopy.args = None
+
+        recordcopy.__dict__["levelprefix"] = levelname + ":" + seperator
+        # Args are already folded into msg; skip the parent's getMessage().
+        return self._style.format(recordcopy)
+
+
 def serve(
     agent_card: AgentCard,
     gateway: BaseGateway,
@@ -406,7 +526,7 @@ def serve(
     log_level: str = "INFO",
     task_store: TaskStore | None = None,
     setup_otel: bool = True,
-    enable_test_ui: bool = False,
+    enable_console: bool = False,
 ) -> None:
     """Start a complete A2A server with uvicorn.
 
@@ -418,19 +538,27 @@ def serve(
         log_level: Log level string.
         task_store: Optional custom task store. Defaults to BoundedInMemoryTaskStore.
         setup_otel: If True, calls setup_telemetry() automatically.
-        enable_test_ui: If True, exposes the local testing interface at /ui.
+        enable_console: If True, exposes the developer console at /ui.
     """
+    port = int(port)
+    host = str(host)
     app = build_app(
         agent_card=agent_card,
         gateway=gateway,
         task_store=task_store,
         setup_otel=setup_otel,
-        enable_test_ui=enable_test_ui,
+        enable_console=enable_console,
     )
+    if enable_console:
+        display_host = "127.0.0.1" if host == "0.0.0.0" else host
+        _logger.info("Developer console available at http://%s:%d/ui", display_host, port)
+    log_config = copy.deepcopy(LOGGING_CONFIG)
+    log_config["formatters"]["default"]["()"] = _UvicornDefaultFormatter
     uvicorn.run(
         app,
         host=host,
         port=port,
         log_level=log_level.lower(),
+        log_config=log_config,
         timeout_graceful_shutdown=30,
     )

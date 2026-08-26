@@ -15,7 +15,7 @@ Micro-framework for building [A2A](https://google.github.io/A2A/) agents with [L
 ## Install
 
 ```bash
-pip install lughus              # Core (litellm, orjson, jsonschema)
+pip install lughus              # Core (litellm, python-dotenv, jsonschema)
 pip install lughus[server]      # + FastAPI, uvicorn, a2a-sdk
 pip install lughus[all]         # Everything
 ```

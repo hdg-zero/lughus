@@ -15,13 +15,14 @@ The `lughus.infra.runtime`, `lughus.agent.runner`, and `lughus.core.event_stream
 ### `RuntimeConfig`
 
 ```python
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class RuntimeConfig:
-    max_sync_thread_workers: int = 32
     max_global_tools: int = 64
+    max_sync_workers: int = 32
+    queue_timeout: float | None = None
 ```
 
-Configures process-wide thread pool workers and bulkhead concurrency limits.
+Configures thread pool workers and bulkhead concurrency limits for one `ExecutionRuntime`. `queue_timeout` is the default wait applied by `tool_slot()` when no explicit timeout is passed.
 
 ---
 
@@ -63,36 +64,35 @@ Composition root bundling process execution, policies, approval stores, idempote
 
 ---
 
-### `AgentRunner` & `GovernedAgentRunner`
+### `GovernedAgentRunner`
 
 ```python
-class AgentRunner:
+class GovernedAgentRunner:
     def __init__(
         self,
-        llm: LLM,
-        tools: ToolRegistry | None = None,
-        runtime: ExecutionRuntime | None = None,
+        runtime: AgentRuntime | None = None,
+        *,
         event_sink: EventSink | None = None,
     ) -> None: ...
 
-
-class GovernedAgentRunner:
-    def __init__(self, runtime: AgentRuntime) -> None: ...
     async def run(
         self,
         llm: Any,
         *,
-        objective: str,
-        principal: Principal,
-        registry: ToolRegistry,
+        objective: str = "",
+        principal: Principal | None = None,
+        registry: ToolRegistry | None = None,
         state: Any = None,
         context_items: Sequence[ContextItem] = (),
         max_iterations: int = 20,
         system: str = "You are a helpful assistant.",
+        context: str = "",
+        tool_names: Sequence[str] | None = None,
+        thread_id: str | None = None,
     ) -> LoopResult: ...
 ```
 
-`AgentRunner` provides event-streamed execution orchestration. `GovernedAgentRunner` unifies context selection, budget reservations, tool policy evaluation, and transactional state transitions via `RunCoordinator`.
+`GovernedAgentRunner` provides event-streamed execution orchestration. Without an `AgentRuntime`, it operates in lightweight event-emission mode; with an `AgentRuntime`, it applies the full governance pipeline (context selection, budget tracking, policy enforcement, approval gates, and state coordination).
 
 ---
 
@@ -120,35 +120,34 @@ Pub/sub event stream interface and reference in-memory implementation enforcing 
 
 ```python
 class RunCoordinator:
-    def __init__(
-        self,
-        run_store: RunStore,
-        checkpoint_store: CheckpointStore,
-        event_sink: EventSink | None = None,
-    ) -> None: ...
+    def __init__(self, store: RunUnitOfWork) -> None:
+        """Transactional coordinator with per-run sequence allocation."""
+
+    def next_sequence(self, run_id: str) -> int: ...
+    async def start(
+        self, objective: str, *, tenant_id: str, principal_id: str,
+        context_id: str | None = None,
+    ) -> Run: ...
     async def transition(
         self,
-        run_id: str,
-        target_status: RunStatus,
+        run: Run,
+        status: RunStatus,
+        event_type: str,
+        data: Mapping[str, Any] | None = None,
         *,
-        state: Mapping[str, Any] | None = None,
-        error: str | None = None,
+        pending_action: str | None = None,
+        pending_arguments_hash: str | None = None,
+        outcome_unknown: bool = False,
     ) -> Run: ...
 
 
-class RunUnitOfWork:
-    def __init__(
-        self,
-        run_store: RunStore,
-        checkpoint_store: CheckpointStore,
-        event_sink: EventSink | None = None,
+class RunUnitOfWork(Protocol):
+    async def create_transition(
+        self, run: Run, event: RunEvent, checkpoint: Checkpoint
     ) -> None: ...
-    async def commit(
-        self,
-        run: Run,
-        checkpoint: Checkpoint | None = None,
-        events: Sequence[RunEvent] = (),
-    ) -> None: ...
-```
+    async def commit_transition(
+        self, *, run_id: str, expected_version: int, status: RunStatus,
+        event: RunEvent, checkpoint: Checkpoint,
+    ) -> Run: ...
 
-Transactional state machine coordinator enforcing valid status transitions (`CREATED`, `RUNNING`, `PAUSED`, `COMPLETED`, `FAILED`, `CANCELLED`) and atomic Unit of Work persistence across run records, checkpoints, and event streams.
+Transactional state machine coordinator enforcing valid status transitions (`PENDING`, `RUNNING`, `WAITING`, `COMPLETED`, `FAILED`, `CANCELLED`) with per-run sequence allocation and atomic Unit of Work persistence across run records, checkpoints, and event streams.

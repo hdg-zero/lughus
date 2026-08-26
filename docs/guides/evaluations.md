@@ -1,15 +1,9 @@
-# Evaluations and Replay Guide
+# Evaluations Guide
 
-Testing non-deterministic A2A agents presents a unique challenge. Lughus separates testing into two distinct phases: deterministic replay of past interactions, and probabilistic evaluation of scenario constraints.
+Testing non-deterministic A2A agents presents a unique challenge. Lughus separates testing into two distinct phases: deterministic offline tests with mock transports, and probabilistic evaluation of scenario constraints.
 
 ## Development Cycle Overview
-The `lughus.persistence.replay` and `lughus.testing.evaluation` modules allow you to capture an agent's execution, seal it into a portable bundle, and run assertions against the resulting event stream. This ensures regressions are caught early without incurring the cost and variance of live LLM calls.
-
-## Replay Bundles
-A `ReplayBundle` encapsulates everything needed to reconstruct a `Run`.
-- **Sealing & Serialization:** Bundles must be explicitly sealed via `bundle.seal()`, which computes an SHA-256 integrity hash over the canonical JSON representation.
-- **Integrity Verification:** Deserializing a bundle with `ReplayBundle.from_json` automatically verifies the hash. If the payload is modified, it raises a `ValueError`.
-- **Modes:** Bundles can be replayed in strict mode (all calls must match exactly) or comparison mode (for evaluating new prompts against old data).
+The `lughus.testing` module (`MockLLM`, `MockStreamingLLM`, and `lughus.testing.evaluation`) lets you run assertions against an agent's event stream without live LLM calls. Use `MockLLM` / `MockStreamingLLM` for deterministic unit tests (see the [Testing Guide](testing.md)) and `Scenario` for probabilistic evaluation.
 
 ## Scenario Evaluation
 The `Scenario` dataclass defines the boundary conditions for an agent test. You define the required events, forbidden events, and the expected terminal state.
@@ -51,5 +45,5 @@ if __name__ == "__main__":
 ```
 
 ## Deterministic vs Probabilistic
-- **Deterministic:** Use `ReplayBundle` to ensure that given the exact same HTTP responses, your agent framework parses and executes identically.
+- **Deterministic:** Use `MockLLM` / `MockStreamingLLM` to ensure that given the exact same canned responses, your agent parses and executes identically.
 - **Probabilistic:** Use `Scenario` with live models to ensure that regardless of the exact path the LLM takes, the agent never triggers forbidden events and always reaches the required outcomes within the event budget.

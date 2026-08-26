@@ -188,8 +188,6 @@ async def test_approval_not_consumed_when_budget_exceeds():
             model_calls=100,
             tool_calls=0,
             tokens=1_000_000,
-            bytes=100_000_000,
-            estimated_cost_micros=100_000_000,
             delegation_depth=4,
         )
     )
@@ -424,8 +422,6 @@ async def test_budget_not_reserved_during_slot_wait():
             model_calls=100,
             tool_calls=10,
             tokens=1_000_000,
-            bytes=100_000_000,
-            estimated_cost_micros=100_000_000,
             delegation_depth=4,
         )
     )

@@ -119,7 +119,7 @@ async def test_injected_runtime_is_not_closed_by_the_loop(registry: ToolRegistry
 
 
 async def test_repeated_loops_do_not_leak_threads(registry: ToolRegistry) -> None:
-    """Regression test: repeated loops must not leak threads. Fails on 0.10.1."""
+    """Regression test: repeated loops must not leak threads."""
     before = threading.active_count()
     for _ in range(40):
         await agent_loop(
@@ -241,7 +241,7 @@ async def test_resource_slot_releases_on_exception() -> None:
 
 
 async def test_close_wait_true_waits_for_running_sync_tools() -> None:
-    """Fails on 0.10.1: `wait` was ignored and shutdown(wait=False) always ran."""
+    """Regression guard: `close(wait=True)` must actually wait for the executor."""
     import time as _time
 
     runtime = ExecutionRuntime(RuntimeConfig(max_sync_workers=2))

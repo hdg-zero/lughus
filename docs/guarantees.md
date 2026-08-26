@@ -1,13 +1,9 @@
-# Guarantees and non-guarantees
+# Guarantees and Non-Guarantees
 
-Lughus validates tool inputs and bounds configured payloads. Limits are scoped to one
-application runtime unless explicitly documented otherwise. The in-memory task store is
-not durable and is not suitable for multiple replicas.
+Lughus validates tool inputs and bounds configured payloads. Limits are scoped to one application runtime unless explicitly documented otherwise. The in-memory task store is not durable and is not suitable for multiple replicas.
 
-`agent_loop_stream` in 0.1.x is retry-safe but buffered: final text is emitted only after
-the provider stream completes. It is not a time-to-first-token API. Live at-most-once
-streaming is introduced as an explicit mode in 0.2.0.
+Streaming supports two explicit modes (`StreamingMode`):
+- `BUFFERED`: Retry-safe execution where text is emitted after provider completion.
+- `LIVE`: Low-latency time-to-first-token streaming where provider chunks are yielded immediately.
 
-A timeout around a synchronous Python tool stops waiting but cannot terminate its worker
-thread. Tools that perform side effects remain responsible for idempotency and cooperative
-cancellation. Prompts are not authorization controls.
+A timeout around a synchronous Python tool stops waiting but cannot terminate its worker thread. Tools that perform side effects remain responsible for idempotency and cooperative cancellation. Prompts are not authorization controls.

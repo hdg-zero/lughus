@@ -4,7 +4,6 @@ from lughus.core.context import ContextItem, ContextManager, TrustLevel
 from lughus.core.domain import Run, RunEvent, RunStatus
 from lughus.governance.budget import BudgetAmount, BudgetExceeded, BudgetLedger, BudgetLimit
 from lughus.persistence import Checkpoint, ConcurrentUpdateError, InMemoryRunStore
-from lughus.persistence.resume import ResumeAction, decide_resume
 
 
 @pytest.mark.asyncio
@@ -39,8 +38,6 @@ async def test_budget_reservation_is_atomic():
             model_calls=1,
             tool_calls=1,
             tokens=10,
-            bytes=10,
-            estimated_cost_micros=1,
             delegation_depth=1,
         )
     )
@@ -62,11 +59,3 @@ def test_context_preserves_system_and_recent_items():
     assert window.items[0].trust == TrustLevel.SYSTEM
     assert window.items[-1].content == "recent"
     assert window.omitted == 1
-
-
-@pytest.mark.asyncio
-async def test_unknown_non_idempotent_outcome_requires_reconciliation():
-    checkpoint = Checkpoint("run", 1, 2, {}, pending_action="charge", outcome_unknown=True)
-    assert (await decide_resume(checkpoint)).action == ResumeAction.REQUIRE_RECONCILIATION
-    res = await decide_resume(checkpoint, pending_action_idempotent=True)
-    assert res.action == ResumeAction.RETRY_SAFE_ACTION

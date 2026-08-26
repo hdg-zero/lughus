@@ -1,7 +1,6 @@
-# Run event contract v1 — Frozen at 0.10.0
+# Run Event Contract
 
-> **Contract stability:** This specification is frozen as of Lughus 0.10.0.
-> Future changes follow the compatibility policy in ADR-001.
+> **Contract stability:** This specification is stable. Future changes follow standard SemVer policy (ADR-001).
 
 ## Schema
 

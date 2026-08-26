@@ -15,7 +15,6 @@ import {
   updateActiveRunStatus,
   appendEventToActiveRun,
 } from "/ui/assets/ui_history.js";
-import { initOtelForm } from "/ui/assets/ui_otel.js";
 import { renderAgentFlow } from "/ui/assets/ui_agent_flow.js";
 import { initTheme } from "/ui/assets/ui_theme.js";
 
@@ -144,6 +143,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  if (objective && form) {
+    objective.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        form.requestSubmit();
+      }
+    });
+  }
+
   if (dropzone && filesInput) {
     dropzone.addEventListener("dragenter", () => dropzone.classList.add("dragover"));
     dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
@@ -238,7 +246,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  initOtelForm();
   initTheme();
 
   // Initial Render

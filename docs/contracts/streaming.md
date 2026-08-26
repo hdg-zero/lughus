@@ -1,7 +1,6 @@
-# Streaming contract — Frozen at 0.10.0
+# Streaming Contract
 
-> **Contract stability:** This specification is frozen as of Lughus 0.10.0.
-> Future changes follow the compatibility policy in ADR-001.
+> **Contract stability:** This specification is stable. Future changes follow standard SemVer policy (ADR-001).
 
 ## Modes
 
@@ -12,7 +11,7 @@
 
 ## Delivery guarantees
 
-- `buffered` preserves the retry-safe behavior from 0.1.
+- `buffered` provides retry-safe execution by buffering response chunks.
 - `live` emits each provider delta immediately.  Once the first delta is emitted,
   a later provider error is terminal and already-emitted content is not replayed.
 - Tool calls execute only after their complete arguments have been assembled
