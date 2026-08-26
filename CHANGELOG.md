@@ -17,6 +17,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - **BaseSettings Dotenv Resolution**: Routed all string settings through `_getenv()` helper guaranteeing `.env` is loaded before any field factory runs.
+- **Developer Console Markdown Tables**: Rewrote GFM table detection regex to correctly match pipe-delimited tables (including single-column tables); fixed double `inlineMarkdown()` application on already-processed block elements; eliminated spurious `<br>` tags around table/blockquote/code block placeholders.
 
 ### Performance
 - **Lazy LiteLLM Resolution**: Deferred `import litellm` to runtime invocation via memoized `_litellm()` accessor, reducing engine cold start import time from ~7.5s to ~240ms.

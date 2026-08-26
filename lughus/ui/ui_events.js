@@ -52,10 +52,22 @@ export function parseMarkdown(text) {
     return placeholder;
   });
 
+  function inlineMarkdown(s) {
+    return s
+      .replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+      .replace(/(?:^|\W)_([^_]+)_(?:\W|$)/g, " <em>$1</em> ")
+      .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+      .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>');
+  }
+
   // 2. Extract Tables (GFM) with alignment support
+  // Requires pipe-delimited rows: | col1 | col2 | (supports 1+ columns)
   const tables = [];
   html = html.replace(
-    /(?:^|\n)((?:[^\n|]*\|[^\n]*\n)[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)+\|?[ \t]*\n(?:[^\n|]*\|[^\n]*\n?)*)/g,
+    /(?:^|\n)([ \t]*\|[^\n]+\|[ \t]*\n[ \t]*\|[ \t]*:?-{1,}:?[ \t]*(?:\|[ \t]*:?-{1,}:?[ \t]*)*\|[ \t]*\n(?:[ \t]*\|[^\n]+\|[ \t]*(?:\n|$))*)/g,
     (match, block) => {
       const rows = block.trim().split("\n");
       if (rows.length < 2) return match;
@@ -106,17 +118,6 @@ export function parseMarkdown(text) {
     return placeholder;
   });
 
-  function inlineMarkdown(s) {
-    return s
-      .replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>')
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-      .replace(/(?:^|\W)_([^_]+)_(?:\W|$)/g, " <em>$1</em> ")
-      .replace(/~~([^~]+)~~/g, "<del>$1</del>")
-      .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>');
-  }
-
   // 4. Horizontal rules (---, ***, ___)
   html = html.replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gim, '<hr class="md-hr">');
 
@@ -137,22 +138,37 @@ export function parseMarkdown(text) {
   html = html.replace(/^\s*(\d+)\.\s+(.*$)/gim, (_m, _num, content) => `<li class="md-li md-ol-item">${inlineMarkdown(content)}</li>`);
 
   // Wrap consecutive <li> in <ul> / <ol>
-  html = html.replace(/(<li class="md-li(?: md-ol-item| md-task)?">[\s\S]*?<\/li>(?:\n|$))+/g, (match) => {
+  html = html.replace(/(<li class="md-li(?: md-ol-item| md-task)?">[^]*?<\/li>(?:\n|$))+/g, (match) => {
     if (match.includes("md-ol-item")) {
       return `<ol class="md-ol">\n${match.trim()}\n</ol>\n`;
     }
     return `<ul class="md-ul">\n${match.trim()}\n</ul>\n`;
   });
 
-  // 7. Inline formatting
-  html = inlineMarkdown(html);
+  // 7. Inline formatting — apply ONLY to plain-text lines
+  //    Headers, lists, tables, blockquotes already applied inlineMarkdown during extraction.
+  const PLACEHOLDER_RE = /^\s*@@@MD(CODEBLOCK|TABLE|QUOTE)\d+@@@\s*$/;
+  const BLOCK_TAG_RE = /^\s*<(h[1-6]|hr|ul|ol|li|blockquote|div)\b/;
+  const CLOSE_TAG_RE = /^\s*<\//;
+  html = html.split("\n").map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || PLACEHOLDER_RE.test(trimmed) || BLOCK_TAG_RE.test(trimmed) || CLOSE_TAG_RE.test(trimmed)) {
+      return line;
+    }
+    return inlineMarkdown(line);
+  }).join("\n");
 
-  // 8. Line breaks & spacing
-  const BLOCK_RE = /^\s*(<(h[1-6]|hr|ul|ol|li|blockquote|div)\b|<\/|@@@MD(CODEBLOCK|TABLE|QUOTE)\d+@@@\s*$)/;
+  // 8. Line breaks & spacing — skip block elements AND placeholders
   const outLines = [];
   const rawLines = html.split("\n");
   for (const line of rawLines) {
-    if (BLOCK_RE.test(line) || /^@@@MD/.test(line.trim()) || line.trim() === "") {
+    const trimmed = line.trim();
+    if (
+      !trimmed ||
+      PLACEHOLDER_RE.test(trimmed) ||
+      BLOCK_TAG_RE.test(trimmed) ||
+      CLOSE_TAG_RE.test(trimmed)
+    ) {
       outLines.push(line);
     } else {
       outLines.push(line + "<br>");
