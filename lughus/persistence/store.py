@@ -101,7 +101,9 @@ class InMemoryRunStore:
 
     async def update_status(self, run_id: str, expected_version: int, status: RunStatus) -> Run:
         async with self._lock:
-            current = self._runs[run_id]
+            current = self._runs.get(run_id)
+            if current is None:
+                raise ConcurrentUpdateError(f"Run {run_id} not found")
             if current.version != expected_version:
                 raise ConcurrentUpdateError("Run version changed")
             if current.status.terminal:
@@ -155,7 +157,9 @@ class InMemoryRunStore:
         checkpoint: Checkpoint,
     ) -> Run:
         async with self._lock:
-            current = self._runs[run_id]
+            current = self._runs.get(run_id)
+            if current is None:
+                raise ConcurrentUpdateError(f"Run {run_id} not found")
             if current.version != expected_version:
                 raise ConcurrentUpdateError("Run version changed")
             if current.status.terminal:

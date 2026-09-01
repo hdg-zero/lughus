@@ -21,11 +21,22 @@ _ALLOWED = {
 
 
 class RunCoordinator:
-    """Transactional coordinator with per-run sequence allocation."""
+    """Transactional coordinator with per-run sequence allocation.
+
+    Maintains monotonically increasing event sequence numbers per run across
+    transitions. When transitioning a run whose sequence is not yet cached in memory
+    (e.g., following a worker restart or pause for human approval), the coordinator
+    retrieves the latest sequence from the underlying store to prevent
+    ConcurrentUpdateError regressions. Terminal runs are evicted to prevent memory leaks.
+    """
 
     def __init__(self, store: RunUnitOfWork) -> None:
         self.store = store
         self._sequences: dict[str, int] = {}
+
+    def init_sequence(self, run_id: str, sequence: int) -> None:
+        """Explicitly set or advance the sequence counter for *run_id*."""
+        self._sequences[run_id] = max(self._sequences.get(run_id, 0), sequence)
 
     def next_sequence(self, run_id: str) -> int:
         """Return the next globally unique sequence for *run_id* and advance the counter."""
@@ -57,6 +68,17 @@ class RunCoordinator:
         allowed = _ALLOWED.get(run.status, set())
         if status not in allowed:
             raise ValueError(f"Invalid run transition: {run.status.value} -> {status.value}")
+
+        if run.run_id not in self._sequences:
+            if hasattr(self.store, "latest"):
+                cp = await self.store.latest(run.run_id)
+                if cp is not None:
+                    self._sequences[run.run_id] = cp.sequence + 1
+            elif hasattr(self.store, "read"):
+                events = await self.store.read(run.run_id)
+                if events:
+                    self._sequences[run.run_id] = max(e.sequence for e in events) + 1
+
         sequence = self.next_sequence(run.run_id)
         event = RunEvent(
             event_type, run.run_id, sequence, data or {}, visibility=EventVisibility.AUDIT
@@ -70,10 +92,13 @@ class RunCoordinator:
             outcome_unknown,
             pending_arguments_hash=pending_arguments_hash,
         )
-        return await self.store.commit_transition(
+        updated_run = await self.store.commit_transition(
             run_id=run.run_id,
             expected_version=run.version,
             status=status,
             event=event,
             checkpoint=checkpoint,
         )
+        if status.terminal:
+            self._sequences.pop(run.run_id, None)
+        return updated_run
