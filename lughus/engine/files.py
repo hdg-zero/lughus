@@ -89,6 +89,12 @@ async def decode_files_payload(
         if not isinstance(encoded, str):
             raise ValueError(f"files[{index}].content_base64 must be a string")
 
+        max_file_bytes = getattr(settings, "max_file_bytes", 25 * 1024 * 1024)
+        max_encoded_chars = ((max_file_bytes + 2) // 3) * 4
+        if len(encoded) > max_encoded_chars:
+            safe_name = _safe_filename(item.get("name"))
+            raise ValueError(f"File '{safe_name}' exceeds max size {max_file_bytes} bytes")
+
         try:
             data, mime, name = await decode_file_bytes(
                 encoded,

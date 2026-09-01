@@ -5,6 +5,7 @@ import contextvars
 import logging
 import time
 from collections.abc import AsyncGenerator, AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
@@ -261,6 +262,25 @@ def _resolve_tool_config(
     return replace(cfg, runtime=runtime), runtime
 
 
+@asynccontextmanager
+async def _loop_session(
+    registry: ToolRegistry,
+    tool_names: list[str],
+    tool_config: ToolExecutionConfig | None,
+) -> AsyncIterator[tuple[ToolExecutionConfig, list[str]]]:
+    """Manage lifecycle of loop configuration, runtime ownership, and artifact store."""
+    cfg, owned_runtime = _resolve_tool_config(tool_config)
+    effective_tool_names = list(tool_names)
+    cfg = _setup_artifact_projection(registry, effective_tool_names, cfg)
+    token = _active_artifact_store.set(cfg.artifact_store)
+    try:
+        yield cfg, effective_tool_names
+    finally:
+        _active_artifact_store.reset(token)
+        if owned_runtime is not None:
+            await owned_runtime.close()
+
+
 async def agent_loop(
     llm: GenerateLLM,
     *,
@@ -279,12 +299,8 @@ async def agent_loop(
     metadata (``iterations``, ``elapsed``, ``prompt_tokens``,
     ``completion_tokens``, ``cached_tokens``, ``total_tokens``).
     """
-    cfg, _owned_runtime = _resolve_tool_config(tool_config)
-    effective_tool_names = list(tool_names)
-    cfg = _setup_artifact_projection(registry, effective_tool_names, cfg)
-    _artifact_token = _active_artifact_store.set(cfg.artifact_store)
-    try:
-        with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
+    async with _loop_session(registry, tool_names, tool_config) as (cfg, effective_tool_names):
+        with tracer.start_as_current_span("agent_loop") as loop_span:
             with retry_budget(getattr(llm, "retry_max_elapsed", None)):
                 loop_span.set_attribute("gen_ai.system", "litellm")
                 loop_span.set_attribute("gen_ai.request.model", llm.model)
@@ -372,10 +388,6 @@ async def agent_loop(
 
                 loop_span.set_status(StatusCode.ERROR, "max iterations exceeded")
                 raise LoopLimitError(f"Agent loop exceeded {max_iterations} iterations")
-    finally:
-        _active_artifact_store.reset(_artifact_token)
-        if _owned_runtime is not None:
-            await _owned_runtime.close()
 
 
 async def agent_loop_stream(
@@ -401,12 +413,8 @@ async def agent_loop_stream(
     if mode_str not in {"buffered", "live"}:
         raise ValueError("streaming_mode must be 'buffered' or 'live'")
     streaming_mode_normalized = mode_str
-    cfg, _owned_runtime = _resolve_tool_config(tool_config)
-    effective_tool_names = list(tool_names)
-    cfg = _setup_artifact_projection(registry, effective_tool_names, cfg)
-    _artifact_token = _active_artifact_store.set(cfg.artifact_store)
-    try:
-        with tracer.start_as_current_span("agent_loop") as loop_span:  # noqa: SIM117
+    async with _loop_session(registry, tool_names, tool_config) as (cfg, effective_tool_names):
+        with tracer.start_as_current_span("agent_loop") as loop_span:
             with retry_budget(getattr(llm, "retry_max_elapsed", None)):
                 loop_span.set_attribute("gen_ai.system", "litellm")
                 loop_span.set_attribute("gen_ai.request.model", llm.model)
@@ -535,7 +543,3 @@ async def agent_loop_stream(
 
                 loop_span.set_status(StatusCode.ERROR, "max iterations exceeded")
                 raise LoopLimitError(f"Agent loop exceeded {max_iterations} iterations")
-    finally:
-        _active_artifact_store.reset(_artifact_token)
-        if _owned_runtime is not None:
-            await _owned_runtime.close()

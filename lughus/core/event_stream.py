@@ -70,7 +70,11 @@ class InMemoryEventSink:
 
                 def _has_new_events(c: int = cursor) -> bool:
                     if run_id is not None:
+                        if self._last_sequence.get(run_id, -1) <= c:
+                            return False
                         return any(e.sequence > c and e.run_id == run_id for _, e in self._events)
+                    if not self._events or self._events[-1][0] <= c:
+                        return False
                     return any(offset > c for offset, _ in self._events)
 
                 await self._condition.wait_for(_has_new_events)
