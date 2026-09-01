@@ -76,7 +76,13 @@ export function parseMarkdown(text) {
       .replace(/\*([^*]+)\*/g, "<em>$1</em>")
       .replace(/(?:^|\W)_([^_]+)_(?:\W|$)/g, " <em>$1</em> ")
       .replace(/~~([^~]+)~~/g, "<del>$1</del>")
-      .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>');
+      .replace(
+        /\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)"\s]+)\)/g,
+        (_match, text, url) => {
+          const cleanUrl = url.replace(/"/g, "&quot;");
+          return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="md-link">${text}</a>`;
+        }
+      );
   }
 
   // 2. Extract Tables (GFM) with alignment support

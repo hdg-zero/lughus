@@ -67,3 +67,20 @@ class TestRegisterCodeInterpreter:
         outcome = asyncio.run(tool_def.fn(state={}, code="while True: pass"))
         assert outcome["exit_code"] == -1
         assert "exceeded" in outcome["error"]
+
+    def test_security_defaults(self) -> None:
+        from lughus.engine.tools import ToolEffect, ToolRisk
+
+        registry = ToolRegistry()
+        register_code_interpreter(registry)
+        tool_def = registry._tools["code_interpreter"]
+        assert tool_def.requires_approval is True
+        assert tool_def.risk == ToolRisk.HIGH
+        assert ToolEffect.EXTERNAL in tool_def.effects
+        assert ToolEffect.WRITE in tool_def.effects
+
+    def test_custom_approval_flag(self) -> None:
+        registry = ToolRegistry()
+        register_code_interpreter(registry, requires_approval=False)
+        tool_def = registry._tools["code_interpreter"]
+        assert tool_def.requires_approval is False
