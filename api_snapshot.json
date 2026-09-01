@@ -108,6 +108,22 @@
     "kind": "enum"
   },
   {
+    "name": "DelegationCycleError",
+    "kind": "class"
+  },
+  {
+    "name": "DelegationRequest",
+    "kind": "dataclass"
+  },
+  {
+    "name": "DelegationResult",
+    "kind": "dataclass"
+  },
+  {
+    "name": "Delegator",
+    "kind": "class"
+  },
+  {
     "name": "EvaluationResult",
     "kind": "dataclass"
   },
@@ -140,6 +156,10 @@
     "kind": "class"
   },
   {
+    "name": "IdempotencyCapacityError",
+    "kind": "class"
+  },
+  {
     "name": "IdempotencyKey",
     "kind": "dataclass"
   },
@@ -165,6 +185,10 @@
   },
   {
     "name": "LLM",
+    "kind": "class"
+  },
+  {
+    "name": "LLMResponseError",
     "kind": "class"
   },
   {
@@ -214,6 +238,10 @@
   {
     "name": "ProgressEvent",
     "kind": "dataclass"
+  },
+  {
+    "name": "RemoteAgentClient",
+    "kind": "class"
   },
   {
     "name": "Run",

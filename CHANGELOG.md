@@ -7,16 +7,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Public Surface & Delegation Exports**: Added `DelegationCycleError`, `DelegationRequest`, `DelegationResult`, `Delegator`, `RemoteAgentClient`, `IdempotencyCapacityError`, and `LLMResponseError` to `lughus` root exports and public API snapshot.
+- **Sealed CLI Subcommand Dispatch**: Structured CLI routing via `CLICommand(StrEnum)`.
 - **Complete GFM Markdown Interpretation**: Full client-side markdown engine in Developer Console with support for GFM tables with column alignment, GitHub alert callouts (`[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`), blockquotes, interactive task checkboxes, ordered/unordered lists, strikethrough, links, and code block headers with language badges.
 - **LaTeX Math Rendering**: Developer Console now renders inline (`$...$`) and display (`$$...$$`) LaTeX math expressions via KaTeX, supporting scientific notation, chemical formulas (`$\text{Na}^+$`, `$\text{Mg}^{2+}$`), and standard mathematical typesetting.
 
 ### Changed
+- **Loop Lifecycle Consolidation**: Factored out `_loop_session` async context manager to unify runtime ownership, artifact store binding, and clean teardown across `agent_loop` and `agent_loop_stream`.
 - **Tool Concurrency & Event Dispatch Consolidation**: Unified concurrency lock context resolution (`GLOBAL_EXCLUSIVE`, `SERIAL_PER_TOOL`, `SERIAL_PER_RESOURCE`, `PARALLEL_SAFE`) and normalized `tool_result` event generation into a shared helper in `_execute_tools`.
 - **Parallel Attachment Decoding**: `BaseGateway._extract_async` now decodes multiple base64 attachments concurrently in background threads via `asyncio.gather`.
 - **Persistent Token Cache**: `MessageHistory` now retains token estimation caches across turn iterations, eliminating tokenizer overhead during context budget pruning.
 - **Optimized Idempotency Eviction**: `InMemoryIdempotencyStore._make_room` uses $O(1)$ amortized FIFO iteration leveraging dictionary insertion order.
 
 ### Fixed
+- **Tool Batch Approval Desynchronization**: Added pre-flight approval scan in `_execute_tools` guaranteeing all-or-nothing dispatch; if any tool requires human approval, no safe tools in the batch are executed beforehand, preventing partial side effects and replay duplication.
+- **Run Resumption Monotonic Sequences**: `RunCoordinator` dynamically initializes event sequences from existing store checkpoints/events when resuming a run, preventing `ConcurrentUpdateError` regressions and evicting sequences upon run completion.
+- **Code Interpreter Governance & Security**: Configured `requires_approval=True` by default with `ToolRisk.HIGH` and explicit write/external effects; documented `python -I` process-level isolation limits.
+- **Console Markdown XSS Prevention**: Sanitized link URLs in Developer Console markdown parser to prevent attribute breakout and script injection.
+- **Run Suspension Checkpointing**: Persisted intermediate state checkpoints to `checkpoint_store` when runs are suspended for human approval (`WAITING`).
+- **Base64 Pre-decode Size Validation**: Added pre-decode length guard in `decode_files_payload` to reject oversized payloads before threadpool decoding.
 - **BaseSettings Dotenv Resolution**: Routed all string settings through `_getenv()` helper guaranteeing `.env` is loaded before any field factory runs.
 - **Developer Console Markdown Tables**: Rewrote GFM table detection regex to correctly match pipe-delimited tables (including single-column tables); fixed double `inlineMarkdown()` application on already-processed block elements; eliminated spurious `<br>` tags around table/blockquote/code block placeholders.
 - **Developer Console Agent Path DOM Selector**: Fixed mismatch between `console.html` and `ui_agent_flow.js` by adding `id="agent-flow"` to the section element, restoring the Expand/Collapse step toggle and auto-follow button.

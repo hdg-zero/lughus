@@ -6,6 +6,7 @@ __all__ = [
     "ApprovalRequired",
     "ApprovalRequiredGroup",
     "ContextBudgetExceeded",
+    "IdempotencyCapacityError",
     "LLMResponseError",
     "LoopLimitError",
     "LughusError",

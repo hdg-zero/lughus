@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import argparse
 import re
+from enum import StrEnum
 from pathlib import Path
+
+
+class CLICommand(StrEnum):
+    """Supported lughus CLI subcommands."""
+
+    NEW = "new"
 
 
 def _package_name(value: str) -> str:
@@ -456,7 +463,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "new":
+    if args.command == CLICommand.NEW:
         raw_name = args.name
         if not raw_name:
             raw_name = input("Project name [my_agent]: ").strip() or "my_agent"
