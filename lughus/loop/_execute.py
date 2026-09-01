@@ -381,6 +381,81 @@ async def _invoke_tool_callable(
     return await asyncio.wait_for(call, timeout=timeout) if timeout else await call
 
 
+async def _preflight_check_approvals(
+    tool_calls: list[tuple[str, str, str]],
+    registry: ToolRegistry,
+    cfg: ToolExecutionConfig,
+) -> list[ApprovalRequired]:
+    """Scan all tool calls in a turn before dispatch to detect pending approvals.
+
+    Ensures all-or-nothing execution: if any tool in a batch requires human approval,
+    no tool is dispatched. This prevents partial side-effects and duplicate replay.
+    """
+    approval_requests: list[ApprovalRequired] = []
+    for _tc_id, name, raw_args in tool_calls:
+        tool = registry.get_tool(name)
+        if tool is None:
+            continue
+        try:
+            args = _validate_tool_args(
+                name=name,
+                raw_args=raw_args,
+                validator=tool.validator,
+                max_tool_args_chars=cfg.max_tool_args_chars,
+            )
+        except ToolValidationError:
+            continue
+
+        decision = None
+        if cfg.policy is not None and cfg.principal is not None:
+            proposal = ToolProposal(
+                run_id=cfg.run_id,
+                tool_name=name,
+                arguments=args,
+                effects=frozenset(effect.value for effect in tool.effects),
+                risk=tool.risk.value,
+                required_scopes=tool.required_scopes,
+            )
+            decision = await cfg.policy.evaluate(proposal, cfg.principal)
+            if decision.kind == DecisionKind.DENY:
+                continue
+
+        # Step 2: receipt lookup — idempotent completed hit skips approval
+        if cfg.idempotency_store is not None and tool.idempotent:
+            check_key = IdempotencyKey.from_args(cfg.run_id, name, args)
+            existing_completed = await cfg.idempotency_store.get(check_key)
+            if (
+                existing_completed is not None
+                and existing_completed.status == AttemptStatus.COMPLETED
+            ):
+                continue
+
+        if (
+            decision is not None and decision.kind == DecisionKind.REQUIRE_APPROVAL
+        ) or tool.requires_approval:
+            if cfg.approval_store is None:
+                approval_requests.append(ApprovalRequired("unknown", name))
+            else:
+                digest = proposal_digest(name, args)
+                request = await cfg.approval_store.find(cfg.run_id, digest)
+                if request is None:
+                    request = ApprovalRequest(
+                        run_id=cfg.run_id,
+                        tool_name=name,
+                        proposal_hash=digest,
+                        risk=tool.risk.value,
+                    )
+                    await cfg.approval_store.create(request)
+                    approval_requests.append(
+                        ApprovalRequired(request.request_id, name, request.expires_at)
+                    )
+                elif request.status.value not in {"approved", "rejected"}:
+                    approval_requests.append(
+                        ApprovalRequired(request.request_id, name, request.expires_at)
+                    )
+    return approval_requests
+
+
 async def _execute_tools(
     tool_calls: list[tuple[str, str, str]],
     registry: ToolRegistry,
@@ -645,6 +720,10 @@ async def _execute_tools(
     async def _run(tc_id: str, name: str, raw_args: str) -> tuple[str, str]:
         async with semaphore:
             return await _run_unbounded(tc_id, name, raw_args)
+
+    preflight_approvals = await _preflight_check_approvals(tool_calls, registry, cfg)
+    if preflight_approvals:
+        raise ApprovalRequiredGroup(preflight_approvals)
 
     if len(tool_calls) == 1:
         try:
