@@ -9,11 +9,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.17.0] — 2026-09-02
 
 ### Added
+- **Public Surface Deflation & Tools Module**: Deflated `lughus` root `__all__` to 20 core Tier-1 symbols and introduced [`lughus.tools`](lughus/tools.py) as the dedicated module for tool definitions, concurrency modes, and interpreters.
+- **Gateway Governance Bridge**: `BaseGateway` now accepts optional `runtime: AgentRuntime` and `runner: GovernedAgentRunner` dependencies, and provides `BaseGateway.create_tool_config()` to bridge directly into enterprise policy, budget, and idempotency pipelines.
 - **Public Code Interpreter Exposure**: Exposed `register_code_interpreter`, `InterpreterResult`, and `InterpreterTimeoutError` in `lughus` root exports and updated public API snapshot (`api_snapshot.json`).
 - **Interactive 5-Minute Quickstart**: Added [`docs/quickstart.md`](docs/quickstart.md) guiding new developers step-by-step from zero to a live agent and developer console.
 - **Dual-Track Onboarding README**: Restructured `README.md` around two clear pathways (Track 1: Standalone micro-agent loop in 30s vs Track 2: Production A2A server with developer console).
 
 ### Changed
+- **Streamlined CLI Scaffold**: `lughus new` now leverages `self.create_tool_config()` in the generated gateway, eliminating boilerplate configuration field copying.
 - **Thread Synchronization API**: Streamlined `run_sync_in_thread` by removing the unused `max_workers` parameter across infra, engine, and gateway modules.
 
 ### Fixed
