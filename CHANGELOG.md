@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-09-02
+
 ### Added
 - **Public Surface & Delegation Exports**: Added `DelegationCycleError`, `DelegationRequest`, `DelegationResult`, `Delegator`, `RemoteAgentClient`, `IdempotencyCapacityError`, and `LLMResponseError` to `lughus` root exports and public API snapshot.
 - **Sealed CLI Subcommand Dispatch**: Structured CLI routing via `CLICommand(StrEnum)`.
