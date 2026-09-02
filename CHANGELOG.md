@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-09-02
+
+### Added
+- **Public Code Interpreter Exposure**: Exposed `register_code_interpreter`, `InterpreterResult`, and `InterpreterTimeoutError` in `lughus` root exports and updated public API snapshot (`api_snapshot.json`).
+- **Interactive 5-Minute Quickstart**: Added [`docs/quickstart.md`](docs/quickstart.md) guiding new developers step-by-step from zero to a live agent and developer console.
+- **Dual-Track Onboarding README**: Restructured `README.md` around two clear pathways (Track 1: Standalone micro-agent loop in 30s vs Track 2: Production A2A server with developer console).
+
+### Changed
+- **Thread Synchronization API**: Streamlined `run_sync_in_thread` by removing the unused `max_workers` parameter across infra, engine, and gateway modules.
+
+### Fixed
+- **Provider Token Accounting in BudgetedLLM**: Unified token usage extraction with `_extract_usage`, fixing a defect where Anthropic (`input_tokens`/`output_tokens`) and Gemini (`prompt_token_count`) were ignored by `BudgetedLLM`, causing 0 token consumption records.
+
+### Removed
+- **Redundant Test Suites**: Purged duplicate test files (`tests/test_init.py`, `tests/test_new_audited_features.py`, `tests/test_governed_integrations.py`, `tests/test_integrated_runtime.py`), consolidating origin validation into `tests/test_mcp_governance.py` with zero loss of branch coverage.
+
 ## [0.16.0] — 2026-09-02
 
 ### Added
