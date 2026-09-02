@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
+from ..core.domain import _extract_usage
 from .budget import BudgetAmount, BudgetLedger
 
 if TYPE_CHECKING:
@@ -16,8 +17,7 @@ def _usage(value: Any) -> BudgetAmount:
     usage = getattr(value, "usage", None)
     if usage is None:
         return BudgetAmount(model_calls=1)
-    prompt = int(getattr(usage, "prompt_tokens", 0) or 0)
-    completion = int(getattr(usage, "completion_tokens", 0) or 0)
+    prompt, completion, _cached = _extract_usage(usage)
     return BudgetAmount(model_calls=1, tokens=prompt + completion)
 
 

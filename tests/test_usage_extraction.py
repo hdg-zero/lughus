@@ -54,3 +54,39 @@ class TestExtractUsage:
     def test_none_values_default_to_zero(self) -> None:
         usage = SimpleNamespace(prompt_tokens=None, completion_tokens=None)
         assert _extract_usage(usage) == (0, 0, 0)
+
+
+async def test_budgeted_llm_accounts_anthropic_and_gemini_tokens() -> None:
+    from lughus.governance.budget import BudgetLedger, BudgetLimit
+    from lughus.governance.budgeted_llm import BudgetedLLM
+
+    class MockAnthropicLLM:
+        model = "claude-3-7-sonnet"
+        timeout = None
+
+        async def generate(self, **kwargs: object) -> object:
+            return SimpleNamespace(
+                usage=SimpleNamespace(input_tokens=150, output_tokens=50),
+            )
+
+    ledger = BudgetLedger(BudgetLimit(model_calls=5, tokens=1000))
+    b_llm = BudgetedLLM(MockAnthropicLLM(), ledger)
+    await b_llm.generate(messages=[])
+    snapshot = await ledger.snapshot()
+    assert snapshot["model_calls"] == 1
+    assert snapshot["tokens"] == 200
+
+    class MockGeminiLLM:
+        model = "gemini-2.5-flash"
+        timeout = None
+
+        async def generate(self, **kwargs: object) -> object:
+            return SimpleNamespace(
+                usage=SimpleNamespace(prompt_token_count=300, candidates_token_count=100),
+            )
+
+    b_gemini = BudgetedLLM(MockGeminiLLM(), ledger)
+    await b_gemini.generate(messages=[])
+    snapshot = await ledger.snapshot()
+    assert snapshot["model_calls"] == 2
+    assert snapshot["tokens"] == 600

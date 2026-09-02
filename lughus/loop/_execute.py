@@ -14,6 +14,7 @@ from jsonschema import Draft202012Validator, ValidationError  # type: ignore[imp
 from opentelemetry.trace import StatusCode
 
 from ..core.artifacts import _summarize
+from ..core.domain import _extract_usage, _usage_get
 from ..core.errors import (
     ApprovalRequired,
     ApprovalRequiredGroup,
@@ -63,51 +64,6 @@ _cache_creation_counter = meter.create_counter(
 _tool_event_sink: contextvars.ContextVar[Callable[[dict[str, Any]], None] | None] = (
     contextvars.ContextVar("lughus_tool_event_sink", default=None)
 )
-
-
-def _usage_get(usage: Any, key: str, default: Any = 0) -> Any:
-    if isinstance(usage, dict):
-        return usage.get(key, default)
-    return getattr(usage, key, default)
-
-
-def _extract_usage(usage: Any) -> tuple[int, int, int]:
-    """Return (prompt_tokens, completion_tokens, cached_tokens).
-
-    Normalizes across provider payload shapes surfaced by LiteLLM:
-    OpenAI (``prompt_tokens``/``completion_tokens``), Anthropic
-    (``input_tokens``/``output_tokens``/``cache_read_input_tokens``),
-    and Gemini (``prompt_token_count``/``candidates_token_count``/
-    ``cached_content_token_count``).
-    """
-    prompt = (
-        _usage_get(usage, "prompt_tokens", None)
-        or _usage_get(usage, "input_tokens", None)
-        or _usage_get(usage, "prompt_token_count", None)
-        or 0
-    )
-    completion = (
-        _usage_get(usage, "completion_tokens", None)
-        or _usage_get(usage, "output_tokens", None)
-        or _usage_get(usage, "candidates_token_count", None)
-        or 0
-    )
-    cached = 0
-    details = _usage_get(usage, "prompt_tokens_details", None)
-    if details:
-        cached += _usage_get(details, "cached_tokens", 0) or 0
-    # `_cache_read_input_tokens` (leading underscore) is LiteLLM's internal
-    # alias of Anthropic's `cache_read_input_tokens`; a payload can carry BOTH,
-    # so take their max instead of summing to avoid double counting. The pair
-    # remains ADDITIVE with prompt_tokens_details, which reports a separate
-    # OpenAI-style cache figure.
-    alias_read = max(
-        _usage_get(usage, "_cache_read_input_tokens", 0) or 0,
-        _usage_get(usage, "cache_read_input_tokens", 0) or 0,
-    )
-    cached += alias_read
-    cached += _usage_get(usage, "cached_content_token_count", 0) or 0
-    return prompt, completion, cached
 
 
 def _record_llm_usage(span: Any, usage: Any, model: str) -> tuple[int, int, int]:
