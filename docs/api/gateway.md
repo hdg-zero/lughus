@@ -49,7 +49,26 @@ Abstract base class for building an A2A agent executor.
 
 ```python
 class BaseGateway(AgentExecutor):
-    def __init__(self, llm: LLM, settings: BaseSettings):
+    def __init__(
+        self,
+        llm: LLM,
+        settings: BaseSettings,
+        *,
+        runtime: AgentRuntime | None = None,
+        runner: GovernedAgentRunner | None = None,
+    ):
+```
+
+#### Helper Methods
+
+##### `create_tool_config`
+
+Creates a `ToolExecutionConfig` automatically bound to the gateway settings, or delegates to `self.runtime.tool_config(...)` if enterprise governance is configured:
+
+```python
+tool_config = self.create_tool_config()
+# Or with authenticated context:
+tool_config = self.create_tool_config(run_id="run-1", principal=principal)
 ```
 
 ### Methods to Implement

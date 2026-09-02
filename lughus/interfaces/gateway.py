@@ -29,9 +29,13 @@ from ..engine.files import _safe_filename
 from ..infra._threading import run_sync_in_thread
 from ..infra.config import BaseSettings
 from ..infra.telemetry import tracer
+from ..loop import ToolExecutionConfig
 
 if TYPE_CHECKING:
+    from ..agent.application import AgentRuntime
+    from ..agent.runner import GovernedAgentRunner
     from ..engine.llm import LLM
+    from ..governance.policy import Principal
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -69,13 +73,46 @@ def _validate_artifacts(artifacts: list[Artifact], settings: BaseSettings) -> No
 class BaseGateway(AgentExecutor):
     """Generic A2A gateway. Subclass and implement ``handle()``."""
 
-    def __init__(self, llm: LLM, settings: BaseSettings):
+    def __init__(
+        self,
+        llm: LLM,
+        settings: BaseSettings,
+        *,
+        runtime: AgentRuntime | None = None,
+        runner: GovernedAgentRunner | None = None,
+    ):
         self.llm = llm
         self.settings = settings
+        self.runtime = runtime
+        if runner is not None:
+            self.runner: GovernedAgentRunner | None = runner
+        elif runtime is not None:
+            from ..agent.runner import GovernedAgentRunner
+
+            self.runner = GovernedAgentRunner(runtime=runtime)
+        else:
+            self.runner = None
         self._running_tasks: dict[str, asyncio.Task[None]] = {}
         # Instance-scoped so that shutting one gateway down cannot kill the
         # decoder threads of unrelated gateways living in the same process.
         self._executor = ThreadPoolExecutor(thread_name_prefix="lughus-gateway")
+
+    def create_tool_config(
+        self,
+        *,
+        run_id: str | None = None,
+        principal: Principal | None = None,
+    ) -> ToolExecutionConfig:
+        """Create a ToolExecutionConfig bound to settings and optional runtime/governance."""
+        if self.runtime is not None and run_id and principal:
+            return self.runtime.tool_config(run_id=run_id, principal=principal)
+        return ToolExecutionConfig(
+            max_parallel_tools=self.settings.max_parallel_tools,
+            tool_timeout=self.settings.tool_timeout,
+            tool_queue_timeout=self.settings.tool_queue_timeout,
+            max_tool_args_chars=self.settings.max_tool_args_chars,
+            max_tool_output_chars=self.settings.max_tool_output_chars,
+        )
 
     async def execute(
         self,

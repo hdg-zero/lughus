@@ -39,8 +39,7 @@ def test_new_command_creates_agent_project(
     assert 'default_input_modes=["text/plain"]' in main_file
     assert 'default_output_modes=["text/plain"]' in main_file
     assert "settings.public_url" in main_file
-    assert "LLM.from_settings(settings)" in main_file
-    assert "tool_queue_timeout=self.settings.tool_queue_timeout" in gateway_file
+    assert "self.create_tool_config()" in gateway_file
     assert "compact_tool_schemas" not in gateway_file
     assert "BoundedInMemoryTaskStore" in task_store_file
     assert "from a2a.server.tasks import InMemoryTaskStore" not in task_store_file
