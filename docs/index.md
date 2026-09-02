@@ -14,6 +14,7 @@ Welcome to the lughus documentation. Every page below links back to this index (
 
 | Page | Description |
 |---|---|
+| [5-Minute Quickstart](quickstart.md) | Step-by-step tutorial from zero to a live agent & console |
 | [Overview](overview.md) | What lughus is, architecture diagram, component map |
 | [Guarantees & Non-guarantees](guarantees.md) | Explicit scope, limits and threading caveats |
 | [Compatibility Policy](compatibility.md) | SemVer policy and event schema versioning |

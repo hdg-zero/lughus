@@ -12,17 +12,21 @@
 
 Micro-framework for building [A2A](https://google.github.io/A2A/) agents with [LiteLLM](https://github.com/BerriAI/litellm). Register tools, run an agentic loop, get a result. No graphs, no runners, no magic.
 
-## Install
+## Installation
 
 ```bash
-pip install lughus              # Core (litellm, python-dotenv, jsonschema)
-pip install lughus[server]      # + FastAPI, uvicorn, a2a-sdk
-pip install lughus[all]         # Everything
+pip install lughus              # Core: agent loop, tool registry, LiteLLM
+pip install "lughus[server]"    # + FastAPI, uvicorn, A2A gateway & developer console
+pip install "lughus[all]"       # Everything (including OpenTelemetry SDK)
 ```
 
-## Quick Start
+---
 
-A complete agent in one script. Register a tool, call `agent_loop`, get the LLM's response:
+## 🚀 Two Tracks to Get Started
+
+### Track 1: Micro-Agent in 30 Seconds (Standalone Script)
+
+Run an autonomous agent loop directly in a Python script without starting a server:
 
 ```python
 import asyncio
@@ -31,8 +35,7 @@ import json
 from lughus import ToolRegistry, agent_loop
 from lughus.testing import MockLLM
 
-
-# 1. Create a tool registry and register a tool
+# 1. Create a tool registry and register tools
 registry = ToolRegistry()
 
 
@@ -52,18 +55,16 @@ def greet(*, name: str, state) -> str:
     return json.dumps({"greeting": f"Hello, {name}!"})
 
 
-# 2. Create an LLM (MockLLM for offline testing, LLM for production)
+# 2. MockLLM for offline tests or swap with LLM for production
 llm = MockLLM(
     [
-        # Turn 1: LLM calls the greet tool
         [{"name": "greet", "arguments": {"name": "World"}, "id": "call_1"}],
-        # Turn 2: LLM produces a text response (ends the loop)
         "Hello, World!",
     ]
 )
 
 
-# 3. Run the agent loop
+# 3. Execute the loop
 async def main():
     result = await agent_loop(
         llm,
@@ -71,7 +72,6 @@ async def main():
         context="Say hello to World",
         registry=registry,
         tool_names=["greet"],
-        state=None,
     )
     print(result)  # "Hello, World!"
     print(f"{result.iterations} iterations, {result.total_tokens} tokens")
@@ -80,7 +80,7 @@ async def main():
 asyncio.run(main())
 ```
 
-For production, swap `MockLLM` for a real LLM:
+For live execution against 100+ LLM providers, swap `MockLLM` for `LLM`:
 
 ```python
 from lughus import LLM
@@ -88,75 +88,120 @@ from lughus import LLM
 llm = LLM(model="openai/gpt-4o", max_output_tokens=16384)
 ```
 
-## Features
+---
 
-- **`agent_loop()`** -- iterates LLM + tools until a text response, with parallel tool execution
-- **`agent_loop_stream()`** -- same, but yields text chunks as the LLM generates them
-- **`ToolRegistry`** -- `@registry.tool()` decorator for sync and async Python functions
-- **`BaseGateway`** -- A2A `AgentExecutor` (message extraction, artifact handling)
-- **`LLM`** -- thin wrapper around `litellm.acompletion()`, supports 100+ providers
-- **`build_app()` / `serve()`** -- A2A ASGI app + uvicorn in one call
-- **Governance** -- deterministic tool policies, scoped permissions, human-in-the-loop approvals
-- **Observability** -- native OpenTelemetry traces and metrics on every request
+### Track 2: Production A2A Agent (Server & Developer Console)
 
-## Configuration
+When your agent needs network transport, streaming, task status, and an interactive UI:
 
-All configuration is via environment variables. Key settings:
-
-| Variable | Default | Description |
-|---|---|---|
-| `AGENT_MODEL` | *(required)* | LiteLLM model string (e.g. `openai/gpt-4o`) |
-| `MAX_OUTPUT_TOKENS` | `16384` | Max output tokens per LLM call |
-| `HOST` / `PORT` | `0.0.0.0` / `8080` | Server listen address |
-| `LUGHUS_ENV` | `development` | Set `production` for strict startup validation |
-| `API_BEARER_TOKEN` | *(not set)* | Bearer token for non-health routes |
-
-Provider routing is automatic via LiteLLM:
-
-```bash
-export AGENT_MODEL="openai/gpt-4o"       && export OPENAI_API_KEY="sk-..."
-export AGENT_MODEL="anthropic/claude-sonnet-4-20250514" && export ANTHROPIC_API_KEY="sk-ant-..."
-export AGENT_MODEL="gemini/gemini-2.5-flash" && export GEMINI_API_KEY="..."
-```
-
-## Scaffold a New Agent
+#### 1. Scaffold an agent project
 
 ```bash
 lughus new my_agent
-cd my_agent && pip install -e ".[dev]" && pytest -q
-python -m my_agent  # starts A2A server on :8080
+cd my_agent && pip install -e ".[dev]"
 ```
 
-## Governance
+#### 2. Start the A2A server
 
-Tools can declare risk levels, required scopes, and approval workflows. The policy engine evaluates actions deterministically before execution -- prompt instructions are never used as access controls. See [docs/guides/agentic-design.md](docs/guides/agentic-design.md) for agentic design rules.
+```bash
+export AGENT_MODEL="openai/gpt-4o"
+export OPENAI_API_KEY="sk-..."
+export ENABLE_CONSOLE="true"
+
+python -m my_agent  # Starts ASGI server on http://localhost:8080
+```
+
+#### 3. Explore the Developer Console (`/ui`)
+
+Open `http://localhost:8080/ui` in your browser to access the interactive console:
+
+- **Live Streaming & Timeline**: real-time token stream and step-by-step agent trajectory.
+- **Rich GFM Markdown & KaTeX**: rendered tables, GitHub alerts (`[!NOTE]`, `[!WARNING]`), and LaTeX math (`$E=mc^2$`).
+- **Interactive Human Approvals**: live amber cards with Approve / Reject actions for sensitive tools.
+- **Artifact Downloads**: view and download files generated by the agent.
+
+---
+
+## 🛡️ Governance & Deterministic Policy
+
+Tools declare risk levels, required permission scopes, and approval gates. The policy engine evaluates actions before execution — prompt instructions are never used as access controls:
 
 ```python
-from lughus import ToolRegistry, ToolRisk, ToolEffect
+import json
+
+from lughus import ToolEffect, ToolRegistry, ToolRisk
 
 registry = ToolRegistry()
 
+
 @registry.tool(
     "deploy",
-    "Deploy to production.",
-    {"type": "object", "properties": {"service": {"type": "string"}}, "required": ["service"]},
+    "Deploy a service to production.",
+    {
+        "type": "object",
+        "properties": {"service": {"type": "string"}},
+        "required": ["service"],
+    },
     risk=ToolRisk.CRITICAL,
     effects=frozenset([ToolEffect.WRITE, ToolEffect.IRREVERSIBLE]),
-    requires_approval=True,
+    requires_approval=True,  # Suspends the run until human confirms
 )
 def deploy(*, service: str, state) -> str:
-    return json.dumps({"status": "deployed"})
+    return json.dumps({"status": "deployed", "service": service})
 ```
 
-## Links
+### Sandboxed Python Code Interpreter
 
+Lughus provides an isolated Python code execution tool with automatic output truncation and timeout handling:
+
+```python
+from lughus import ToolRegistry, register_code_interpreter
+
+registry = ToolRegistry()
+register_code_interpreter(registry, timeout_s=30.0, requires_approval=True)
+```
+
+---
+
+## ⚙️ Configuration
+
+All configuration is managed through environment variables loaded automatically via `.env`:
+
+| Variable | Default | Description |
+|---|---|---|
+| `AGENT_MODEL` | *(required)* | LiteLLM model string (e.g. `openai/gpt-4o`, `anthropic/claude-3-7-sonnet`) |
+| `MAX_OUTPUT_TOKENS` | `16384` | Maximum output tokens per LLM completion call |
+| `HOST` / `PORT` | `0.0.0.0` / `8080` | Network binding address for A2A server |
+| `LUGHUS_ENV` | `development` | Set to `production` for strict startup configuration validation |
+| `ENABLE_CONSOLE` | `false` | Enable the developer console UI at `/ui` (development only) |
+| `API_BEARER_TOKEN` | *(not set)* | Shared secret bearer token for non-health endpoints |
+| `MAX_CONCURRENT_REQUESTS` | `0` (disabled) | Framework-level backpressure limit on active HTTP requests |
+
+---
+
+## 🏛️ Comparison Matrix
+
+| Feature | Core (`agent_loop`) | A2A Server (`BaseGateway` / `serve`) |
+|---|---|---|
+| **Execution** | In-process Python async coroutine | HTTP JSON-RPC 2.0 / SSE server |
+| **Tool Calling** | Parallel with semaphore bulkhead | Parallel with semaphore bulkhead |
+| **Streaming** | `agent_loop_stream` generator | A2A server-sent event updates |
+| **Developer UI** | Terminal / Logging | Rich web console at `/ui` |
+| **Telemetry** | OpenTelemetry spans & counters | OpenTelemetry spans, counters & metrics |
+| **Scaffolding** | Single-script import | CLI scaffold via `lughus new` |
+
+---
+
+## 📚 Documentation & Resources
+
+- [5-Minute Quickstart Guide](docs/quickstart.md)
+- [Architecture & ADRs](docs/architecture/)
+- [Agentic Design Guidelines](docs/guides/agentic-design.md)
+- [Contract Stability Policy](docs/contracts/events.md)
+- [Framework Guarantees](docs/guarantees.md)
 - [CHANGELOG](CHANGELOG.md)
 - [CONTRIBUTING](CONTRIBUTING.md)
-- [Architecture decisions](docs/architecture/)
-- [Agentic design rules](docs/guides/agentic-design.md)
-- [Guarantees](docs/guarantees.md)
-- [LiteLLM providers](https://docs.litellm.ai/docs/providers)
 
 ## License
 
-MIT -- see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
