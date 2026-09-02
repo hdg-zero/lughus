@@ -4,6 +4,8 @@ title: Approval Management API
 description: API reference for lughus.governance.approval Human-in-the-Loop management module.
 ---
 
+> [← Documentation index](../index.md)
+
 # Approval Management API
 
 The `lughus.governance.approval` module manages tamper-evident human-in-the-loop (HITL) approval requests when a tool execution requires human authorization.
@@ -96,3 +98,7 @@ if request and request.verify(proposed_arguments):
         subject="admin_user",
     )
 ```
+
+---
+
+**Related:** [Policy API](policy.md) · [Runtime API](runtime.md)

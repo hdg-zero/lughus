@@ -4,6 +4,8 @@ title: Server API
 description: API reference for the serve entrypoint function and developer console.
 ---
 
+> [← Documentation index](../index.md)
+
 # Server API
 
 The `server` module provides `build_app()` for ASGI integration and `serve()` as the quickstart Uvicorn runner.
@@ -81,7 +83,30 @@ Then open:
 http://localhost:8080/ui
 ```
 
-The UI sends an objective and optional files directly to `gateway.handle()`, then renders `ProgressEvent`, `CompletionEvent`, tool call start/result events, and downloadable artifacts. The browser consumes `/ui/stream` as newline-delimited JSON so progress and tool events appear live; `/ui/run` remains available as a buffered JSON endpoint. Tool call entries include the tool name, raw JSON arguments, duration, status, output, and error type when applicable. The Agent Path renders every streamed progress, tool call, tool result, completion, and error as a clickable step that reveals the corresponding log entry. Tool payloads are collapsible, and the light/dark theme choice is retained in browser local storage. It uses the same timeout, objective, file-size, and artifact limits from `BaseSettings`.
+The UI sends an objective and optional files directly to `gateway.handle()`, then renders `ProgressEvent`, `CompletionEvent`, tool call start/result events, A2A exchange events, and downloadable artifacts. The browser consumes `/ui/stream` as newline-delimited JSON so progress and tool events appear live. Tool call entries include the tool name, raw JSON arguments, duration, status, output, and error type when applicable. The Agent Path renders every streamed progress, tool call, tool result, A2A request/response, completion, and error as a clickable step that reveals the corresponding log entry. Tool payloads are collapsible, and the light/dark theme choice is retained in browser local storage. It uses the same timeout, objective, file-size, and artifact limits from `BaseSettings`.
+
+### Console event stream
+
+The `/ui/stream` endpoint emits newline-delimited JSON events:
+
+| Event type | Content |
+|---|---|
+| `progress` | Intermediate agent text (working status) |
+| `tool_start` | Tool name, raw JSON arguments |
+| `tool_result` | Status, duration, output, error type |
+| `a2a_request` | Remote agent, URL, method, objective sent, attached files |
+| `a2a_response` | Full response text, base64 artifacts (downloadable), remote task id, elapsed time, error code |
+| `completion` | Final text plus downloadable artifacts |
+| `error` | Structured errors: `agent_timeout`, `loop_limit`, `approval_required`, … |
+| `telemetry` | Model, iterations, token usage, tool counters |
+
+Approval-required events render as interactive cards posting to `/ui/approvals/{request_id}` (POST to decide, GET to poll).
+
+### OpenTelemetry
+
+`build_app()` / `serve()` call `setup_telemetry(service_name=agent_card.name)` by default (`setup_otel=False` to opt out). Depending on environment variables it exports traces and metrics over OTLP gRPC (`OTEL_EXPORTER_OTLP_ENDPOINT`) or prints them on stdout (`LUGHUS_TELEMETRY_CONSOLE=1`); with neither set it stays no-op. Spans include `a2a.request`, `agent_loop`, `llm.generate` and one span per tool execution; metrics cover loop tokens and duration. See [Production Guide](../guides/production.md#opentelemetry) for deployment details.
+
+**Related:** [Loop API — A2A exchange events](loop.md#a2a-exchange-events) · [A2A Delegation](../integrations/a2a-delegation.md)
 
 ## `ProductionGuardMiddleware`
 

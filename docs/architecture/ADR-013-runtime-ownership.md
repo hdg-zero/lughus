@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # ADR-013: Configuration is inert; the loop owns the execution runtime
 
 - **Status:** Accepted

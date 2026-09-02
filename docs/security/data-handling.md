@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Data Handling Policy
 
 Lughus agents process a diverse array of information. Protecting sensitive information—whether it originates from user inputs, external APIs, or the LLM itself—is paramount. This document outlines the classification and handling policies for Lughus.
@@ -26,3 +28,7 @@ The Lughus event stream captures execution history. Access to this stream is gov
 - `AUDIT`: Immutable history for compliance tracking.
 
 Ensure that any API exposing events rigorously filters the stream based on the requester's authorized visibility level.
+
+---
+
+**Related:** [Threat Model](threat-model.md) · [Error Disclosure](error-disclosure.md)

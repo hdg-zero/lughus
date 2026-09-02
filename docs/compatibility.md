@@ -1,3 +1,5 @@
+> [← Documentation index](index.md)
+
 # Compatibility Policy
 
 Lughus follows Semantic Versioning 2.0 (SemVer).

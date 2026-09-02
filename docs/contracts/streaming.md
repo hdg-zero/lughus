@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Streaming Contract
 
 > **Contract stability:** This specification is stable. Future changes follow standard SemVer policy (ADR-001).
@@ -40,3 +42,7 @@
 - No ordering guarantee across concurrent runs.
 - No backpressure mechanism — slow consumers may miss coalesced progress events.
 - The exact chunking boundary depends on the LLM provider.
+
+---
+
+**Related:** [Loop API](../api/loop.md) · [ADR-002 — Streaming and Retries](../architecture/ADR-002-streaming.md)

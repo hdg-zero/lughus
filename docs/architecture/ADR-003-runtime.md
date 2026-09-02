@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # ADR-003: Runtime resource ownership
 
 Status: accepted

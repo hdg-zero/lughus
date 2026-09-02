@@ -4,6 +4,8 @@ title: Policy Engine API
 description: API reference for lughus.governance.policy deterministic authorization module.
 ---
 
+> [← Documentation index](../index.md)
+
 # Policy Engine API
 
 The `lughus.governance.policy` module provides deterministic authorization primitives evaluated prior to tool execution in the agent loop.
@@ -121,3 +123,7 @@ config = ToolExecutionConfig(
     principal=principal,
 )
 ```
+
+---
+
+**Related:** [Approvals API](approval.md) · [ADR-005 — Tool Policy](../architecture/ADR-005-tool-policy.md)

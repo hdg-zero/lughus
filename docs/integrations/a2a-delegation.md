@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # A2A Delegation Guide
 
 Agent-to-Agent (A2A) delegation allows a primary Lughus run to orchestrate child agents across distributed environments.
@@ -64,3 +66,32 @@ async def execute_delegation():
 if __name__ == "__main__":
     asyncio.run(execute_delegation())
 ```
+
+## Observing exchanges in the developer console
+
+Delegation tools that speak the A2A JSON-RPC protocol can make every exchange visible in the developer console by emitting the built-in `a2a_request` / `a2a_response` events:
+
+```python
+from lughus import emit_a2a_request, emit_a2a_response
+
+class A2ARemoteAgentClient:
+    async def send_message(self, text: str) -> dict:
+        emit_a2a_request(target_agent=self.name, url=self.base_url, objective=text)
+        started = time.perf_counter()
+        result = await self._post(text)
+        emit_a2a_response(
+            target_agent=self.name,
+            url=self.base_url,
+            text=_extract_text(result),
+            artifacts=_decode_artifacts(result),
+            remote_task_id=result.get("id"),
+            elapsed_ms=(time.perf_counter() - started) * 1000,
+        )
+        return result
+```
+
+The console then shows a dedicated card per exchange — the exact outbound objective and the full reply with downloadable artifacts — plus `→ A2A …` / `← A2A …` steps in the Agent Path timeline. See [Loop API](../api/loop.md#a2a-exchange-events) for the complete event schema.
+
+A complete working implementation (HTTP transport via `httpx`, artifact extraction, error mapping to `SafeToolError`) lives in `examples/research_to_report_agent/research_to_report/tools.py`.
+
+**Related:** [Loop API — A2A exchange events](../api/loop.md#a2a-exchange-events) · [Server API — Console](../api/server.md) · [Contracts: Events](../contracts/events.md)

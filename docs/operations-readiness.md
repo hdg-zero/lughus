@@ -1,3 +1,5 @@
+> [← Documentation index](index.md)
+
 # Production readiness
 
 `/health` is liveness only. Deployments must add readiness checks for their persistent store

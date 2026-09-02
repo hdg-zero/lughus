@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Run Budgets Contract
 
 > **Contract stability:** This specification is stable. Future changes follow standard SemVer policy (ADR-001).
@@ -45,3 +47,7 @@ sum: it tracks nesting level in the causal chain.
 - Cost values are estimates, not billing records.
 - Delegation depth tracks maximum nesting level in the causal chain,
   not cumulative sequential calls.
+
+---
+
+**Related:** [Budgets Guide](../guides/budget.md) · [Runtime API](../api/runtime.md)

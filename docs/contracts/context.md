@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Context and Provenance Contract
 
 > **Contract stability:** This specification is stable. Future changes follow standard SemVer policy (ADR-001).
@@ -44,3 +46,7 @@ their wording.
   token counters for precise window management.
 - Pruned content remains in the run's audit trail when events are captured
   by a durable event store; it is only removed from the model context.
+
+---
+
+**Related:** [Loop API — ToolExecutionConfig](../api/loop.md#toolexecutionconfig)

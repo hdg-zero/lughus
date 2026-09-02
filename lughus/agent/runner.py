@@ -177,12 +177,25 @@ class GovernedAgentRunner:
                 )
         except ApprovalRequiredGroup as e:
             # Persist any tool events that completed before the suspension.
+            last_event_seq = -1
             for te in tool_events:
                 seq = coordinator.next_sequence(run.run_id)
+                last_event_seq = seq
                 run_event = RunEvent(
                     te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT
                 )
                 await rt.event_store.append(run_event)
+            if tool_events:
+                checkpoint = Checkpoint(
+                    run.run_id,
+                    running.version,
+                    last_event_seq,
+                    {
+                        "status": RunStatus.WAITING.value,
+                        "pending_approvals": [r.request_id for r in e.requests],
+                    },
+                )
+                await rt.checkpoint_store.save(checkpoint, expected_version=running.version)
             # Transition to WAITING — the run is suspended, not failed.
             await coordinator.transition(
                 running,

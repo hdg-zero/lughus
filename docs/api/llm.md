@@ -4,6 +4,8 @@ title: LLM Client API
 description: API reference for the LLM wrapper client.
 ---
 
+> [← Documentation index](../index.md)
+
 # LLM Client API
 
 The `LLM` class is a thin, asynchronous wrapper around `litellm.acompletion()` that supports per-call timeouts and automatic retries on transient errors.
@@ -87,3 +89,7 @@ class BudgetedLLM:
 ```
 
 Wrapper around any `GenerateLLM` implementation that reserves and settles model call counts and token usage against a `BudgetLedger`.
+
+---
+
+**Related:** [LLM Guide](../guides/llm.md) · [Loop API](loop.md)

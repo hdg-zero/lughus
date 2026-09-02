@@ -10,6 +10,11 @@ if TYPE_CHECKING:
     from .core.artifacts import ArtifactStore as ArtifactStore
     from .core.event_stream import EventSink as EventSink
     from .core.event_stream import InMemoryEventSink as InMemoryEventSink
+    from .engine.delegation import DelegationCycleError as DelegationCycleError
+    from .engine.delegation import DelegationRequest as DelegationRequest
+    from .engine.delegation import DelegationResult as DelegationResult
+    from .engine.delegation import Delegator as Delegator
+    from .engine.delegation import RemoteAgentClient as RemoteAgentClient
     from .engine.llm import LLM as LLM
     from .engine.llm import GenerateLLM as GenerateLLM
     from .engine.llm import StreamingLLM as StreamingLLM
@@ -45,6 +50,8 @@ if TYPE_CHECKING:
     from .loop import ToolExecutionConfig as ToolExecutionConfig
     from .loop import agent_loop as agent_loop
     from .loop import agent_loop_stream as agent_loop_stream
+    from .loop import emit_a2a_request as emit_a2a_request
+    from .loop import emit_a2a_response as emit_a2a_response
     from .persistence.coordinator import RunCoordinator as RunCoordinator
     from .persistence.store import Checkpoint as Checkpoint
     from .persistence.store import CheckpointStore as CheckpointStore
@@ -61,6 +68,8 @@ from .core.errors import (
     ApprovalRequired,
     ApprovalRequiredGroup,
     ContextBudgetExceeded,
+    IdempotencyCapacityError,
+    LLMResponseError,
     LoopLimitError,
     LughusError,
     RunSuspended,
@@ -97,6 +106,12 @@ from .testing.evaluation import EvaluationResult, Scenario, evaluate_scenario
 _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     # ── artifacts (stdlib-only) ────────────────────────────────────────
     "ArtifactStore": (".core.artifacts", None),
+    # ── delegation (engine) ──────────────────────────────────────────
+    "DelegationCycleError": (".engine.delegation", None),
+    "DelegationRequest": (".engine.delegation", None),
+    "DelegationResult": (".engine.delegation", None),
+    "Delegator": (".engine.delegation", None),
+    "RemoteAgentClient": (".engine.delegation", None),
     # ── litellm (heavy) ─────────────────────────────────────────────
     "LLM": (".engine.llm", None),
     "GenerateLLM": (".engine.llm", None),
@@ -130,6 +145,8 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "ToolExecutionConfig": (".loop", None),
     "agent_loop": (".loop", None),
     "agent_loop_stream": (".loop", None),
+    "emit_a2a_request": (".loop", None),
+    "emit_a2a_response": (".loop", None),
     "AgentRuntime": (".agent.application", None),
     "GovernedAgentRunner": (".agent.runner", None),
     # ── asyncio chain ────────────────────────────────────────────────
@@ -159,23 +176,23 @@ def __getattr__(name: str) -> Any:
         from importlib.metadata import version as _pkg_version
 
         try:
-            v = _pkg_version("lughus")
+            return _pkg_version("lughus")
         except PackageNotFoundError:
-            v = "0.0.0-dev"
-        globals()["__version__"] = v
-        return v
-    target = _LAZY_ATTRS.get(name)
-    if target is None:
+            return "0.0.0.dev0"
+
+    if name not in _LAZY_ATTRS:
         raise AttributeError(f"module 'lughus' has no attribute {name!r}")
-    module_name, extra = target
+    mod_path, extra = _LAZY_ATTRS[name]
     try:
-        module = import_module(module_name, __name__)
-    except ModuleNotFoundError as exc:
-        if extra is None:
-            raise
+        module = import_module(mod_path, package=__name__)
+    except ImportError as exc:
+        if extra:
+            raise ImportError(
+                f"lughus.{name} requires the '{extra}' extra: pip install 'lughus[{extra}]'"
+            ) from exc
         raise ImportError(
-            f"lughus.{name} requires the optional '{extra}' extra. "
-            f"Install it with: pip install 'lughus[{extra}]'"
+            f"Failed to import lughus.{name}: {exc}. "
+            f"Install the missing dependency to use this feature."
         ) from exc
     value = getattr(module, name)
     globals()[name] = value  # memoise: later accesses skip __getattr__ entirely
@@ -215,6 +232,10 @@ __all__ = [
     "ContextManager",
     "ContextWindow",
     "DecisionKind",
+    "DelegationCycleError",
+    "DelegationRequest",
+    "DelegationResult",
+    "Delegator",
     "EvaluationResult",
     "EventSink",
     "EventStore",
@@ -223,12 +244,14 @@ __all__ = [
     "ExecutionRuntime",
     "GenerateLLM",
     "GovernedAgentRunner",
+    "IdempotencyCapacityError",
     "IdempotencyKey",
     "IdempotencyStore",
     "InMemoryApprovalStore",
     "InMemoryEventSink",
     "InMemoryIdempotencyStore",
     "InMemoryRunStore",
+    "LLMResponseError",
     "LeastPrivilegePolicy",
     "LoopLimitError",
     "LoopResult",
@@ -241,6 +264,7 @@ __all__ = [
     "Principal",
     "ProductionGuardMiddleware",
     "ProgressEvent",
+    "RemoteAgentClient",
     "Run",
     "RunCoordinator",
     "RunEvent",
@@ -268,6 +292,8 @@ __all__ = [
     "agent_loop",
     "agent_loop_stream",
     "build_app",
+    "emit_a2a_request",
+    "emit_a2a_response",
     "evaluate_scenario",
     "serve",
     "setup_telemetry",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ._a2a_events import emit_a2a_request, emit_a2a_response
 from ._config import StreamingMode, ToolExecutionConfig
 from ._execute import _execute_tools, _extract_usage, collect_tool_events
 from ._loop import agent_loop, agent_loop_stream
@@ -17,4 +18,6 @@ __all__ = [
     "agent_loop",
     "agent_loop_stream",
     "collect_tool_events",
+    "emit_a2a_request",
+    "emit_a2a_response",
 ]

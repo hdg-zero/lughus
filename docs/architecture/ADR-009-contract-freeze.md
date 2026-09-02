@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # ADR-009: Contract Stability Policy
 
 Status: accepted  

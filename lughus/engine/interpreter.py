@@ -1,10 +1,17 @@
-"""Sandboxed Python code interpreter tool for agent loops.
+"""Python code interpreter tool for agent loops.
 
 Executes generated Python in an isolated subprocess (``python -I``) with a
 dedicated temporary working directory, captures stdout/stderr, and reports
-files produced during execution. The tool function follows the standard
-``registry.tool`` signature (``state: dict`` keyword plus the schema params)
-so it plugs into the normal ToolRuntime pipeline.
+files produced during execution.
+
+Security model & limitations:
+-----------------------------
+``python -I`` (Isolated Mode) ignores environment variables (``PYTHONPATH``,
+``PYTHONHOME``), user site-packages, and the current directory for module lookup.
+However, it does NOT provide an OS-level sandbox (no network restriction, no
+filesystem chroot or seccomp filter). Because code execution poses significant
+security risks, this tool is marked as ``ToolRisk.HIGH`` with
+``requires_approval=True`` by default.
 """
 
 from __future__ import annotations
@@ -16,6 +23,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from .tools import ToolEffect, ToolRisk
 
 __all__ = [
     "MAX_OUTPUT_CHARS",
@@ -74,8 +83,25 @@ def run_python(code: str, timeout_s: float = 30.0) -> InterpreterResult:
         )
 
 
-def register_code_interpreter(registry: Any, *, timeout_s: float = 30.0) -> str:
-    """Register ``code_interpreter`` on *registry*; returns the tool name."""
+def register_code_interpreter(
+    registry: Any,
+    *,
+    timeout_s: float = 30.0,
+    requires_approval: bool = True,
+) -> str:
+    """Register ``code_interpreter`` on *registry*; returns the tool name.
+
+    Parameters
+    ----------
+    registry:
+        ToolRegistry instance to attach the tool to.
+    timeout_s:
+        Wall-clock timeout in seconds for script execution (default 30.0).
+    requires_approval:
+        Whether the tool invocation requires human approval (default True).
+        Since Python execution is not fully sandboxed by the OS, human-in-the-loop
+        approval is strongly recommended.
+    """
     name = "code_interpreter"
 
     if name in registry:
@@ -98,7 +124,7 @@ def register_code_interpreter(registry: Any, *, timeout_s: float = 30.0) -> str:
     registry.tool(
         name,
         (
-            "Execute a short Python snippet in a sandboxed interpreter and return "
+            "Execute a short Python snippet in an isolated subprocess (python -I) and return "
             "stdout, stderr, exit code and any files it wrote. Use it for "
             "computations, quick simulations or format conversions. The snippet "
             "must print its result to stdout."
@@ -113,6 +139,8 @@ def register_code_interpreter(registry: Any, *, timeout_s: float = 30.0) -> str:
             },
             "required": ["code"],
         },
-        requires_approval=False,
+        requires_approval=requires_approval,
+        risk=ToolRisk.HIGH,
+        effects=frozenset({ToolEffect.EXTERNAL, ToolEffect.WRITE}),
     )(run_impl)
     return name

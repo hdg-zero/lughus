@@ -41,43 +41,190 @@ export function syntaxHighlight(json) {
 
 export function parseMarkdown(text) {
   if (!text) return "";
-  let html = escapeHtml(text);
 
-  // Fenced code blocks with placeholder extraction
-  const codeBlocks = [];
-  html = html.replace(/```([a-z0-9_-]*)\n([\s\S]*?)```/g, (_match, _lang, code) => {
-    const placeholder = `___CODE_BLOCK_${codeBlocks.length}___`;
-    codeBlocks.push(`<pre class="md-code-block"><code>${code.trim()}</code></pre>`);
+  // 0. Extract math expressions BEFORE escapeHtml (LaTeX may contain < > &)
+  const mathExprs = [];
+  // Display math: $$...$$
+  text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_match, latex) => {
+    const placeholder = `@@@MDMATH${mathExprs.length}@@@`;
+    mathExprs.push({ latex, display: true });
+    return placeholder;
+  });
+  // Inline math: $...$  (single $ — avoid matching $$ already extracted)
+  text = text.replace(/\$([^\$\n]+?)\$/g, (_match, latex) => {
+    const placeholder = `@@@MDMATH${mathExprs.length}@@@`;
+    mathExprs.push({ latex, display: false });
     return placeholder;
   });
 
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>');
+  let html = escapeHtml(text);
 
-  // Headers
-  html = html.replace(/^### (.*$)/gim, '<h4 class="md-h3">$1</h4>');
-  html = html.replace(/^## (.*$)/gim, '<h3 class="md-h2">$1</h3>');
-  html = html.replace(/^# (.*$)/gim, '<h2 class="md-h1">$1</h2>');
-
-  // Bold & Italic
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-
-  // Unordered Lists
-  html = html.replace(/^\s*[-*]\s+(.*$)/gim, '<li class="md-li">$1</li>');
-
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>');
-
-  // Line breaks
-  html = html.replace(/\n/g, '<br>');
-
-  // Restore code blocks without corrupting them with <br>
-  codeBlocks.forEach((block, index) => {
-    html = html.replace(`___CODE_BLOCK_${index}___`, block);
+  // 1. Extract Fenced Code Blocks
+  const codeBlocks = [];
+  html = html.replace(/(?:^|\n)```([a-zA-Z0-9_-]*)[ \t]*\n([\s\S]*?)\n```[ \t]*(?:\n|$)/g, (_match, lang, code) => {
+    const placeholder = `\n@@@MDCODEBLOCK${codeBlocks.length}@@@\n`;
+    const langAttr = lang ? ` data-lang="${escapeHtml(lang)}"` : "";
+    codeBlocks.push(`<pre class="md-code-block"><code${langAttr}>${code}</code></pre>`);
+    return placeholder;
   });
 
-  return html;
+  function inlineMarkdown(s) {
+    return s
+      .replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+      .replace(/(?:^|\W)_([^_]+)_(?:\W|$)/g, " <em>$1</em> ")
+      .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+      .replace(
+        /\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)"\s]+)\)/g,
+        (_match, text, url) => {
+          const cleanUrl = url.replace(/"/g, "&quot;");
+          return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="md-link">${text}</a>`;
+        }
+      );
+  }
+
+  // 2. Extract Tables (GFM) with alignment support
+  // Requires pipe-delimited rows: | col1 | col2 | (supports 1+ columns)
+  const tables = [];
+  html = html.replace(
+    /(?:^|\n)([ \t]*\|[^\n]+\|[ \t]*\n[ \t]*\|[ \t]*:?-{1,}:?[ \t]*(?:\|[ \t]*:?-{1,}:?[ \t]*)*\|[ \t]*\n(?:[ \t]*\|[^\n]+\|[ \t]*(?:\n|$))*)/g,
+    (match, block) => {
+      const rows = block.trim().split("\n");
+      if (rows.length < 2) return match;
+      const splitRow = (row) =>
+        row.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+
+      const alignSpecs = splitRow(rows[1]).map((cell) => {
+        const left = cell.startsWith(":");
+        const right = cell.endsWith(":");
+        if (left && right) return ' style="text-align: center;"';
+        if (right) return ' style="text-align: right;"';
+        if (left) return ' style="text-align: left;"';
+        return "";
+      });
+
+      const headerCells = splitRow(rows[0]);
+      const thead = `<tr>${headerCells.map((c, i) => `<th${alignSpecs[i] || ""}>${inlineMarkdown(c)}</th>`).join("")}</tr>`;
+
+      const bodyRows = rows.slice(2).map(splitRow);
+      const tbody = bodyRows
+        .map((cells) => `<tr>${cells.map((c, i) => `<td${alignSpecs[i] || ""}>${inlineMarkdown(c)}</td>`).join("")}</tr>`)
+        .join("");
+
+      const placeholder = `\n@@@MDTABLE${tables.length}@@@\n`;
+      tables.push(
+        `<div class="md-table-wrap"><table class="md-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`
+      );
+      return placeholder;
+    }
+  );
+
+  // 3. Extract Blockquotes & GitHub-style Alerts
+  const blockquotes = [];
+  html = html.replace(/(?:^|\n)((?:>[^\n]*\n?)+)/g, (_match, block) => {
+    const lines = block.split("\n").map((l) => l.replace(/^>\s?/, ""));
+    const rawContent = lines.join("\n").trim();
+    const alertMatch = rawContent.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*\n?([\s\S]*)$/i);
+    const placeholder = `\n@@@MDQUOTE${blockquotes.length}@@@\n`;
+    if (alertMatch) {
+      const type = alertMatch[1].toLowerCase();
+      const body = inlineMarkdown(alertMatch[2].trim());
+      blockquotes.push(
+        `<div class="md-alert md-alert-${type}"><div class="md-alert-title">${alertMatch[1].toUpperCase()}</div><div>${body}</div></div>`
+      );
+    } else {
+      blockquotes.push(`<blockquote class="md-quote">${inlineMarkdown(rawContent)}</blockquote>`);
+    }
+    return placeholder;
+  });
+
+  // 4. Horizontal rules (---, ***, ___)
+  html = html.replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gim, '<hr class="md-hr">');
+
+  // 5. Headers (h1-h6)
+  html = html.replace(/^#{1,6}\s+(.*$)/gim, (match, content) => {
+    const level = match.trim().split(/\s+/)[0].length;
+    const tagLevel = Math.min(level + 1, 6);
+    const cls = `md-h${level <= 3 ? level : 4}`;
+    return `<h${tagLevel} class="${cls}">${inlineMarkdown(content)}</h${tagLevel}>`;
+  });
+
+  // 6. Lists (unordered, ordered, task lists)
+  html = html.replace(/^\s*([-*]|\d+\.)\s+\[([ xX])\]\s+(.*$)/gim, (_m, _bullet, check, content) => {
+    const checked = check.toLowerCase() === "x" ? " checked" : "";
+    return `<li class="md-li md-task"><input type="checkbox" disabled${checked}> ${inlineMarkdown(content)}</li>`;
+  });
+  html = html.replace(/^\s*[-*]\s+(.*$)/gim, (_m, content) => `<li class="md-li">${inlineMarkdown(content)}</li>`);
+  html = html.replace(/^\s*(\d+)\.\s+(.*$)/gim, (_m, _num, content) => `<li class="md-li md-ol-item">${inlineMarkdown(content)}</li>`);
+
+  // Wrap consecutive <li> in <ul> / <ol>
+  html = html.replace(/(<li class="md-li(?: md-ol-item| md-task)?">[^]*?<\/li>(?:\n|$))+/g, (match) => {
+    if (match.includes("md-ol-item")) {
+      return `<ol class="md-ol">\n${match.trim()}\n</ol>\n`;
+    }
+    return `<ul class="md-ul">\n${match.trim()}\n</ul>\n`;
+  });
+
+  // 7. Inline formatting — apply ONLY to plain-text lines
+  //    Headers, lists, tables, blockquotes already applied inlineMarkdown during extraction.
+  const PLACEHOLDER_RE = /^\s*@@@MD(CODEBLOCK|TABLE|QUOTE|MATH)\d+@@@\s*$/;
+  const BLOCK_TAG_RE = /^\s*<(h[1-6]|hr|ul|ol|li|blockquote|div)\b/;
+  const CLOSE_TAG_RE = /^\s*<\//;
+  html = html.split("\n").map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || PLACEHOLDER_RE.test(trimmed) || BLOCK_TAG_RE.test(trimmed) || CLOSE_TAG_RE.test(trimmed)) {
+      return line;
+    }
+    return inlineMarkdown(line);
+  }).join("\n");
+
+  // 8. Line breaks & spacing — skip block elements AND placeholders
+  const outLines = [];
+  const rawLines = html.split("\n");
+  for (const line of rawLines) {
+    const trimmed = line.trim();
+    if (
+      !trimmed ||
+      PLACEHOLDER_RE.test(trimmed) ||
+      BLOCK_TAG_RE.test(trimmed) ||
+      CLOSE_TAG_RE.test(trimmed)
+    ) {
+      outLines.push(line);
+    } else {
+      outLines.push(line + "<br>");
+    }
+  }
+  html = outLines.join("\n");
+
+  // 9. Restore placeholders
+  codeBlocks.forEach((block, index) => {
+    html = html.replace(`@@@MDCODEBLOCK${index}@@@`, block);
+  });
+  tables.forEach((table, index) => {
+    html = html.replace(`@@@MDTABLE${index}@@@`, table);
+  });
+  blockquotes.forEach((quote, index) => {
+    html = html.replace(`@@@MDQUOTE${index}@@@`, quote);
+  });
+  mathExprs.forEach(({ latex, display }, index) => {
+    let rendered;
+    if (typeof katex !== "undefined") {
+      try {
+        rendered = katex.renderToString(latex, { displayMode: display, throwOnError: false });
+      } catch (_e) {
+        rendered = `<code class="md-inline-code">${escapeHtml(display ? `$$${latex}$$` : `$${latex}$`)}</code>`;
+      }
+    } else {
+      rendered = `<code class="md-inline-code">${escapeHtml(display ? `$$${latex}$$` : `$${latex}$`)}</code>`;
+    }
+    html = html.replace(`@@@MDMATH${index}@@@`, rendered);
+  });
+
+  // Clean redundant linebreaks
+  html = html.replace(/(<br>\s*){3,}/g, "<br><br>");
+  return html.trim();
 }
 
 export function formatJSONString(str) {
@@ -113,6 +260,10 @@ export function applyFilterToEvent(eventElement, filter = state.currentFilter, q
     else if (filter === "tool" && isTool) matchesFilter = true;
     else if (filter === "telemetry" && isTelemetry) matchesFilter = true;
     else if (filter === "error" && isError) matchesFilter = true;
+    else if (filter === "a2a") {
+      matchesFilter =
+        eventElement.classList.contains("a2a_request") || eventElement.classList.contains("a2a_response");
+    }
   }
 
   const textContent = eventElement.textContent.toLowerCase();
@@ -145,6 +296,9 @@ export function appendEvent(
   
   if (event.type === "tool_start" || event.type === "tool_result") {
     item.classList.add("tool");
+  }
+  if (event.type === "a2a_request" || event.type === "a2a_response") {
+    item.classList.add("a2a");
   }
   if (event.status === "error") {
     item.classList.add("error");
@@ -191,6 +345,30 @@ export function appendEvent(
       lines.push(`<strong>error:</strong> ${escapeHtml(event.error_type)}`);
     }
     lines.push(`<strong>output:</strong>\n${formatJSONString(event.output)}`);
+    body.innerHTML = lines.join("\n");
+  } else if (event.type === "a2a_request") {
+    const lines = [
+      `<strong>agent:</strong> ${escapeHtml(event.target_agent || "")}`,
+      `<strong>url:</strong> ${escapeHtml(event.url || "")}`,
+      `<strong>method:</strong> ${escapeHtml(event.method || "message/send")}`,
+    ];
+    if (event.tool_name) lines.push(`<strong>tool:</strong> ${escapeHtml(event.tool_name)}`);
+    if (event.file_count) {
+      lines.push(`<strong>files attached:</strong> ${event.file_count}`);
+    }
+    lines.push(`<strong>objective sent:</strong>\n${escapeHtml(event.objective || "")}`);
+    body.innerHTML = lines.join("\n");
+  } else if (event.type === "a2a_response") {
+    const isError = event.status === "error";
+    item.classList.add(isError ? "error" : "done");
+    const lines = [
+      `<strong>agent:</strong> ${escapeHtml(event.target_agent || "")}`,
+      `<strong>status:</strong> ${escapeHtml(event.status || "ok")}`,
+      `<strong>elapsed:</strong> ${event.elapsed_ms ?? 0}ms`,
+    ];
+    if (event.remote_task_id) lines.push(`<strong>remote task:</strong> ${escapeHtml(event.remote_task_id)}`);
+    if (event.error_code) lines.push(`<strong>error:</strong> ${escapeHtml(event.error_code)}`);
+    lines.push(`<strong>response text:</strong>\n${escapeHtml(event.text || "(none)")}`);
     body.innerHTML = lines.join("\n");
   } else if (event.type === "completion") {
     const rawText = event.text || "";

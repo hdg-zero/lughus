@@ -4,6 +4,8 @@ title: CLI
 description: Command line tools for creating lughus agent projects.
 ---
 
+> [← Documentation index](../index.md)
+
 # CLI
 
 `lughus` ships with a small command line interface focused on project creation.

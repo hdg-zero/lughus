@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Tool Contract
 
 This specification defines the formal contract for tool registration, policy evaluation, and human-in-the-loop approvals in `lughus`.
@@ -97,3 +99,7 @@ Errors returned to the agent loop follow structured JSON payloads:
   "retryable": false
 }
 ```
+
+---
+
+**Related:** [Tools API](../api/tools.md) · [Tools Guide](../guides/tools.md)

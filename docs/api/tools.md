@@ -4,6 +4,8 @@ title: Tool Registry API
 description: API reference for the ToolRegistry class.
 ---
 
+> [← Documentation index](../index.md)
+
 # Tool Registry API
 
 The `ToolRegistry` handles registration and declaration extraction for sync/async tools. Runtime execution is handled by the loop module, which applies bounded concurrency and optional per-tool timeouts through `ToolExecutionConfig`.
@@ -128,3 +130,7 @@ Retrieves the full tool definition by name.
 ```python
 def get_tool(self, name: str) -> ToolDef | None:
 ```
+
+---
+
+**Related:** [Tools Guide](../guides/tools.md) · [Tools Contract](../contracts/tools.md) · [Policy API](policy.md) · [MCP Integration](../integrations/mcp.md)

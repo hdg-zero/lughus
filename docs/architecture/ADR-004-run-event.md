@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # ADR-004: Run/Event Model
 
 ## Context

@@ -1,3 +1,5 @@
+> [← Documentation index](index.md)
+
 # Guarantees and Non-Guarantees
 
 Lughus validates tool inputs and bounds configured payloads. Limits are scoped to one application runtime unless explicitly documented otherwise. The in-memory task store is not durable and is not suitable for multiple replicas.

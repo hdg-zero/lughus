@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # ADR-005: Tool capabilities, policy engine, and human approvals
 
 * **Status:** accepted

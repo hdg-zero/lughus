@@ -4,6 +4,8 @@ title: Execution Runtime & Event Stream API
 description: API reference for lughus.infra.runtime, lughus.agent.runner, and lughus.core.event_stream modules.
 ---
 
+> [← Documentation index](../index.md)
+
 # Execution Runtime & Event Stream API
 
 The `lughus.infra.runtime`, `lughus.agent.runner`, and `lughus.core.event_stream` modules manage process-local resource pools, event streaming, and agent execution orchestration.
@@ -151,3 +153,7 @@ class RunUnitOfWork(Protocol):
     ) -> Run: ...
 
 Transactional state machine coordinator enforcing valid status transitions (`PENDING`, `RUNNING`, `WAITING`, `COMPLETED`, `FAILED`, `CANCELLED`) with per-run sequence allocation and atomic Unit of Work persistence across run records, checkpoints, and event streams.
+
+---
+
+**Related:** [ADR-003 — Runtime](../architecture/ADR-003-runtime.md) · [ADR-006 — Persistence](../architecture/ADR-006-persistence.md) · [Operations: Recovery](../operations/recovery.md)

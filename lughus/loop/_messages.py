@@ -115,11 +115,12 @@ class MessageHistory:
     attempt, protecting the canonical history from accidental corruption.
     """
 
-    __slots__ = ("_messages", "_view")
+    __slots__ = ("_messages", "_token_cache", "_view")
 
     def __init__(self, initial: Iterable[dict[str, Any]] | None = None) -> None:
         self._messages: list[dict[str, Any]] = []
         self._view = _ReadOnlyMessageView(self._messages)
+        self._token_cache: dict[tuple[int, str | None], int] = {}
         if initial is not None:
             for msg in initial:
                 self.append(msg)
@@ -147,7 +148,13 @@ class MessageHistory:
         Returns the number of groups pruned.  Raises :class:`ContextBudgetExceeded`
         if a single atomic group exceeds the entire budget.
         """
-        return prune_history(self._messages, max_tokens, prefix_len, model=model)
+        return prune_history(
+            self._messages,
+            max_tokens,
+            prefix_len,
+            model=model,
+            token_cache=self._token_cache,
+        )
 
     def __repr__(self) -> str:
         return f"MessageHistory(len={len(self._messages)})"
@@ -220,6 +227,7 @@ def prune_history(
     max_tokens: int,
     prefix_len: int,
     model: str | None = None,
+    token_cache: dict[tuple[int, str | None], int] | None = None,
 ) -> int:
     """Remove oldest non-prefix atomic groups from *messages* until under budget.
 
@@ -231,14 +239,14 @@ def prune_history(
     Raises :class:`ContextBudgetExceeded` if a single atomic group is larger
     than the entire *max_tokens* budget.
     """
-    token_cache: dict[int, int] = {}
+    cache = token_cache if token_cache is not None else {}
 
     def _msg_tokens(idx: int) -> int:
         msg = messages[idx]
-        mid = id(msg)
-        if mid not in token_cache:
-            token_cache[mid] = _message_tokens(msg, model=model)
-        return token_cache[mid]
+        key = (id(msg), model)
+        if key not in cache:
+            cache[key] = _message_tokens(msg, model=model)
+        return cache[key]
 
     total_tokens = sum(_msg_tokens(i) for i in range(len(messages)))
     if total_tokens <= max_tokens:

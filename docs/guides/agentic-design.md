@@ -1,3 +1,5 @@
+> [← Documentation index](../index.md)
+
 # Agentic Design Rules
 
 Eight rules that govern how lughus builds and manages the LLM conversation context. These rules are enforced by the framework internals and should guide agent authors when extending behavior.
@@ -33,3 +35,7 @@ Large tool outputs (files, images, long text) are stored in an artifact store an
 ## A8: Anti-Leak
 
 Internal paths, stack traces, and framework internals are never included in model-facing output. Tool errors are redacted to structured error types without exposing server file paths or implementation details. This prevents prompt injection attacks from extracting infrastructure information through error messages.
+
+---
+
+**Related:** [Loop API](../api/loop.md) · [Tools Guide](tools.md) · [Context Contract](../contracts/context.md)

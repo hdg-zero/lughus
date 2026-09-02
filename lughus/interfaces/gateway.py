@@ -224,15 +224,13 @@ class BaseGateway(AgentExecutor):
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def handle(
+    def handle(
         self,
         objective: str,
         files: list[tuple[bytes, str, str]],
     ) -> AsyncIterator[ProgressEvent | CompletionEvent]:
         """Implement in your agent. Yield ProgressEvent / CompletionEvent."""
         raise NotImplementedError
-        if False:
-            yield ProgressEvent("")
 
     # -- A2A message extraction -----------------------------------
 
@@ -326,30 +324,35 @@ class BaseGateway(AgentExecutor):
         files: list[tuple[bytes, str, str]] = []
         total_file_bytes = 0
 
-        for task in file_tasks:
+        async def _decode_task(task: dict[str, Any]) -> tuple[bytes | None, dict[str, Any]]:
             try:
-                task_bytes = task["bytes"]
+                task_bytes: bytes = task["bytes"]
 
-                def _decode_b64(tb: bytes = task_bytes) -> bytes:
+                def _decode_sync(tb: bytes = task_bytes) -> bytes:
                     return base64.b64decode(tb, validate=True)
 
                 raw = await run_sync_in_thread(
-                    _decode_b64,
+                    _decode_sync,
                     executor=self._executor,
                     max_workers=self.settings.max_sync_thread_workers,
                 )
+                return raw, task
             except (binascii.Error, OSError) as exc:
                 _logger.warning(
                     "Skipping file '%s': base64 decode failed — %s",
                     task["name"],
                     exc,
                 )
-                continue
+                return None, task
 
-            res = self._process_decoded_file(raw, task, total_file_bytes)
-            if res is not None:
-                files.append(res)
-                total_file_bytes += len(res[0])
+        if file_tasks:
+            decoded_results = await asyncio.gather(*[_decode_task(t) for t in file_tasks])
+            for raw, task in decoded_results:
+                if raw is not None:
+                    res = self._process_decoded_file(raw, task, total_file_bytes)
+                    if res is not None:
+                        files.append(res)
+                        total_file_bytes += len(res[0])
 
         objective = "\n".join(text_parts)
         _validate_objective(objective, self.settings)
