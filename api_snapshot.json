@@ -184,6 +184,14 @@
     "kind": "class"
   },
   {
+    "name": "InterpreterResult",
+    "kind": "dataclass"
+  },
+  {
+    "name": "InterpreterTimeoutError",
+    "kind": "class"
+  },
+  {
     "name": "LLM",
     "kind": "class"
   },
@@ -414,6 +422,15 @@
     "parameters": [
       "scenario",
       "execute"
+    ]
+  },
+  {
+    "name": "register_code_interpreter",
+    "kind": "function",
+    "parameters": [
+      "registry",
+      "timeout_s",
+      "requires_approval"
     ]
   },
   {

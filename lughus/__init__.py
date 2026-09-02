@@ -15,6 +15,9 @@ if TYPE_CHECKING:
     from .engine.delegation import DelegationResult as DelegationResult
     from .engine.delegation import Delegator as Delegator
     from .engine.delegation import RemoteAgentClient as RemoteAgentClient
+    from .engine.interpreter import InterpreterResult as InterpreterResult
+    from .engine.interpreter import InterpreterTimeoutError as InterpreterTimeoutError
+    from .engine.interpreter import register_code_interpreter as register_code_interpreter
     from .engine.llm import LLM as LLM
     from .engine.llm import GenerateLLM as GenerateLLM
     from .engine.llm import StreamingLLM as StreamingLLM
@@ -112,6 +115,10 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "DelegationResult": (".engine.delegation", None),
     "Delegator": (".engine.delegation", None),
     "RemoteAgentClient": (".engine.delegation", None),
+    # ── interpreter (engine) ─────────────────────────────────────────
+    "InterpreterResult": (".engine.interpreter", None),
+    "InterpreterTimeoutError": (".engine.interpreter", None),
+    "register_code_interpreter": (".engine.interpreter", None),
     # ── litellm (heavy) ─────────────────────────────────────────────
     "LLM": (".engine.llm", None),
     "GenerateLLM": (".engine.llm", None),
@@ -251,6 +258,8 @@ __all__ = [
     "InMemoryEventSink",
     "InMemoryIdempotencyStore",
     "InMemoryRunStore",
+    "InterpreterResult",
+    "InterpreterTimeoutError",
     "LLMResponseError",
     "LeastPrivilegePolicy",
     "LoopLimitError",
@@ -295,6 +304,7 @@ __all__ = [
     "emit_a2a_request",
     "emit_a2a_response",
     "evaluate_scenario",
+    "register_code_interpreter",
     "serve",
     "setup_telemetry",
 ]
