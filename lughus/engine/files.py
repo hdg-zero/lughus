@@ -49,7 +49,6 @@ async def decode_file_bytes(
             data = await run_sync_in_thread(
                 _decode_enc,
                 executor=executor,
-                max_workers=getattr(settings, "max_sync_thread_workers", 32),
             )
         else:
             data = await asyncio.to_thread(_decode_enc)

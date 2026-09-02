@@ -334,7 +334,6 @@ class BaseGateway(AgentExecutor):
                 raw = await run_sync_in_thread(
                     _decode_sync,
                     executor=self._executor,
-                    max_workers=self.settings.max_sync_thread_workers,
                 )
                 return raw, task
             except (binascii.Error, OSError) as exc:
