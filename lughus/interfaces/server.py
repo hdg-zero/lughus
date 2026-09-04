@@ -84,61 +84,43 @@ class ProductionGuardMiddleware:
         self._pending_requests = 0
         self._pending_lock = asyncio.Lock()
 
-    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
-        if scope.get("type") == "lifespan":
+    async def _handle_lifespan(self, scope: dict, receive: Any, send: Any) -> None:
+        async def lifespan_receive() -> dict[str, Any]:
+            msg = await receive()
+            if msg.get("type") == "lifespan.shutdown":
+                if self.gateway and hasattr(self.gateway, "shutdown"):
+                    await self.gateway.shutdown()
+                shutdown_ui_server()
+            return cast(dict[str, Any], msg)
 
-            async def lifespan_receive() -> dict[str, Any]:
-                msg = await receive()
-                if msg.get("type") == "lifespan.shutdown":
-                    if self.gateway and hasattr(self.gateway, "shutdown"):
-                        await self.gateway.shutdown()
-                    shutdown_ui_server()
-                return cast(dict[str, Any], msg)
+        await self.app(scope, lifespan_receive, send)
 
-            await self.app(scope, lifespan_receive, send)
-            return
+    def _check_content_length(self, headers: Mapping[str, str]) -> JSONResponse | None:
+        if self.max_body_bytes is None:
+            return None
+        content_length = headers.get("content-length")
+        if content_length is None:
+            return None
+        try:
+            length = int(content_length)
+        except ValueError:
+            return JSONResponse({"error": "Invalid Content-Length"}, status_code=400)
+        if length > self.max_body_bytes:
+            return JSONResponse({"error": "request_body_too_large"}, status_code=413)
+        return None
 
-        if scope.get("type") != "http":
-            await self.app(scope, receive, send)
-            return
+    def _check_bearer_auth(self, headers: Mapping[str, str], path: str) -> JSONResponse | None:
+        if not self.bearer_tokens or path in _AUTH_EXEMPT_PATHS:
+            return None
+        provided = headers.get("authorization", "")
+        if provided.startswith("Bearer "):
+            token = provided[7:]
+            for allowed in self.bearer_tokens:
+                if hmac.compare_digest(token, allowed):
+                    return None
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
-        path = scope.get("path") or ""
-        headers = {
-            key.decode("latin1").lower(): value.decode("latin1")
-            for key, value in scope.get("headers", [])
-        }
-
-        if self.max_body_bytes is not None:
-            content_length = headers.get("content-length")
-            if content_length is not None:
-                try:
-                    length = int(content_length)
-                except ValueError:
-                    response = JSONResponse({"error": "Invalid Content-Length"}, status_code=400)
-                    await response(scope, receive, send)
-                    return
-                if length > self.max_body_bytes:
-                    response = JSONResponse(
-                        {"error": "request_body_too_large"},
-                        status_code=413,
-                    )
-                    await response(scope, receive, send)
-                    return
-
-        if self.bearer_tokens and path not in _AUTH_EXEMPT_PATHS:
-            provided = headers.get("authorization", "")
-            authorized = False
-            if provided.startswith("Bearer "):
-                token = provided[7:]
-                for allowed in self.bearer_tokens:
-                    if hmac.compare_digest(token, allowed):
-                        authorized = True
-                        break
-            if not authorized:
-                response = JSONResponse({"error": "Unauthorized"}, status_code=401)
-                await response(scope, receive, send)
-                return
-
+    async def _run_guarded_app(self, scope: dict, receive: Any, send: Any) -> None:
         body_bytes_seen = 0
         response_started = False
 
@@ -158,63 +140,76 @@ class ProductionGuardMiddleware:
                     raise RequestBodyTooLarge
             return cast(dict[str, Any], message)
 
+        try:
+            await self.app(scope, guarded_receive, guarded_send)
+        except RequestBodyTooLarge:
+            if not response_started:
+                response = JSONResponse({"error": "request_body_too_large"}, status_code=413)
+                await response(scope, receive, send)
+            else:
+                _logger.warning("Request body exceeded limit after response start")
+
+    async def _acquire_slot(self) -> bool:
         if self._semaphore is None:
-            try:
-                await self.app(scope, guarded_receive, guarded_send)
-            except RequestBodyTooLarge:
-                if not response_started:
-                    response = JSONResponse({"error": "request_body_too_large"}, status_code=413)
-                    await response(scope, receive, send)
-                else:
-                    _logger.warning("Request body exceeded limit after response start")
+            return True
+        if self.request_queue_timeout <= 0:
+            if self._semaphore.locked():
+                return False
+            await self._semaphore.acquire()
+            return True
+        try:
+            await asyncio.wait_for(self._semaphore.acquire(), timeout=self.request_queue_timeout)
+            return True
+        except TimeoutError:
+            return False
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope.get("type") == "lifespan":
+            await self._handle_lifespan(scope, receive, send)
             return
 
-        reject_for_backlog = False
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = {
+            key.decode("latin1").lower(): value.decode("latin1")
+            for key, value in scope.get("headers", [])
+        }
+        length_err = self._check_content_length(headers)
+        if length_err is not None:
+            await length_err(scope, receive, send)
+            return
+
+        auth_err = self._check_bearer_auth(headers, scope.get("path") or "")
+        if auth_err is not None:
+            await auth_err(scope, receive, send)
+            return
+
+        if self._semaphore is None:
+            await self._run_guarded_app(scope, receive, send)
+            return
+
         async with self._pending_lock:
             if (
                 self._max_pending_requests is not None
                 and self._pending_requests >= self._max_pending_requests
             ):
-                reject_for_backlog = True
-            else:
-                self._pending_requests += 1
+                response = JSONResponse({"error": "Server is busy"}, status_code=503)
+                await response(scope, receive, send)
+                return
+            self._pending_requests += 1
 
-        if reject_for_backlog:
-            response = JSONResponse({"error": "Server is busy"}, status_code=503)
-            await response(scope, receive, send)
-            return
-
-        acquired = False
         try:
-            if self.request_queue_timeout <= 0:
-                if self._semaphore.locked():
-                    response = JSONResponse({"error": "Server is busy"}, status_code=503)
-                    await response(scope, receive, send)
-                    return
-                await self._semaphore.acquire()
-            else:
-                try:
-                    await asyncio.wait_for(
-                        self._semaphore.acquire(),
-                        timeout=self.request_queue_timeout,
-                    )
-                except TimeoutError:
-                    response = JSONResponse({"error": "Server is busy"}, status_code=503)
-                    await response(scope, receive, send)
-                    return
-            acquired = True
-
+            if not await self._acquire_slot():
+                response = JSONResponse({"error": "Server is busy"}, status_code=503)
+                await response(scope, receive, send)
+                return
             try:
-                await self.app(scope, guarded_receive, guarded_send)
-            except RequestBodyTooLarge:
-                if not response_started:
-                    response = JSONResponse({"error": "request_body_too_large"}, status_code=413)
-                    await response(scope, receive, send)
-                else:
-                    _logger.warning("Request body exceeded limit after response start")
-        finally:
-            if acquired:
+                await self._run_guarded_app(scope, receive, send)
+            finally:
                 self._semaphore.release()
+        finally:
             async with self._pending_lock:
                 self._pending_requests -= 1
 
@@ -454,6 +449,19 @@ def _install_uvicorn_startup_filter() -> None:
 _install_uvicorn_startup_filter()
 
 
+def _coerce_log_arg(arg: Any) -> Any:
+    if isinstance(arg, (bool, int)):
+        return arg
+    if isinstance(arg, float):
+        return int(arg) if arg.is_integer() else arg
+    if isinstance(arg, str):
+        try:
+            return int(arg)
+        except ValueError:
+            return arg
+    return arg
+
+
 class _UvicornDefaultFormatter(uvicorn.logging.DefaultFormatter):
     """Ensures startup connection strings are always cleanly formatted.
 
@@ -479,26 +487,9 @@ class _UvicornDefaultFormatter(uvicorn.logging.DefaultFormatter):
             if "color_message" in recordcopy.__dict__:
                 recordcopy.msg = recordcopy.__dict__["color_message"]
 
-        # Coerce positional args so %d placeholders always receive numbers.
-        # A str port reaching this point would otherwise make getMessage()
-        # raise TypeError, and logging then prints the RAW "%s://%s:%d"
-        # template — the exact bug this formatter exists to prevent.
         if recordcopy.args:
             if isinstance(recordcopy.args, tuple):
-                coerced: list[Any] = []
-                for arg in recordcopy.args:
-                    if isinstance(arg, (bool, int)):
-                        coerced.append(arg)
-                    elif isinstance(arg, float):
-                        coerced.append(int(arg) if arg.is_integer() else arg)
-                    elif isinstance(arg, str):
-                        try:
-                            coerced.append(int(arg))
-                        except ValueError:
-                            coerced.append(arg)
-                    else:
-                        coerced.append(arg)
-                recordcopy.args = tuple(coerced)
+                recordcopy.args = tuple(_coerce_log_arg(arg) for arg in recordcopy.args)
 
             try:
                 message = recordcopy.getMessage()
