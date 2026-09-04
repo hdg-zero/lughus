@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import json
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any, Protocol
 
+from ..core.domain import canonical_hash
 from ..core.errors import IdempotencyCapacityError
 from ..infra.telemetry import meter
 from ..persistence.store import ConcurrentUpdateError
@@ -25,13 +24,7 @@ _evictions = meter.create_counter(
 
 def idempotency_hash(tool_name: str, arguments: Mapping[str, Any]) -> str:
     """Compute a deterministic SHA-256 hash for a (tool_name, arguments) pair."""
-    canonical = json.dumps(
-        {"tool": tool_name, "args": arguments},
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-    return hashlib.sha256(canonical.encode()).hexdigest()
+    return canonical_hash({"tool": tool_name, "args": arguments})
 
 
 class AttemptStatus(StrEnum):

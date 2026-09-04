@@ -162,6 +162,25 @@ class GovernedAgentRunner:
         def _on_tool_event(event: dict[str, Any]) -> None:
             tool_events.append(event)
 
+        async def _persist_tool_checkpoint(state_payload: dict[str, Any]) -> None:
+            if not tool_events:
+                return
+            last_seq = -1
+            for te in tool_events:
+                seq = coordinator.next_sequence(run.run_id)
+                last_seq = seq
+                run_event = RunEvent(
+                    te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT
+                )
+                await rt.event_store.append(run_event)
+            checkpoint = Checkpoint(
+                run.run_id,
+                running.version,
+                last_seq,
+                state_payload,
+            )
+            await rt.checkpoint_store.save(checkpoint, expected_version=running.version)
+
         try:
             with collect_tool_events(_on_tool_event):
                 result = await agent_loop(
@@ -177,25 +196,12 @@ class GovernedAgentRunner:
                 )
         except ApprovalRequiredGroup as e:
             # Persist any tool events that completed before the suspension.
-            last_event_seq = -1
-            for te in tool_events:
-                seq = coordinator.next_sequence(run.run_id)
-                last_event_seq = seq
-                run_event = RunEvent(
-                    te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT
-                )
-                await rt.event_store.append(run_event)
-            if tool_events:
-                checkpoint = Checkpoint(
-                    run.run_id,
-                    running.version,
-                    last_event_seq,
-                    {
-                        "status": RunStatus.WAITING.value,
-                        "pending_approvals": [r.request_id for r in e.requests],
-                    },
-                )
-                await rt.checkpoint_store.save(checkpoint, expected_version=running.version)
+            await _persist_tool_checkpoint(
+                {
+                    "status": RunStatus.WAITING.value,
+                    "pending_approvals": [r.request_id for r in e.requests],
+                }
+            )
             # Transition to WAITING — the run is suspended, not failed.
             await coordinator.transition(
                 running,
@@ -210,27 +216,14 @@ class GovernedAgentRunner:
             )
             raise
 
-        # Persist tool events with globally unique sequences.
-        last_event_seq = -1
-        for te in tool_events:
-            seq = coordinator.next_sequence(run.run_id)
-            last_event_seq = seq
-            run_event = RunEvent(te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT)
-            await rt.event_store.append(run_event)
-
-        # Save a checkpoint capturing post-tool-execution state.
-        if tool_events:
-            checkpoint = Checkpoint(
-                run.run_id,
-                running.version,
-                last_event_seq,
-                {
-                    "status": running.status.value,
-                    "iterations": result.iterations,
-                    "total_tokens": result.total_tokens,
-                },
-            )
-            await rt.checkpoint_store.save(checkpoint, expected_version=running.version)
+        # Persist completed tool events and post-execution checkpoint.
+        await _persist_tool_checkpoint(
+            {
+                "status": running.status.value,
+                "iterations": result.iterations,
+                "total_tokens": result.total_tokens,
+            }
+        )
 
         await coordinator.transition(
             running,

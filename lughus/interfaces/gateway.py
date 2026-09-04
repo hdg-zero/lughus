@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import binascii
 import contextlib
 import logging
 from collections.abc import AsyncIterator
@@ -25,8 +24,7 @@ from opentelemetry.trace import StatusCode
 
 from ..core.errors import LughusError, SafeToolError
 from ..core.events import Artifact, CompletionEvent, ProgressEvent
-from ..engine.files import _safe_filename
-from ..infra._threading import run_sync_in_thread
+from ..engine.files import _safe_filename, decode_file_bytes
 from ..infra.config import BaseSettings
 from ..infra.telemetry import tracer
 from ..loop import ToolExecutionConfig
@@ -102,17 +100,23 @@ class BaseGateway(AgentExecutor):
         *,
         run_id: str | None = None,
         principal: Principal | None = None,
+        approval_store: Any | None = None,
+        **overrides: Any,
     ) -> ToolExecutionConfig:
         """Create a ToolExecutionConfig bound to settings and optional runtime/governance."""
         if self.runtime is not None and run_id and principal:
             return self.runtime.tool_config(run_id=run_id, principal=principal)
-        return ToolExecutionConfig(
-            max_parallel_tools=self.settings.max_parallel_tools,
-            tool_timeout=self.settings.tool_timeout,
-            tool_queue_timeout=self.settings.tool_queue_timeout,
-            max_tool_args_chars=self.settings.max_tool_args_chars,
-            max_tool_output_chars=self.settings.max_tool_output_chars,
-        )
+        params: dict[str, Any] = {
+            "max_parallel_tools": self.settings.max_parallel_tools,
+            "tool_timeout": self.settings.tool_timeout,
+            "tool_queue_timeout": self.settings.tool_queue_timeout,
+            "max_tool_args_chars": self.settings.max_tool_args_chars,
+            "max_tool_output_chars": self.settings.max_tool_output_chars,
+        }
+        if approval_store is not None:
+            params["approval_store"] = approval_store
+        params.update(overrides)
+        return ToolExecutionConfig(**params)
 
     async def execute(
         self,
@@ -326,32 +330,6 @@ class BaseGateway(AgentExecutor):
                     )
         return text_parts, file_tasks
 
-    def _process_decoded_file(
-        self,
-        raw: bytes,
-        task: dict[str, Any],
-        total_file_bytes: int,
-    ) -> tuple[bytes, str, str] | None:
-        """Validate size limits on a decoded file and return the file tuple or None."""
-        if len(raw) > self.settings.max_file_bytes:
-            _logger.warning(
-                "Skipping file '%s': size %d bytes exceeds limit %d bytes",
-                task["name"],
-                len(raw),
-                self.settings.max_file_bytes,
-            )
-            return None
-
-        if total_file_bytes + len(raw) > self.settings.max_request_bytes:
-            _logger.warning(
-                "Skipping file '%s': total decoded file bytes would exceed limit %d bytes",
-                task["name"],
-                self.settings.max_request_bytes,
-            )
-            return None
-
-        return raw, task["mime"], task["name"]
-
     async def _extract_async(
         self,
         context: RequestContext,
@@ -361,34 +339,33 @@ class BaseGateway(AgentExecutor):
         files: list[tuple[bytes, str, str]] = []
         total_file_bytes = 0
 
-        async def _decode_task(task: dict[str, Any]) -> tuple[bytes | None, dict[str, Any]]:
+        async def _decode_task(task: dict[str, Any]) -> tuple[bytes, str, str] | None:
             try:
-                task_bytes: bytes = task["bytes"]
-
-                def _decode_sync(tb: bytes = task_bytes) -> bytes:
-                    return base64.b64decode(tb, validate=True)
-
-                raw = await run_sync_in_thread(
-                    _decode_sync,
+                return await decode_file_bytes(
+                    task["bytes"],
+                    task["name"],
+                    task["mime"],
+                    self.settings,
                     executor=self._executor,
                 )
-                return raw, task
-            except (binascii.Error, OSError) as exc:
-                _logger.warning(
-                    "Skipping file '%s': base64 decode failed — %s",
-                    task["name"],
-                    exc,
-                )
-                return None, task
+            except ValueError as exc:
+                _logger.warning("Skipping file '%s': %s", task["name"], exc)
+                return None
 
         if file_tasks:
             decoded_results = await asyncio.gather(*[_decode_task(t) for t in file_tasks])
-            for raw, task in decoded_results:
-                if raw is not None:
-                    res = self._process_decoded_file(raw, task, total_file_bytes)
-                    if res is not None:
-                        files.append(res)
-                        total_file_bytes += len(res[0])
+            for res in decoded_results:
+                if res is not None:
+                    if total_file_bytes + len(res[0]) > self.settings.max_request_bytes:
+                        _logger.warning(
+                            "Skipping file '%s': "
+                            "total decoded file bytes would exceed limit %d bytes",
+                            res[2],
+                            self.settings.max_request_bytes,
+                        )
+                        continue
+                    files.append(res)
+                    total_file_bytes += len(res[0])
 
         objective = "\n".join(text_parts)
         _validate_objective(objective, self.settings)

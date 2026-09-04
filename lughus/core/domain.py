@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -10,6 +12,16 @@ from typing import Any
 from uuid import uuid4
 
 SCHEMA_VERSION = "1.0"
+
+
+def canonical_json(data: Any) -> str:
+    """Return compact, sorted UTF-8 JSON representation for deterministic hashing."""
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def canonical_hash(data: Any) -> str:
+    """Compute deterministic SHA-256 hex digest of a JSON-serializable structure."""
+    return hashlib.sha256(canonical_json(data).encode("utf-8")).hexdigest()
 
 
 def new_id(prefix: str) -> str:

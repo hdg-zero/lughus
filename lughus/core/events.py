@@ -8,14 +8,14 @@ from typing import Any
 
 @dataclass
 class ProgressEvent:
-    """Intermediate progress (shown as A2A working status)."""
+    """Intermediate progress update emitted as an A2A working status."""
 
     text: str
 
 
 @dataclass
 class Artifact:
-    """A file produced by the agent."""
+    """Binary or text artifact produced by an agent."""
 
     data: bytes
     mime_type: str
@@ -24,7 +24,7 @@ class Artifact:
 
 @dataclass
 class CompletionEvent:
-    """End of processing — text response and optional artifacts."""
+    """Terminal event signalling successful completion with output text and artifacts."""
 
     text: str
     artifacts: list[Artifact] = field(default_factory=list)

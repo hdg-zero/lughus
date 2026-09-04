@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
@@ -11,7 +9,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Protocol
 
-from ..core.domain import new_id
+from ..core.domain import canonical_hash, new_id
 
 
 class ApprovalStatus(StrEnum):
@@ -26,13 +24,7 @@ class ApprovalStatus(StrEnum):
 
 def proposal_digest(tool_name: str, arguments: Mapping[str, Any]) -> str:
     """Compute a canonical SHA-256 digest binding a tool proposal to its exact arguments."""
-    canonical = json.dumps(
-        {"tool": tool_name, "arguments": arguments},
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-    return hashlib.sha256(canonical.encode()).hexdigest()
+    return canonical_hash({"tool": tool_name, "arguments": arguments})
 
 
 @dataclass(frozen=True, slots=True)

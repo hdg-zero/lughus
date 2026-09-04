@@ -9,6 +9,8 @@ from typing import Any
 
 
 class TrustLevel(StrEnum):
+    """Trust hierarchy for context items preventing prompt injection privilege escalation."""
+
     SYSTEM = "system"
     USER = "user"
     EXTERNAL = "external"
@@ -17,6 +19,8 @@ class TrustLevel(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class ContextItem:
+    """Context item with attached provenance, trust boundary, and sensitivity flag."""
+
     role: str
     content: str
     source: str
@@ -32,6 +36,8 @@ class ContextItem:
 
 @dataclass(frozen=True, slots=True)
 class ContextWindow:
+    """Bounded selection of context items fitting within the character budget."""
+
     items: tuple[ContextItem, ...]
     omitted: int
     total_characters: int

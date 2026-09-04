@@ -113,18 +113,12 @@ The agent exposes:
 
 
 def _env_example() -> str:
-    import os
     from dataclasses import fields
 
-    from lughus.infra.config import BaseSettings
+    from lughus.infra.config import BaseSettings, isolated_env
 
-    # Temporarily isolate environment variables to get true defaults
-    old_env = dict(os.environ)
-    os.environ.clear()
-    try:
+    with isolated_env():
         settings = BaseSettings()
-    finally:
-        os.environ.update(old_env)
 
     lines = [
         "AGENT_MODEL=openai/gpt-4o",
