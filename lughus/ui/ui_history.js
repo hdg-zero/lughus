@@ -93,9 +93,15 @@ export function updateActiveRunStatus(statusVal) {
 }
 
 export function appendEventToActiveRun(event) {
-  const run = state.runs.find(r => r.id === state.activeRunId);
+  const run = state.runs.find((r) => r.id === state.activeRunId);
   if (run) {
     event.timestamp = Date.now();
+    if (
+      (event.type === "a2a_response" || event.type === "tool_result") &&
+      (!event.elapsed_ms || Number(event.elapsed_ms) <= 0)
+    ) {
+      event.elapsed_ms = Math.max(1, event.timestamp - run.timestamp);
+    }
     run.events.push(event);
     saveRuns();
     appendEvent(event, undefined, run.events.length - 1);

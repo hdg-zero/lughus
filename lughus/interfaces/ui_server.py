@@ -9,7 +9,7 @@ import html
 import json
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -40,9 +40,20 @@ _ASSET_MIME_TYPES: dict[str, str] = {
     ".json": "application/json",
 }
 
+_NO_CACHE_HEADERS = {
+    "cache-control": "no-cache, no-store, must-revalidate",
+    "pragma": "no-cache",
+    "expires": "0",
+}
+
 
 def shutdown_ui_server() -> None:
-    """Shutdown background resources allocated for the developer console."""
+    """Shutdown background resources allocated for the developer console.
+
+    Hook invoked on ASGI lifespan shutdown. Currently a no-op as the developer
+    console relies exclusively on per-request event queues.
+    """
+    pass
 
 
 def _read_ui_asset(name: str) -> str:
@@ -51,8 +62,11 @@ def _read_ui_asset(name: str) -> str:
 
 def _render_console_html(agent_card: AgentCard) -> str:
     template = _read_ui_asset("console.html")
-    return template.replace("__AGENT_NAME__", html.escape(agent_card.name)).replace(
-        "__AGENT_DESCRIPTION__", html.escape(agent_card.description or "")
+    version = str(int(time.time()))
+    return (
+        template.replace("__AGENT_NAME__", html.escape(agent_card.name))
+        .replace("__AGENT_DESCRIPTION__", html.escape(agent_card.description or ""))
+        .replace("__VERSION__", version)
     )
 
 
@@ -133,12 +147,153 @@ async def _decode_files(
     return await decode_files_payload(raw_files, gateway.settings)
 
 
-def _console_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
-    async def page(request: Request) -> HTMLResponse:
-        return HTMLResponse(_render_console_html(agent_card))
+def _stream_error_events(exc: Exception, gateway: BaseGateway) -> list[dict[str, Any]]:
+    if isinstance(exc, TimeoutError):
+        return [
+            {
+                "type": "error",
+                "code": "agent_timeout",
+                "text": f"Agent execution timed out after {gateway.settings.agent_timeout}s",
+            }
+        ]
+    if isinstance(exc, (ApprovalRequired, ApprovalRequiredGroup)):
+        reqs = exc.requests if isinstance(exc, ApprovalRequiredGroup) else [exc]
+        return [
+            {
+                "type": "error",
+                "code": "approval_required",
+                "request_id": getattr(r, "request_id", "") or "",
+                "tool_name": getattr(r, "tool_name", "") or "",
+                "text": (
+                    f"Tool '{r.tool_name}' requires human approval. "
+                    "Decide below; then re-run the objective."
+                ),
+            }
+            for r in reqs
+        ]
+    if isinstance(exc, LoopLimitError):
+        return [
+            {
+                "type": "error",
+                "code": "loop_limit",
+                "text": (
+                    f"{exc} The agent kept requesting tool calls without producing "
+                    "a final answer — try a more specific objective, raise the "
+                    "iteration limit, or simplify the task."
+                ),
+            }
+        ]
+    if isinstance(exc, LughusError):
+        return [{"type": "error", "code": type(exc).__name__, "text": str(exc)}]
+    if isinstance(exc, ValueError):
+        return [{"type": "error", "code": "invalid_input", "text": str(exc)}]
+    _logger.exception("Developer console stream failed")
+    return [
+        {
+            "type": "error",
+            "code": "internal_error",
+            "text": "An internal error occurred; see server logs for details.",
+        }
+    ]
+
+
+async def _run_gateway_stream(
+    gateway: BaseGateway,
+    objective: str,
+    files: list[tuple[bytes, str, str]],
+    enqueue_fn: Callable[[dict[str, Any]], None],
+) -> dict[str, Any]:
+    completion_metadata: dict[str, Any] = {}
+    timeout_ctx = (
+        asyncio.timeout(gateway.settings.agent_timeout)
+        if gateway.settings.agent_timeout > 0
+        else contextlib.nullcontext()
+    )
+    with collect_tool_events(enqueue_fn):
+        async with timeout_ctx:
+            async for event in gateway.handle(objective, files):
+                if isinstance(event, ProgressEvent):
+                    enqueue_fn({"type": "progress", "text": event.text})
+                elif isinstance(event, CompletionEvent):
+                    completion_metadata = dict(event.metadata or {})
+                    enqueue_fn(_completion_event(event, gateway.settings))
+    return completion_metadata
+
+
+async def _produce_stream_events(
+    queue: asyncio.Queue[dict[str, Any] | None],
+    events: list[dict[str, Any]],
+    gateway: BaseGateway,
+    objective: str,
+    files: list[tuple[bytes, str, str]],
+    started_at: float,
+) -> None:
+    def _enqueue_nowait(item: dict[str, Any]) -> None:
+        events.append(item)
+        queue.put_nowait(item)
+
+    try:
+        with tracer.start_as_current_span("lughus.ui.stream") as span:
+            span.set_attribute("lughus.objective_len", len(objective))
+            span.set_attribute("lughus.file_count", len(files))
+            completion_metadata = await _run_gateway_stream(
+                gateway, objective, files, _enqueue_nowait
+            )
+            telemetry = _telemetry_event(
+                metadata=completion_metadata,
+                events=events,
+                request_elapsed_ms=(time.perf_counter() - started_at) * 1000,
+            )
+            if telemetry is not None:
+                for key, value in telemetry["otel_attributes"].items():
+                    if isinstance(value, (str, int, float, bool)):
+                        span.set_attribute(key, value)
+                _enqueue_nowait(telemetry)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — boundary guard: stream errors translated to UI events
+        for err_evt in _stream_error_events(exc, gateway):
+            _enqueue_nowait(err_evt)
+    finally:
+        queue.put_nowait(None)
+
+
+async def _stream_events_generator(
+    gateway: BaseGateway,
+    objective: str,
+    files: list[tuple[bytes, str, str]],
+) -> AsyncIterator[bytes]:
+    queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+    events: list[dict[str, Any]] = []
+    started_at = time.perf_counter()
+    producer = asyncio.create_task(
+        _produce_stream_events(queue, events, gateway, objective, files, started_at)
+    )
+    try:
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield _json_line(item)
+    finally:
+        if not producer.done():
+            producer.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await producer
+
+
+class _ConsoleHandlers:
+    """Encapsulates developer console HTTP endpoints."""
+
+    def __init__(self, agent_card: AgentCard, gateway: BaseGateway) -> None:
+        self.agent_card = agent_card
+        self.gateway = gateway
+
+    async def page(self, request: Request) -> HTMLResponse:
+        return HTMLResponse(_render_console_html(self.agent_card), headers=_NO_CACHE_HEADERS)
 
     async def _parse_run_request(
-        request: Request,
+        self, request: Request
     ) -> tuple[str, list[tuple[bytes, str, str]]] | JSONResponse:
         try:
             payload = await request.json()
@@ -149,158 +304,43 @@ def _console_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
 
         objective = str(payload.get("objective") or "")
         try:
-            _validate_objective(objective, gateway.settings)
-            files = await _decode_files(payload.get("files"), gateway)
+            _validate_objective(objective, self.gateway.settings)
+            files = await _decode_files(payload.get("files"), self.gateway)
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return objective, files
 
-    async def stream(request: Request) -> JSONResponse | StreamingResponse:
-        parsed = await _parse_run_request(request)
+    async def stream(self, request: Request) -> JSONResponse | StreamingResponse:
+        parsed = await self._parse_run_request(request)
         if isinstance(parsed, JSONResponse):
             return parsed
         objective, files = parsed
-
-        async def _lines() -> AsyncIterator[bytes]:
-            queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
-            events: list[dict[str, Any]] = []
-            completion_metadata: dict[str, Any] = {}
-            started_at = time.perf_counter()
-
-            def _enqueue_nowait(item: dict[str, Any]) -> None:
-                events.append(item)
-                queue.put_nowait(item)
-
-            async def _produce() -> None:
-                nonlocal completion_metadata
-                timeout_ctx = (
-                    asyncio.timeout(gateway.settings.agent_timeout)
-                    if gateway.settings.agent_timeout > 0
-                    else contextlib.nullcontext()
-                )
-                try:
-                    with tracer.start_as_current_span("lughus.ui.stream") as span:
-                        span.set_attribute("lughus.objective_len", len(objective))
-                        span.set_attribute("lughus.file_count", len(files))
-                        with collect_tool_events(_enqueue_nowait):
-                            async with timeout_ctx:
-                                async for event in gateway.handle(objective, files):
-                                    if isinstance(event, ProgressEvent):
-                                        _enqueue_nowait({"type": "progress", "text": event.text})
-                                    elif isinstance(event, CompletionEvent):
-                                        completion_metadata = dict(event.metadata or {})
-                                        _enqueue_nowait(_completion_event(event, gateway.settings))
-
-                        telemetry = _telemetry_event(
-                            metadata=completion_metadata,
-                            events=events,
-                            request_elapsed_ms=(time.perf_counter() - started_at) * 1000,
-                        )
-                        if telemetry is not None:
-                            for key, value in telemetry["otel_attributes"].items():
-                                if isinstance(value, (str, int, float, bool)):
-                                    span.set_attribute(key, value)
-                            _enqueue_nowait(telemetry)
-                except TimeoutError:
-                    _enqueue_nowait(
-                        {
-                            "type": "error",
-                            "code": "agent_timeout",
-                            "text": (
-                                f"Agent execution timed out after {gateway.settings.agent_timeout}s"
-                            ),
-                        }
-                    )
-                except (ApprovalRequired, ApprovalRequiredGroup) as exc:
-                    requests = exc.requests if isinstance(exc, ApprovalRequiredGroup) else [exc]
-                    for req in requests:
-                        _enqueue_nowait(
-                            {
-                                "type": "error",
-                                "code": "approval_required",
-                                "request_id": getattr(req, "request_id", "") or "",
-                                "tool_name": getattr(req, "tool_name", "") or "",
-                                "text": (
-                                    f"Tool '{req.tool_name}' requires human approval. "
-                                    "Decide below; then re-run the objective."
-                                ),
-                            }
-                        )
-                except LoopLimitError as exc:
-                    _enqueue_nowait(
-                        {
-                            "type": "error",
-                            "code": "loop_limit",
-                            "text": (
-                                f"{exc} The agent kept requesting tool calls without producing "
-                                "a final answer — try a more specific objective, raise the "
-                                "iteration limit, or simplify the task."
-                            ),
-                        }
-                    )
-                except LughusError as exc:
-                    _enqueue_nowait({"type": "error", "code": type(exc).__name__, "text": str(exc)})
-                except ValueError as exc:
-                    _enqueue_nowait({"type": "error", "code": "invalid_input", "text": str(exc)})
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    _logger.exception("Developer console stream failed")
-                    _enqueue_nowait(
-                        {
-                            "type": "error",
-                            "code": "internal_error",
-                            "text": "An internal error occurred; see server logs for details.",
-                        }
-                    )
-                finally:
-                    queue.put_nowait(None)
-
-            producer = asyncio.create_task(_produce())
-            try:
-                while True:
-                    item = await queue.get()
-                    if item is None:
-                        break
-                    yield _json_line(item)
-            finally:
-                if not producer.done():
-                    producer.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await producer
-
         return StreamingResponse(
-            _lines(),
+            _stream_events_generator(self.gateway, objective, files),
             media_type="application/x-ndjson",
             headers={"cache-control": "no-cache"},
         )
 
-    async def serve_asset(request: Request) -> Response:
+    async def serve_asset(self, request: Request) -> Response:
         filename = request.path_params.get("filename", "")
         safe_filename = Path(filename).name
         try:
             content = _read_ui_asset(safe_filename)
             suffix = Path(safe_filename).suffix.lower()
             media_type = _ASSET_MIME_TYPES.get(suffix, "application/octet-stream")
-            return Response(content, media_type=media_type)
+            return Response(content, media_type=media_type, headers=_NO_CACHE_HEADERS)
         except (FileNotFoundError, IsADirectoryError, OSError, UnicodeError):
             return Response("Asset not found", status_code=404)
 
-    async def serve_favicon(request: Request) -> Response:
+    async def serve_favicon(self, request: Request) -> Response:
         try:
             content = _read_ui_asset("logo.svg")
             return Response(content, media_type="image/svg+xml")
         except (FileNotFoundError, OSError, UnicodeError):
             return Response("Favicon not found", status_code=404)
 
-    async def decide_approval(request: Request) -> JSONResponse:
-        """Record a human approve/reject decision for a pending request.
-
-        The decision is stored in the gateway's approval store when one is
-        configured; the response mirrors the resulting record so the UI can
-        render the outcome without a second fetch.
-        """
-        store = getattr(gateway, "approval_store", None)
+    async def decide_approval(self, request: Request) -> JSONResponse:
+        store = getattr(self.gateway, "approval_store", None)
         if store is None:
             return JSONResponse(
                 {"error": "No approval store configured on this gateway"},
@@ -339,8 +379,8 @@ def _console_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
             }
         )
 
-    async def get_approval(request: Request) -> JSONResponse:
-        store = getattr(gateway, "approval_store", None)
+    async def get_approval(self, request: Request) -> JSONResponse:
+        store = getattr(self.gateway, "approval_store", None)
         if store is None:
             return JSONResponse(
                 {"error": "No approval store configured on this gateway"},
@@ -362,11 +402,14 @@ def _console_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
             }
         )
 
+
+def _console_routes(agent_card: AgentCard, gateway: BaseGateway) -> list[Route]:
+    h = _ConsoleHandlers(agent_card, gateway)
     return [
-        Route("/ui", page, methods=["GET"]),
-        Route("/ui/stream", stream, methods=["POST"]),
-        Route("/ui/approvals/{request_id}", decide_approval, methods=["POST"]),
-        Route("/ui/approvals/{request_id}", get_approval, methods=["GET"]),
-        Route("/ui/assets/{filename:path}", serve_asset, methods=["GET"]),
-        Route("/favicon.ico", serve_favicon, methods=["GET"]),
+        Route("/ui", h.page, methods=["GET"]),
+        Route("/ui/stream", h.stream, methods=["POST"]),
+        Route("/ui/approvals/{request_id}", h.decide_approval, methods=["POST"]),
+        Route("/ui/approvals/{request_id}", h.get_approval, methods=["GET"]),
+        Route("/ui/assets/{filename:path}", h.serve_asset, methods=["GET"]),
+        Route("/favicon.ico", h.serve_favicon, methods=["GET"]),
     ]

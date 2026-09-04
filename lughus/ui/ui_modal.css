@@ -1,0 +1,112 @@
+/**
+ * Modal Dialog and Code Viewer Styles for Agent Card and Inspector.
+ */
+
+.modal-dialog {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-sidebar);
+  color: var(--text-main);
+  padding: 0;
+  max-width: 720px;
+  width: 90vw;
+  max-height: 85vh;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+.modal-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-title-row h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.modal-badge {
+  background: var(--accent);
+  color: white;
+  font: 700 9px var(--mono);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.modal-endpoint {
+  font: 400 11px var(--mono);
+  color: var(--text-muted);
+}
+
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-btn {
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  border-radius: 6px;
+  font: 500 11px var(--mono);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.modal-btn:hover {
+  background: var(--panel-hover);
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.modal-close-btn:hover {
+  color: var(--text-main);
+  background: var(--panel-hover);
+}
+
+.modal-body {
+  padding: 14px 18px;
+  overflow-y: auto;
+}
+
+.code-viewer {
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 0;
+  font: 12px/1.5 var(--mono);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
