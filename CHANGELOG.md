@@ -6,20 +6,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [0.17.0] — 2026-09-02
+## [0.17.0] — 2026-09-04
 
 ### Added
 - **Public Surface Deflation & Tools Module**: Deflated `lughus` root `__all__` to 20 core Tier-1 symbols and introduced [`lughus.tools`](lughus/tools.py) as the dedicated module for tool definitions, concurrency modes, and interpreters.
 - **Gateway Governance Bridge**: `BaseGateway` now accepts optional `runtime: AgentRuntime` and `runner: GovernedAgentRunner` dependencies, and provides `BaseGateway.create_tool_config()` to bridge directly into enterprise policy, budget, and idempotency pipelines.
+- **Modular Developer Console & A2A Simulation**: Modularized monolithic console CSS/JS into segregated components (`ui_base.css`, `ui_header.css`, `ui_sidebar.css`, `ui_flow.css`, `ui_events.css`, `ui_modal.css`, `ui_utils.js`, `ui_markdown.js`, `ui_client_direct.js`, `ui_client_a2a.js`, `ui_modal_card.js`), introduced dual-mode execution (Direct Gateway streaming & A2A JSON-RPC simulation), and added an interactive Agent Card discovery inspector modal.
 - **Public Code Interpreter Exposure**: Exposed `register_code_interpreter`, `InterpreterResult`, and `InterpreterTimeoutError` in `lughus` root exports and updated public API snapshot (`api_snapshot.json`).
+- **Comprehensive Engine Files Test Suite**: Added `tests/test_files.py` covering mime validation, size limits, and corrupted base64 payloads in `lughus.engine.files` (reaching 100% branch coverage on the module and 90.36% overall framework coverage).
+- **Deterministic JSON Hashing**: Added `canonical_hash` and `canonical_json` in `lughus.core.domain` providing unified, deterministic SHA-256 JSON hashing.
+- **Isolated Process Environment**: Added `isolated_env` context manager in `lughus.infra.config` allowing scoped environment variable lookups without mutating global process state.
+- **Rich Core Type Annotations & Docstrings**: Added comprehensive documentation and typing across `TrustLevel`, `ContextItem`, `ContextWindow`, `ContextManager` (`lughus.core.context`), `ProgressEvent`, `Artifact`, `CompletionEvent` (`lughus.core.events`), `EventSink` (`lughus.core.event_stream`), `Delegator`, `DelegationRequest`, `DelegationResult`, `RemoteAgentClient` (`lughus.engine.delegation`), `AgentRuntime` (`lughus.agent.application`), `StreamingMode` (`lughus.loop._config`), and `LoopResult` (`lughus.loop._result`).
 - **Interactive 5-Minute Quickstart**: Added [`docs/quickstart.md`](docs/quickstart.md) guiding new developers step-by-step from zero to a live agent and developer console.
 - **Dual-Track Onboarding README**: Restructured `README.md` around two clear pathways (Track 1: Standalone micro-agent loop in 30s vs Track 2: Production A2A server with developer console).
 
 ### Changed
+- **Decomposed Tool Execution Pipeline (`lughus.loop._execute`)**: Refactored monolithic `_execute_tools` and `_run_unbounded` (cyclomatic complexity 43 and 32) into modular, single-responsibility functions (`_check_governance`, `_resolve_approval`, `_dispatch_tool_with_locks`, `_postprocess_tool_output`, `_execute_single_tool`, `_execute_tasks_group`), bringing all functions under cyclomatic threshold 10.
+- **Modular Developer Console Handlers (`lughus.interfaces.ui_server`)**: Encapsulated console endpoints in `_ConsoleHandlers` and factored out streaming event production and error formatting, dropping cyclomatic complexity from 41 to under 10.
+- **Decomposed Production ASGI Guard (`lughus.interfaces.server`)**: Refactored `ProductionGuardMiddleware` into modular helpers (`_handle_lifespan`, `_check_content_length`, `_check_bearer_auth`, `_acquire_slot`, `_run_guarded_app`, `_coerce_log_arg`), reducing cyclomatic complexity from 31 to under 8.
+- **Deduplicated Tool Events & Checkpoint Persistence**: Refactored `GovernedAgentRunner._governed_run` in `lughus.agent.runner` to share a single persistence and checkpoint routine across approval suspension and completion paths.
+- **Unified A2A Attachment Decoding**: Refactored `BaseGateway._extract_async` to delegate attachment base64 decoding directly to `lughus.engine.files.decode_file_bytes`, eliminating duplicate decoding logic and removing unused dependencies (`binascii`, `run_sync_in_thread`).
+- **Mutualized Tool Call Extraction**: Factored out `_format_tool_calls` in `lughus.loop._loop` to unify tool payload formatting and dispatch input extraction across `agent_loop` and `agent_loop_stream`.
+- **Streamlined Settings Validation**: Simplified `BaseSettings.__post_init__` using static field tuples, eliminating redundant runtime dictionary allocations.
+- **Unified Digest Computation**: Switched `proposal_digest`, `idempotency_hash`, and `MCPAdapter._compute_fingerprint` to use `canonical_hash`.
 - **Streamlined CLI Scaffold**: `lughus new` now leverages `self.create_tool_config()` in the generated gateway, eliminating boilerplate configuration field copying.
 - **Thread Synchronization API**: Streamlined `run_sync_in_thread` by removing the unused `max_workers` parameter across infra, engine, and gateway modules.
 
 ### Fixed
+- **CLI Process Environment Mutability**: Eliminated destructive `os.environ.clear()` in `lughus.interfaces.cli._env_example`, using `isolated_env()` to safely compute default settings without race conditions.
+- **UI Lifespan Cleanup Hook**: Added explicit no-op implementation and documentation for `shutdown_ui_server` in `lughus.interfaces.ui_server`.
 - **Provider Token Accounting in BudgetedLLM**: Unified token usage extraction with `_extract_usage`, fixing a defect where Anthropic (`input_tokens`/`output_tokens`) and Gemini (`prompt_token_count`) were ignored by `BudgetedLLM`, causing 0 token consumption records.
 
 ### Removed
