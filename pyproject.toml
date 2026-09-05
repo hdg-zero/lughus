@@ -1,6 +1,6 @@
 [project]
 name = "lughus"
-version = "0.17.0"
+version = "0.18.0"
 description = "Micro-framework for building A2A agents with LiteLLM — agent loop, tool registry, A2A gateway."
 readme = "README.md"
 license = "MIT"
@@ -21,6 +21,8 @@ classifiers = [
 ]
 dependencies = [
     "litellm>=1.0,<2.0",
+    "pydantic>=2.0",
+    "httpx>=0.25",
     "python-dotenv",
     "jsonschema>=4.0",
     # The OTel *API* is a base dependency, not an extra: lughus.loop, lughus.llm

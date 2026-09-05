@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import contextvars
+import dataclasses
 import json
 import logging
 import re
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from jsonschema import Draft202012Validator, ValidationError  # type: ignore[import-untyped]
 from opentelemetry.trace import StatusCode
+from pydantic import BaseModel
 
 from ..core.artifacts import _summarize
 from ..core.domain import _extract_usage, _usage_get
@@ -325,15 +327,19 @@ def _runtime_of(cfg: ToolExecutionConfig) -> ExecutionRuntime:
 async def _invoke_tool_callable(
     fn: Any,
     is_async: bool,
-    state: dict,
-    args: dict,
+    state: Any,
+    args: dict[str, Any],
     cfg: ToolExecutionConfig,
     timeout: float | None,
+    takes_state: bool = True,
 ) -> Any:
+    call_kwargs = dict(args)
+    if takes_state:
+        call_kwargs["state"] = state
     if is_async:
-        call: Any = fn(state=state, **args)
+        call: Any = fn(**call_kwargs)
     else:
-        call = _runtime_of(cfg).run_sync(lambda: fn(state=state, **args))
+        call = _runtime_of(cfg).run_sync(lambda: fn(**call_kwargs))
     return await asyncio.wait_for(call, timeout=timeout) if timeout else await call
 
 
@@ -534,7 +540,15 @@ async def _dispatch_tool_with_locks(
             lock_ctx = contextlib.nullcontext()
 
         async with lock_ctx:
-            output = await _invoke_tool_callable(fn, tool.is_async, state, args, cfg, timeout)
+            output = await _invoke_tool_callable(
+                fn,
+                tool.is_async,
+                state,
+                args,
+                cfg,
+                timeout,
+                getattr(tool, "takes_state", True),
+            )
     return output, budget_reservation
 
 
@@ -545,7 +559,16 @@ async def _postprocess_tool_output(
     cfg: ToolExecutionConfig,
     idem_key: IdempotencyKey | None,
 ) -> str:
-    if tool.output_validator is not None:
+    output_model = getattr(tool, "output_model", None)
+    if output_model is not None:
+        if not isinstance(output, output_model):
+            try:
+                output = output_model.model_validate(output)
+            except Exception as exc:
+                raise ToolValidationError(
+                    f"Tool '{name}' return value failed Pydantic validation: {exc}"
+                ) from exc
+    elif tool.output_validator is not None:
         validation_errors = sorted(
             tool.output_validator.iter_errors(output),
             key=lambda error: list(error.path),
@@ -555,10 +578,19 @@ async def _postprocess_tool_output(
                 f"Tool '{name}' returned an invalid result: {validation_errors[0].message}"
             )
 
-    is_str = isinstance(output, str)
-    text = output if is_str else json.dumps(output, ensure_ascii=False, default=str)
+    if isinstance(output, str):
+        text = output
+        parsed = None
+    elif isinstance(output, BaseModel):
+        text = output.model_dump_json()
+        parsed = output.model_dump()
+    elif dataclasses.is_dataclass(output) and not isinstance(output, type):
+        parsed = dataclasses.asdict(output)
+        text = json.dumps(parsed, ensure_ascii=False, default=str)
+    else:
+        text = json.dumps(output, ensure_ascii=False, default=str)
+        parsed = output
     original_bytes = len(text.encode("utf-8"))
-    parsed = None if is_str else output
 
     if (
         cfg.artifact_projection
@@ -621,9 +653,12 @@ async def _execute_single_tool(
             tc_id, name, started_at, "error", output, err_type=type(unknown_exc).__name__
         )
 
+    tool_timeout = getattr(tool, "timeout", None)
+    effective_timeout = tool_timeout if tool_timeout is not None else timeout
+
     with tracer.start_as_current_span(f"tool.{name}") as span:
         span.set_attribute("lughus.tool.name", name)
-        span.set_attribute("lughus.tool.timeout_s", timeout or 0)
+        span.set_attribute("lughus.tool.timeout_s", effective_timeout or 0)
         status, error_type = "ok", None
         idem_key: IdempotencyKey | None = None
         budget_reservation: str | None = None
@@ -641,7 +676,7 @@ async def _execute_single_tool(
                 return _emit_tool_result(tc_id, name, started_at, "ok", early_result, idem_hit=True)
 
             raw_output, budget_reservation = await _dispatch_tool_with_locks(
-                tool, tool.fn, state, args, cfg, timeout, approval_to_consume
+                tool, tool.fn, state, args, cfg, effective_timeout, approval_to_consume
             )
             output = await _postprocess_tool_output(raw_output, tool, name, cfg, idem_key)
             span.set_status(StatusCode.OK)
@@ -649,7 +684,7 @@ async def _execute_single_tool(
             raise
         except Exception as exc:  # noqa: BLE001
             wrapped, error_type, metric_type, needs_reconcile = _normalize_tool_error(
-                exc, name, timeout
+                exc, name, effective_timeout
             )
             span.set_status(StatusCode.ERROR, str(wrapped))
             if metric_type == "exception":

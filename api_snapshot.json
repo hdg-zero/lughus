@@ -68,6 +68,7 @@
       "context",
       "registry",
       "tool_names",
+      "tools",
       "state",
       "max_iterations",
       "tool_config",
@@ -83,6 +84,7 @@
       "context",
       "registry",
       "tool_names",
+      "tools",
       "state",
       "max_iterations",
       "tool_config",
@@ -122,6 +124,26 @@
       "task_store",
       "setup_otel",
       "enable_console"
+    ]
+  },
+  {
+    "name": "tool",
+    "kind": "function",
+    "parameters": [
+      "name_or_fn",
+      "description",
+      "parameters",
+      "output_schema",
+      "version",
+      "effects",
+      "risk",
+      "required_scopes",
+      "idempotent",
+      "requires_approval",
+      "concurrency",
+      "resource_key",
+      "timeout",
+      "name"
     ]
   }
 ]

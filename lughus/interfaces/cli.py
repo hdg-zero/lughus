@@ -162,7 +162,6 @@ def _tools() -> str:
     return '''"""Agent tools."""
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 
 from lughus import ToolRegistry
@@ -175,21 +174,15 @@ class AgentState:
     greeting: str = ""
 
 
-@registry.tool(
-    "greet",
-    "Greet a person by name.",
-    {
-        "type": "object",
-        "properties": {
-            "name": {"type": "string", "description": "Name to greet."},
-        },
-        "required": ["name"],
-        "additionalProperties": False,
-    },
-)
-def greet(*, name: str, state: AgentState) -> str:
+@registry.tool
+def greet(name: str, state: AgentState) -> str:
+    """Greet a person by name.
+
+    Args:
+        name: Name to greet.
+    """
     state.greeting = f"Hello {name}!"
-    return json.dumps({"greeting": state.greeting})
+    return state.greeting
 '''
 
 

@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from .engine.tools import ToolEffect as ToolEffect
     from .engine.tools import ToolRegistry as ToolRegistry
     from .engine.tools import ToolRisk as ToolRisk
+    from .engine.tools import tool as tool
     from .governance.budget import BudgetAmount as BudgetAmount
     from .governance.budget import BudgetExceeded as BudgetExceeded
     from .governance.budget import BudgetLedger as BudgetLedger
@@ -44,6 +45,8 @@ if TYPE_CHECKING:
     from .interfaces.mcp import MCPClient as MCPClient
     from .interfaces.mcp import MCPServerConfig as MCPServerConfig
     from .interfaces.mcp import MCPToolDescriptor as MCPToolDescriptor
+    from .interfaces.mcp import SSEMCPClient as SSEMCPClient
+    from .interfaces.mcp import StdioMCPClient as StdioMCPClient
     from .interfaces.server import BoundedInMemoryTaskStore as BoundedInMemoryTaskStore
     from .interfaces.server import ProductionGuardMiddleware as ProductionGuardMiddleware
     from .interfaces.server import build_app as build_app
@@ -147,10 +150,13 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "ToolEffect": (".engine.tools", None),
     "ToolRegistry": (".engine.tools", None),
     "ToolRisk": (".engine.tools", None),
+    "tool": (".engine.tools", None),
     "MCPAdapter": (".interfaces.mcp", None),
     "MCPClient": (".interfaces.mcp", None),
     "MCPServerConfig": (".interfaces.mcp", None),
     "MCPToolDescriptor": (".interfaces.mcp", None),
+    "SSEMCPClient": (".interfaces.mcp", None),
+    "StdioMCPClient": (".interfaces.mcp", None),
     # ── opentelemetry chain ──────────────────────────────────────────
     "setup_telemetry": (".infra.telemetry", None),
     "AttemptStatus": (".governance.idempotency", None),
@@ -243,4 +249,5 @@ __all__ = [
     "build_app",
     "register_code_interpreter",
     "serve",
+    "tool",
 ]
