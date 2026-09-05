@@ -35,23 +35,17 @@ import json
 from lughus import ToolRegistry, agent_loop
 from lughus.testing import MockLLM
 
-# 1. Create a tool registry and register tools
+# 1. Create a tool registry and register tools (automatic schema inference)
 registry = ToolRegistry()
 
 
-@registry.tool(
-    "greet",
-    "Greet a user by name.",
-    {
-        "type": "object",
-        "properties": {
-            "name": {"type": "string", "description": "Name to greet"},
-        },
-        "required": ["name"],
-        "additionalProperties": False,
-    },
-)
-def greet(*, name: str, state) -> str:
+@registry.tool
+def greet(name: str) -> str:
+    """Greet a user by name.
+
+    Args:
+        name: Name to greet
+    """
     return json.dumps({"greeting": f"Hello, {name}!"})
 
 
@@ -135,18 +129,12 @@ registry = ToolRegistry()
 
 
 @registry.tool(
-    "deploy",
-    "Deploy a service to production.",
-    {
-        "type": "object",
-        "properties": {"service": {"type": "string"}},
-        "required": ["service"],
-    },
     risk=ToolRisk.CRITICAL,
     effects=frozenset([ToolEffect.WRITE, ToolEffect.IRREVERSIBLE]),
     requires_approval=True,  # Suspends the run until human confirms
 )
-def deploy(*, service: str, state) -> str:
+def deploy(service: str) -> str:
+    """Deploy a service to production."""
     return json.dumps({"status": "deployed", "service": service})
 ```
 

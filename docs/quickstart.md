@@ -41,19 +41,13 @@ from lughus.testing import MockLLM
 registry = ToolRegistry()
 
 
-@registry.tool(
-    "calculate",
-    "Perform a mathematical calculation.",
-    {
-        "type": "object",
-        "properties": {
-            "expression": {"type": "string", "description": "Expression, e.g. 2 + 2"},
-        },
-        "required": ["expression"],
-        "additionalProperties": False,
-    },
-)
-def calculate(*, expression: str, state) -> str:
+@registry.tool
+def calculate(expression: str) -> str:
+    """Perform a mathematical calculation.
+
+    Args:
+        expression: Expression, e.g. 2 + 2
+    """
     # Safe evaluation for demonstration
     return json.dumps({"result": eval(expression, {"__builtins__": None}, {})})
 
@@ -106,18 +100,13 @@ registry = ToolRegistry()
 
 
 @registry.tool(
-    "delete_database_record",
-    "Permanently delete a record by ID.",
-    {
-        "type": "object",
-        "properties": {"record_id": {"type": "string"}},
-        "required": ["record_id"],
-    },
+    name="delete_database_record",
     risk=ToolRisk.CRITICAL,
     effects=frozenset([ToolEffect.WRITE, ToolEffect.IRREVERSIBLE]),
     requires_approval=True,  # Blocks execution until approved
 )
-def delete_record(*, record_id: str, state) -> str:
+def delete_record(record_id: str) -> str:
+    """Permanently delete a record by ID."""
     return json.dumps({"deleted": record_id})
 ```
 

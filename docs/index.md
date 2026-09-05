@@ -40,7 +40,7 @@ Welcome to the lughus documentation. Every page below links back to this index (
 |---|---|
 | [Gateway](api/gateway.md) | `BaseGateway`, message extraction, artifacts, events |
 | [Loop](api/loop.md) | `agent_loop`, `agent_loop_stream`, `ToolExecutionConfig` |
-| [Tools](api/tools.md) | `ToolRegistry`, decorators, schemas, concurrency |
+| [Tools](api/tools.md) | `ToolRegistry`, standalone `@tool`, Pydantic schemas, concurrency |
 | [Server](api/server.md) | `build_app` / `serve`, developer console routes |
 | [Runtime](api/runtime.md) | `AgentRuntime`, `RunCoordinator`, unit-of-work persistence |
 | [LLM](api/llm.md) | LLM client wrapper, retry/backoff semantics |
@@ -64,7 +64,7 @@ Welcome to the lughus documentation. Every page below links back to this index (
 | Page | Description |
 |---|---|
 | [A2A Delegation](integrations/a2a-delegation.md) | Parent→child delegation, budgets, cycle detection, A2A exchange events |
-| [MCP](integrations/mcp.md) | Model Context Protocol adapter, allowlists, limits |
+| [MCP](integrations/mcp.md) | Model Context Protocol: native Stdio/SSE transports, smart caching, ToolDef bridge |
 
 ## Architecture (ADRs)
 
