@@ -9,6 +9,7 @@ export const state = {
   currentFilter: "all",
   searchQuery: "",
   renderMarkdown: false,
+  executionMode: localStorage.getItem("lughus_ui_mode") || "direct",
 };
 
 // Load runs from localStorage
@@ -16,8 +17,20 @@ try {
   const saved = localStorage.getItem("lughus_runs");
   if (saved) {
     state.runs = JSON.parse(saved);
-    state.runs.forEach(r => {
+    state.runs.forEach((r) => {
       if (r.status === "running") r.status = "error";
+      if (r.events && r.timestamp) {
+        r.events.forEach((ev) => {
+          if (
+            (ev.type === "a2a_response" || ev.type === "tool_result") &&
+            (!ev.elapsed_ms || Number(ev.elapsed_ms) <= 0)
+          ) {
+            if (ev.timestamp && ev.timestamp >= r.timestamp) {
+              ev.elapsed_ms = Math.max(1, ev.timestamp - r.timestamp);
+            }
+          }
+        });
+      }
     });
   }
 } catch (e) {

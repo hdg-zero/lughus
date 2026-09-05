@@ -14,6 +14,7 @@ from jsonschema import Draft202012Validator, ValidationError  # type: ignore[imp
 from opentelemetry.trace import StatusCode
 
 from ..core.artifacts import _summarize
+from ..core.domain import _extract_usage, _usage_get
 from ..core.errors import (
     ApprovalRequired,
     ApprovalRequiredGroup,
@@ -63,51 +64,6 @@ _cache_creation_counter = meter.create_counter(
 _tool_event_sink: contextvars.ContextVar[Callable[[dict[str, Any]], None] | None] = (
     contextvars.ContextVar("lughus_tool_event_sink", default=None)
 )
-
-
-def _usage_get(usage: Any, key: str, default: Any = 0) -> Any:
-    if isinstance(usage, dict):
-        return usage.get(key, default)
-    return getattr(usage, key, default)
-
-
-def _extract_usage(usage: Any) -> tuple[int, int, int]:
-    """Return (prompt_tokens, completion_tokens, cached_tokens).
-
-    Normalizes across provider payload shapes surfaced by LiteLLM:
-    OpenAI (``prompt_tokens``/``completion_tokens``), Anthropic
-    (``input_tokens``/``output_tokens``/``cache_read_input_tokens``),
-    and Gemini (``prompt_token_count``/``candidates_token_count``/
-    ``cached_content_token_count``).
-    """
-    prompt = (
-        _usage_get(usage, "prompt_tokens", None)
-        or _usage_get(usage, "input_tokens", None)
-        or _usage_get(usage, "prompt_token_count", None)
-        or 0
-    )
-    completion = (
-        _usage_get(usage, "completion_tokens", None)
-        or _usage_get(usage, "output_tokens", None)
-        or _usage_get(usage, "candidates_token_count", None)
-        or 0
-    )
-    cached = 0
-    details = _usage_get(usage, "prompt_tokens_details", None)
-    if details:
-        cached += _usage_get(details, "cached_tokens", 0) or 0
-    # `_cache_read_input_tokens` (leading underscore) is LiteLLM's internal
-    # alias of Anthropic's `cache_read_input_tokens`; a payload can carry BOTH,
-    # so take their max instead of summing to avoid double counting. The pair
-    # remains ADDITIVE with prompt_tokens_details, which reports a separate
-    # OpenAI-style cache figure.
-    alias_read = max(
-        _usage_get(usage, "_cache_read_input_tokens", 0) or 0,
-        _usage_get(usage, "cache_read_input_tokens", 0) or 0,
-    )
-    cached += alias_read
-    cached += _usage_get(usage, "cached_content_token_count", 0) or 0
-    return prompt, completion, cached
 
 
 def _record_llm_usage(span: Any, usage: Any, model: str) -> tuple[int, int, int]:
@@ -381,21 +337,296 @@ async def _invoke_tool_callable(
     return await asyncio.wait_for(call, timeout=timeout) if timeout else await call
 
 
+async def _resolve_approval(
+    tool: Any,
+    name: str,
+    args: dict[str, Any],
+    cfg: ToolExecutionConfig,
+    decision: Any,
+) -> ApprovalRequest | None:
+    if (
+        decision is None or decision.kind != DecisionKind.REQUIRE_APPROVAL
+    ) and not tool.requires_approval:
+        return None
+    if cfg.approval_store is None:
+        raise ApprovalRequired("unknown", name)
+    digest = proposal_digest(name, args)
+    request = await cfg.approval_store.find(cfg.run_id, digest)
+    if request is not None:
+        if request.status.value == "approved":
+            return request
+        if request.status.value == "rejected":
+            raise ToolExecutionError("Human approval was rejected")
+    if request is None:
+        request = ApprovalRequest(
+            run_id=cfg.run_id,
+            tool_name=name,
+            proposal_hash=digest,
+            risk=tool.risk.value,
+        )
+        await cfg.approval_store.create(request)
+    raise ApprovalRequired(request.request_id, name, request.expires_at)
+
+
+async def _check_call_approval(
+    name: str,
+    raw_args: str,
+    registry: ToolRegistry,
+    cfg: ToolExecutionConfig,
+) -> ApprovalRequired | None:
+    tool = registry.get_tool(name)
+    if tool is None:
+        return None
+    try:
+        args = _validate_tool_args(
+            name=name,
+            raw_args=raw_args,
+            validator=tool.validator,
+            max_tool_args_chars=cfg.max_tool_args_chars,
+        )
+    except ToolValidationError:
+        return None
+
+    decision = None
+    if cfg.policy is not None and cfg.principal is not None:
+        proposal = ToolProposal(
+            run_id=cfg.run_id,
+            tool_name=name,
+            arguments=args,
+            effects=frozenset(effect.value for effect in tool.effects),
+            risk=tool.risk.value,
+            required_scopes=tool.required_scopes,
+        )
+        decision = await cfg.policy.evaluate(proposal, cfg.principal)
+        if decision.kind == DecisionKind.DENY:
+            return None
+
+    if cfg.idempotency_store is not None and tool.idempotent:
+        check_key = IdempotencyKey.from_args(cfg.run_id, name, args)
+        existing_completed = await cfg.idempotency_store.get(check_key)
+        if existing_completed is not None and existing_completed.status == AttemptStatus.COMPLETED:
+            return None
+
+    try:
+        await _resolve_approval(tool, name, args, cfg, decision)
+    except ApprovalRequired as exc:
+        return exc
+    except ToolExecutionError:
+        return None
+    return None
+
+
 async def _preflight_check_approvals(
     tool_calls: list[tuple[str, str, str]],
     registry: ToolRegistry,
     cfg: ToolExecutionConfig,
 ) -> list[ApprovalRequired]:
-    """Scan all tool calls in a turn before dispatch to detect pending approvals.
-
-    Ensures all-or-nothing execution: if any tool in a batch requires human approval,
-    no tool is dispatched. This prevents partial side-effects and duplicate replay.
-    """
-    approval_requests: list[ApprovalRequired] = []
+    """Scan all tool calls in a turn before dispatch to detect pending approvals."""
+    requests: list[ApprovalRequired] = []
     for _tc_id, name, raw_args in tool_calls:
-        tool = registry.get_tool(name)
-        if tool is None:
-            continue
+        req = await _check_call_approval(name, raw_args, registry, cfg)
+        if req is not None:
+            requests.append(req)
+    return requests
+
+
+def _emit_tool_result(
+    tc_id: str,
+    name: str,
+    started_at: float,
+    status_val: str,
+    out_val: str,
+    *,
+    err_type: str | None = None,
+    idem_hit: bool = False,
+) -> tuple[str, str]:
+    event: dict[str, Any] = {
+        "type": "tool_result",
+        "tool_call_id": tc_id,
+        "tool_name": name,
+        "status": status_val,
+        "output": out_val,
+        "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
+    }
+    if err_type:
+        event["error_type"] = err_type
+    if idem_hit:
+        event["idempotent_hit"] = True
+    _emit_tool_event(event)
+    return tc_id, out_val
+
+
+async def _check_governance(
+    tool: Any,
+    name: str,
+    args: dict[str, Any],
+    cfg: ToolExecutionConfig,
+    span: Any,
+) -> tuple[ApprovalRequest | None, IdempotencyKey | None, str | None]:
+    decision = None
+    if cfg.policy is not None:
+        if cfg.principal is None:
+            raise ToolExecutionError("A principal is required when tool policy is enabled")
+        proposal = ToolProposal(
+            run_id=cfg.run_id,
+            tool_name=name,
+            arguments=args,
+            effects=frozenset(effect.value for effect in tool.effects),
+            risk=tool.risk.value,
+            required_scopes=tool.required_scopes,
+        )
+        decision = await cfg.policy.evaluate(proposal, cfg.principal)
+        if decision.kind == DecisionKind.DENY:
+            raise ToolExecutionError(f"Tool policy denied action: {decision.code}")
+
+    if cfg.idempotency_store is not None and tool.idempotent:
+        check_key = IdempotencyKey.from_args(cfg.run_id, name, args)
+        existing_completed = await cfg.idempotency_store.get(check_key)
+        if existing_completed is not None and existing_completed.status == AttemptStatus.COMPLETED:
+            span.set_attribute("lughus.tool.idempotent_hit", True)
+            span.set_status(StatusCode.OK)
+            return None, None, existing_completed.result or ""
+
+    approval_to_consume = await _resolve_approval(tool, name, args, cfg, decision)
+
+    idem_key: IdempotencyKey | None = None
+    if cfg.idempotency_store is not None and tool.idempotent:
+        idem_key = IdempotencyKey.from_args(cfg.run_id, name, args)
+        existing = await cfg.idempotency_store.claim(
+            ExecutionAttempt(key=idem_key, status=AttemptStatus.PENDING)
+        )
+        if existing is not None and existing.status == AttemptStatus.COMPLETED:
+            span.set_attribute("lughus.tool.idempotent_hit", True)
+            span.set_status(StatusCode.OK)
+            return None, None, existing.result or ""
+        if existing is not None:
+            raise ToolExecutionError("An idempotent execution is already in progress")
+
+    return approval_to_consume, idem_key, None
+
+
+async def _dispatch_tool_with_locks(
+    tool: Any,
+    fn: Any,
+    state: Any,
+    args: dict[str, Any],
+    cfg: ToolExecutionConfig,
+    timeout: float | None,
+    approval_to_consume: ApprovalRequest | None,
+) -> tuple[Any, str | None]:
+    budget_reservation: str | None = None
+    slot = _runtime_of(cfg).tool_slot(cfg.tool_queue_timeout)
+    async with slot:
+        if cfg.budget is not None:
+            budget_reservation = await cfg.budget.reserve(BudgetAmount(tool_calls=1))
+        if approval_to_consume is not None and cfg.approval_store is not None:
+            await cfg.approval_store.consume(approval_to_consume.request_id)
+
+        mode = tool.concurrency
+        if mode == ConcurrencyMode.GLOBAL_EXCLUSIVE:
+            lock_ctx: Any = _runtime_of(cfg).global_exclusive_lock
+        elif mode == ConcurrencyMode.SERIAL_PER_TOOL:
+            lock_ctx = _runtime_of(cfg).resource_slot(tool.name)
+        elif mode == ConcurrencyMode.SERIAL_PER_RESOURCE:
+            rk = f"{tool.name}:{tool.resource_key(args)}"
+            lock_ctx = _runtime_of(cfg).resource_slot(rk)
+        else:
+            lock_ctx = contextlib.nullcontext()
+
+        async with lock_ctx:
+            output = await _invoke_tool_callable(fn, tool.is_async, state, args, cfg, timeout)
+    return output, budget_reservation
+
+
+async def _postprocess_tool_output(
+    output: Any,
+    tool: Any,
+    name: str,
+    cfg: ToolExecutionConfig,
+    idem_key: IdempotencyKey | None,
+) -> str:
+    if tool.output_validator is not None:
+        validation_errors = sorted(
+            tool.output_validator.iter_errors(output),
+            key=lambda error: list(error.path),
+        )
+        if validation_errors:
+            raise ToolValidationError(
+                f"Tool '{name}' returned an invalid result: {validation_errors[0].message}"
+            )
+
+    is_str = isinstance(output, str)
+    text = output if is_str else json.dumps(output, ensure_ascii=False, default=str)
+    original_bytes = len(text.encode("utf-8"))
+    parsed = None if is_str else output
+
+    if (
+        cfg.artifact_projection
+        and cfg.artifact_store is not None
+        and len(text) > cfg.artifact_projection_threshold
+    ):
+        full_payload = _success_payload(
+            text, parsed=parsed, truncated=False, original_bytes=original_bytes
+        )
+        artifact_id = cfg.artifact_store.store_artifact(full_payload)
+        output_str = json.dumps(
+            {
+                "ok": True,
+                "artifact_id": artifact_id,
+                "summary": _summarize(text),
+                "hint": "Use fetch_artifact to retrieve full content",
+            },
+            ensure_ascii=False,
+        )
+    else:
+        text, truncated, original_bytes = _validate_tool_output(
+            name=name,
+            output=output,
+            max_tool_output_chars=cfg.max_tool_output_chars,
+            text=text,
+        )
+        output_str = _success_payload(
+            text,
+            parsed=parsed if not truncated else None,
+            truncated=truncated,
+            original_bytes=original_bytes,
+        )
+
+    if idem_key is not None and cfg.idempotency_store is not None:
+        await cfg.idempotency_store.save(
+            ExecutionAttempt(key=idem_key, status=AttemptStatus.COMPLETED, result=output_str)
+        )
+    return output_str
+
+
+async def _execute_single_tool(
+    tc_id: str,
+    name: str,
+    raw_args: str,
+    registry: ToolRegistry,
+    state: Any,
+    cfg: ToolExecutionConfig,
+    timeout: float | None,
+) -> tuple[str, str]:
+    started_at = time.perf_counter()
+    _emit_tool_event(
+        {"type": "tool_start", "tool_call_id": tc_id, "tool_name": name, "arguments": raw_args}
+    )
+
+    tool = registry.get_tool(name)
+    if tool is None:
+        unknown_exc = ToolValidationError(f"Unknown tool: {name}")
+        output = _error_payload(unknown_exc)
+        return _emit_tool_result(
+            tc_id, name, started_at, "error", output, err_type=type(unknown_exc).__name__
+        )
+
+    with tracer.start_as_current_span(f"tool.{name}") as span:
+        span.set_attribute("lughus.tool.name", name)
+        span.set_attribute("lughus.tool.timeout_s", timeout or 0)
+        status, error_type = "ok", None
+        idem_key: IdempotencyKey | None = None
+        budget_reservation: str | None = None
         try:
             args = _validate_tool_args(
                 name=name,
@@ -403,57 +634,40 @@ async def _preflight_check_approvals(
                 validator=tool.validator,
                 max_tool_args_chars=cfg.max_tool_args_chars,
             )
-        except ToolValidationError:
-            continue
-
-        decision = None
-        if cfg.policy is not None and cfg.principal is not None:
-            proposal = ToolProposal(
-                run_id=cfg.run_id,
-                tool_name=name,
-                arguments=args,
-                effects=frozenset(effect.value for effect in tool.effects),
-                risk=tool.risk.value,
-                required_scopes=tool.required_scopes,
+            approval_to_consume, idem_key, early_result = await _check_governance(
+                tool, name, args, cfg, span
             )
-            decision = await cfg.policy.evaluate(proposal, cfg.principal)
-            if decision.kind == DecisionKind.DENY:
-                continue
+            if early_result is not None:
+                return _emit_tool_result(tc_id, name, started_at, "ok", early_result, idem_hit=True)
 
-        # Step 2: receipt lookup — idempotent completed hit skips approval
-        if cfg.idempotency_store is not None and tool.idempotent:
-            check_key = IdempotencyKey.from_args(cfg.run_id, name, args)
-            existing_completed = await cfg.idempotency_store.get(check_key)
-            if (
-                existing_completed is not None
-                and existing_completed.status == AttemptStatus.COMPLETED
-            ):
-                continue
-
-        if (
-            decision is not None and decision.kind == DecisionKind.REQUIRE_APPROVAL
-        ) or tool.requires_approval:
-            if cfg.approval_store is None:
-                approval_requests.append(ApprovalRequired("unknown", name))
-            else:
-                digest = proposal_digest(name, args)
-                request = await cfg.approval_store.find(cfg.run_id, digest)
-                if request is None:
-                    request = ApprovalRequest(
-                        run_id=cfg.run_id,
-                        tool_name=name,
-                        proposal_hash=digest,
-                        risk=tool.risk.value,
+            raw_output, budget_reservation = await _dispatch_tool_with_locks(
+                tool, tool.fn, state, args, cfg, timeout, approval_to_consume
+            )
+            output = await _postprocess_tool_output(raw_output, tool, name, cfg, idem_key)
+            span.set_status(StatusCode.OK)
+        except ApprovalRequired:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            wrapped, error_type, metric_type, needs_reconcile = _normalize_tool_error(
+                exc, name, timeout
+            )
+            span.set_status(StatusCode.ERROR, str(wrapped))
+            if metric_type == "exception":
+                span.record_exception(exc)
+            _tool_errors.add(1, {"lughus.tool.name": name, "lughus.error.type": metric_type})
+            if idem_key is not None and cfg.idempotency_store is not None and needs_reconcile:
+                await cfg.idempotency_store.save(
+                    ExecutionAttempt(
+                        key=idem_key,
+                        status=AttemptStatus.OUTCOME_UNKNOWN,
+                        error="reconciliation required",
                     )
-                    await cfg.approval_store.create(request)
-                    approval_requests.append(
-                        ApprovalRequired(request.request_id, name, request.expires_at)
-                    )
-                elif request.status.value not in {"approved", "rejected"}:
-                    approval_requests.append(
-                        ApprovalRequired(request.request_id, name, request.expires_at)
-                    )
-    return approval_requests
+                )
+            output, status = _error_payload(wrapped), "error"
+        finally:
+            if budget_reservation is not None and cfg.budget is not None:
+                await cfg.budget.settle(budget_reservation, BudgetAmount(tool_calls=1))
+    return _emit_tool_result(tc_id, name, started_at, status, output, err_type=error_type)
 
 
 async def _execute_tools(
@@ -462,24 +676,7 @@ async def _execute_tools(
     state: Any,
     config: ToolExecutionConfig | None = None,
 ) -> list[tuple[str, str]]:
-    """Execute tool calls in parallel using ``asyncio.TaskGroup``.
-
-    For a single tool call, executes directly without ``TaskGroup`` overhead.
-
-    Each call is wrapped in an OTel span (``tool.{name}``).
-
-    Edge cases:
-
-    - **Unknown tool**: returns ``{"error": "Unknown tool: <name>"}`` as JSON.
-    - **Tool exception**: catches the exception, records it on the OTel span
-      with ``StatusCode.ERROR``, increments ``lughus.tool.errors``, and returns
-      ``{"error": "<message>"}`` as JSON. Does **not** propagate.
-    - **Empty args**: ``raw_args=""`` is treated as an empty dict.
-    """
-
-    # _execute_tools no longer manufactures a config, because doing so used
-    # to allocate an ExecutionRuntime (and a thread pool) that nothing ever closed.
-    # A missing runtime here is a programming error, not an opportunity to leak one.
+    """Execute tool calls in parallel using asyncio.TaskGroup or sequentially for single calls."""
     if config is None or config.runtime is None:
         raise RuntimeError(
             "_execute_tools requires a ToolExecutionConfig carrying an ExecutionRuntime. "
@@ -487,239 +684,12 @@ async def _execute_tools(
             "ToolExecutionConfig(runtime=ExecutionRuntime()) explicitly."
         )
     cfg = config
-    max_parallel = max(1, cfg.max_parallel_tools)
     timeout = cfg.tool_timeout if cfg.tool_timeout and cfg.tool_timeout > 0 else None
-    semaphore = asyncio.Semaphore(max_parallel)
-
-    async def _run_unbounded(tc_id: str, name: str, raw_args: str) -> tuple[str, str]:
-        started_at = time.perf_counter()
-        _emit_tool_event(
-            {"type": "tool_start", "tool_call_id": tc_id, "tool_name": name, "arguments": raw_args}
-        )
-
-        def _emit_result(
-            status_val: str,
-            out_val: str,
-            *,
-            err_type: str | None = None,
-            idem_hit: bool = False,
-        ) -> tuple[str, str]:
-            event: dict[str, Any] = {
-                "type": "tool_result",
-                "tool_call_id": tc_id,
-                "tool_name": name,
-                "status": status_val,
-                "output": out_val,
-                "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
-            }
-            if err_type:
-                event["error_type"] = err_type
-            if idem_hit:
-                event["idempotent_hit"] = True
-            _emit_tool_event(event)
-            return tc_id, out_val
-
-        tool = registry.get_tool(name)
-        if tool is None:
-            unknown_exc = ToolValidationError(f"Unknown tool: {name}")
-            output = _error_payload(unknown_exc)
-            return _emit_result("error", output, err_type=type(unknown_exc).__name__)
-
-        fn = tool.fn
-        with tracer.start_as_current_span(f"tool.{name}") as span:
-            span.set_attribute("lughus.tool.name", name)
-            span.set_attribute("lughus.tool.timeout_s", timeout or 0)
-            status, error_type = "ok", None
-            idem_key: IdempotencyKey | None = None
-            budget_reservation: str | None = None
-            try:
-                args = _validate_tool_args(
-                    name=name,
-                    raw_args=raw_args,
-                    validator=tool.validator,
-                    max_tool_args_chars=cfg.max_tool_args_chars,
-                )
-                # ── Step 1: Policy ──────────────────────────────────
-                decision = None
-                if cfg.policy is not None:
-                    if cfg.principal is None:
-                        raise ToolExecutionError(
-                            "A principal is required when tool policy is enabled"
-                        )
-                    proposal = ToolProposal(
-                        run_id=cfg.run_id,
-                        tool_name=name,
-                        arguments=args,
-                        effects=frozenset(effect.value for effect in tool.effects),
-                        risk=tool.risk.value,
-                        required_scopes=tool.required_scopes,
-                    )
-                    decision = await cfg.policy.evaluate(proposal, cfg.principal)
-                    if decision.kind == DecisionKind.DENY:
-                        raise ToolExecutionError(f"Tool policy denied action: {decision.code}")
-
-                # ── Step 2: Receipt lookup ──────────────────────────
-                if cfg.idempotency_store is not None and tool.idempotent:
-                    check_key = IdempotencyKey.from_args(cfg.run_id, name, args)
-                    existing_completed = await cfg.idempotency_store.get(check_key)
-                    if (
-                        existing_completed is not None
-                        and existing_completed.status == AttemptStatus.COMPLETED
-                    ):
-                        output = existing_completed.result or ""
-                        span.set_attribute("lughus.tool.idempotent_hit", True)
-                        span.set_status(StatusCode.OK)
-                        return _emit_result("ok", output, idem_hit=True)
-
-                # ── Step 3: Approval (check/create, WITHOUT consuming)
-                approval_to_consume: ApprovalRequest | None = None
-                if (
-                    decision is not None and decision.kind == DecisionKind.REQUIRE_APPROVAL
-                ) or tool.requires_approval:
-                    if cfg.approval_store is None:
-                        raise ApprovalRequired("unknown", name)
-                    digest = proposal_digest(name, args)
-                    request = await cfg.approval_store.find(cfg.run_id, digest)
-                    if request is not None and request.status.value == "approved":
-                        approval_to_consume = request
-                    elif request is not None and request.status.value == "rejected":
-                        raise ToolExecutionError("Human approval was rejected")
-                    else:
-                        if request is None:
-                            request = ApprovalRequest(
-                                run_id=cfg.run_id,
-                                tool_name=name,
-                                proposal_hash=digest,
-                                risk=tool.risk.value,
-                            )
-                            await cfg.approval_store.create(request)
-                        raise ApprovalRequired(request.request_id, name, request.expires_at)
-
-                # ── Step 4: Claim ───────────────────────────────────
-                if cfg.idempotency_store is not None and tool.idempotent:
-                    idem_key = IdempotencyKey.from_args(cfg.run_id, name, args)
-                    existing = await cfg.idempotency_store.claim(
-                        ExecutionAttempt(key=idem_key, status=AttemptStatus.PENDING)
-                    )
-                    if existing is not None and existing.status == AttemptStatus.COMPLETED:
-                        output = existing.result or ""
-                        span.set_attribute("lughus.tool.idempotent_hit", True)
-                        span.set_status(StatusCode.OK)
-                        return _emit_result("ok", output, idem_hit=True)
-                    if existing is not None:
-                        raise ToolExecutionError("An idempotent execution is already in progress")
-
-                # ── Step 5: Slots ───────────────────────────────────
-                slot = _runtime_of(cfg).tool_slot(cfg.tool_queue_timeout)
-                async with slot:
-                    # ── Step 6: Budget ──────────────────────────────
-                    if cfg.budget is not None:
-                        budget_reservation = await cfg.budget.reserve(BudgetAmount(tool_calls=1))
-                    # ── Step 7: Consumption ─────────────────────────
-                    if approval_to_consume is not None and cfg.approval_store is not None:
-                        await cfg.approval_store.consume(approval_to_consume.request_id)
-                    # ── Step 8: Dispatch ────────────────────────────
-                    lock_ctx: Any
-                    mode = tool.concurrency
-                    if mode == ConcurrencyMode.GLOBAL_EXCLUSIVE:
-                        lock_ctx = _runtime_of(cfg).global_exclusive_lock
-                    elif mode == ConcurrencyMode.SERIAL_PER_TOOL:
-                        lock_ctx = _runtime_of(cfg).resource_slot(name)
-                    elif mode == ConcurrencyMode.SERIAL_PER_RESOURCE:
-                        rk = f"{name}:{tool.resource_key(args)}"  # type: ignore[misc]
-                        lock_ctx = _runtime_of(cfg).resource_slot(rk)
-                    else:
-                        lock_ctx = contextlib.nullcontext()
-
-                    async with lock_ctx:
-                        output = await _invoke_tool_callable(
-                            fn, tool.is_async, state, args, cfg, timeout
-                        )
-                if tool.output_validator is not None:
-                    validation_errors = sorted(
-                        tool.output_validator.iter_errors(output),
-                        key=lambda error: list(error.path),
-                    )
-                    if validation_errors:
-                        raise ToolValidationError(
-                            f"Tool '{name}' returned an invalid result: "
-                            f"{validation_errors[0].message}"
-                        )
-                is_str = isinstance(output, str)
-                text = output if is_str else json.dumps(output, ensure_ascii=False, default=str)
-                original_bytes = len(text.encode("utf-8"))
-                parsed = None if is_str else output
-
-                # Artifact projection FIRST — store full content before truncation.
-                if (
-                    cfg.artifact_projection
-                    and cfg.artifact_store is not None
-                    and len(text) > cfg.artifact_projection_threshold
-                ):
-                    full_payload = _success_payload(
-                        text,
-                        parsed=parsed,
-                        truncated=False,
-                        original_bytes=original_bytes,
-                    )
-                    artifact_id = cfg.artifact_store.store_artifact(full_payload)
-                    summary = _summarize(text)
-                    output = json.dumps(
-                        {
-                            "ok": True,
-                            "artifact_id": artifact_id,
-                            "summary": summary,
-                            "hint": "Use fetch_artifact to retrieve full content",
-                        },
-                        ensure_ascii=False,
-                    )
-                else:
-                    text, truncated, original_bytes = _validate_tool_output(
-                        name=name,
-                        output=output,
-                        max_tool_output_chars=cfg.max_tool_output_chars,
-                        text=text,
-                    )
-                    output = _success_payload(
-                        text,
-                        parsed=parsed if not truncated else None,
-                        truncated=truncated,
-                        original_bytes=original_bytes,
-                    )
-                if idem_key is not None and cfg.idempotency_store is not None:
-                    await cfg.idempotency_store.save(
-                        ExecutionAttempt(
-                            key=idem_key, status=AttemptStatus.COMPLETED, result=output
-                        )
-                    )
-                span.set_status(StatusCode.OK)
-            except ApprovalRequired:
-                raise  # propagate to task wrapper — not a tool error
-            except Exception as exc:  # noqa: BLE001 — boundary guard: tools execute arbitrary user code
-                wrapped, error_type, metric_type, needs_reconcile = _normalize_tool_error(
-                    exc, name, timeout
-                )
-                span.set_status(StatusCode.ERROR, str(wrapped))
-                if metric_type == "exception":
-                    span.record_exception(exc)
-                _tool_errors.add(1, {"lughus.tool.name": name, "lughus.error.type": metric_type})
-                if idem_key is not None and cfg.idempotency_store is not None and needs_reconcile:
-                    await cfg.idempotency_store.save(
-                        ExecutionAttempt(
-                            key=idem_key,
-                            status=AttemptStatus.OUTCOME_UNKNOWN,
-                            error="reconciliation required",
-                        )
-                    )
-                output, status = _error_payload(wrapped), "error"
-            finally:
-                if budget_reservation is not None and cfg.budget is not None:
-                    await cfg.budget.settle(budget_reservation, BudgetAmount(tool_calls=1))
-        return _emit_result(status, output, err_type=error_type)
+    semaphore = asyncio.Semaphore(max(1, cfg.max_parallel_tools))
 
     async def _run(tc_id: str, name: str, raw_args: str) -> tuple[str, str]:
         async with semaphore:
-            return await _run_unbounded(tc_id, name, raw_args)
+            return await _execute_single_tool(tc_id, name, raw_args, registry, state, cfg, timeout)
 
     preflight_approvals = await _preflight_check_approvals(tool_calls, registry, cfg)
     if preflight_approvals:
@@ -731,12 +701,19 @@ async def _execute_tools(
         except ApprovalRequired as e:
             raise ApprovalRequiredGroup([e]) from e
 
+    return await _execute_tasks_group(tool_calls, _run)
+
+
+async def _execute_tasks_group(
+    tool_calls: list[tuple[str, str, str]],
+    run_fn: Callable[[str, str, str], Any],
+) -> list[tuple[str, str]]:
     results: list[tuple[str, str] | None] = [None] * len(tool_calls)
     approval_errors: list[ApprovalRequired] = []
 
     async def _task(idx: int, tc_id: str, name: str, raw_args: str) -> None:
         try:
-            results[idx] = await _run(tc_id, name, raw_args)
+            results[idx] = await run_fn(tc_id, name, raw_args)
         except ApprovalRequired as e:
             approval_errors.append(e)
 

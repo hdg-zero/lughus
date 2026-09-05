@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
+from ..core.domain import canonical_hash
 from ..engine.tools import ConcurrencyMode, ToolEffect, ToolRisk
 
 
@@ -64,8 +63,7 @@ class MCPAdapter:
             }
             for name, desc in sorted(snapshot.items())
         }
-        canonical = json.dumps(schemas, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        return hashlib.sha256(canonical.encode()).hexdigest()
+        return canonical_hash(schemas)
 
     async def refresh(self) -> tuple[MCPToolDescriptor, ...]:
         tools = tuple(await self.client.list_tools())

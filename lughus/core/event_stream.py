@@ -11,7 +11,15 @@ from .domain import RunEvent
 
 
 class EventSink(Protocol):
-    async def append(self, event: RunEvent) -> None: ...
+    """Protocol for event sinks consuming lifecycle and execution events."""
+
+    async def append(self, event: RunEvent) -> None:
+        """Append a run event to the sink.
+
+        Raises:
+            ValueError: If the event sequence is non-monotonic for its run.
+        """
+        ...
 
 
 class InMemoryEventSink:
@@ -40,6 +48,7 @@ class InMemoryEventSink:
         self._condition = asyncio.Condition()
 
     async def append(self, event: RunEvent) -> None:
+        """Append an event, verifying sequence monotonicity and evicting overflow items."""
         async with self._condition:
             previous = self._last_sequence.get(event.run_id, -1)
             if event.sequence <= previous:
@@ -59,11 +68,13 @@ class InMemoryEventSink:
             self._condition.notify_all()
 
     def snapshot(self, run_id: str | None = None) -> tuple[RunEvent, ...]:
+        """Return a snapshot tuple of buffered events, optionally filtered by *run_id*."""
         return tuple(e for _, e in self._events if run_id is None or e.run_id == run_id)
 
     async def subscribe(
         self, after_sequence: int = -1, *, run_id: str | None = None
     ) -> AsyncIterator[RunEvent]:
+        """Subscribe to an asynchronous stream of events occurring after *after_sequence*."""
         cursor = after_sequence
         while True:
             async with self._condition:

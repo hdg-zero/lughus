@@ -24,13 +24,23 @@ if TYPE_CHECKING:
 
 
 class StreamingMode(StrEnum):
+    """Streaming delivery mode for agent_loop_stream.
+
+    BUFFERED:
+        Accumulate token deltas until a complete turn or answer is available,
+        emitting stream chunks right before the final result.
+    LIVE:
+        Emit incremental text stream chunks to consumers as soon as each chunk
+        arrives from the LLM provider.
+    """
+
     BUFFERED = "buffered"
     LIVE = "live"
 
 
 @dataclass(frozen=True)
 class ToolExecutionConfig:
-    """Runtime guardrails for tool execution.
+    """Runtime guardrails and configuration for tool execution in agent loops.
 
     ``tool_timeout`` is per tool call. Set it to ``None`` or ``<= 0`` to disable.
     ``max_parallel_tools`` limits concurrency within one agent loop iteration.

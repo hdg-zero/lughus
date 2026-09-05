@@ -12,7 +12,6 @@ async def run_sync_in_thread(
     call: Callable[[], Any],
     *,
     executor: ThreadPoolExecutor | None = None,
-    max_workers: int | None = None,
 ) -> Any:
     """Run ``call`` on the provided executor or worker thread."""
     if executor is not None:

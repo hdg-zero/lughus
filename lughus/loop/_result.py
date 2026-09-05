@@ -51,10 +51,12 @@ class LoopResult(str):
 
     @property
     def total_tokens(self) -> int:
+        """Sum of prompt and completion tokens consumed during the run."""
         return self.prompt_tokens + self.completion_tokens
 
     @property
     def uncached_prompt_tokens(self) -> int:
+        """Prompt tokens billed at standard non-cached provider rates."""
         return max(0, self.prompt_tokens - self.cached_tokens)
 
     def __getnewargs_ex__(self) -> tuple[tuple[str], dict]:

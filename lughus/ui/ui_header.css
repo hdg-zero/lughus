@@ -1,0 +1,220 @@
+/**
+ * Header Navbar, Brand, Status Badge, Theme Switcher & Protocol Mode Toggle.
+ */
+
+.app-header {
+  height: 52px;
+  min-height: 52px;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  z-index: 20;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-container {
+  align-items: center;
+  background: transparent;
+  border-radius: 8px;
+  display: flex;
+  height: 38px;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  width: 38px;
+  flex-shrink: 0;
+}
+
+.lughus-mark {
+  height: 34px;
+  width: 34px;
+}
+
+.brand-info {
+  display: grid;
+  gap: 1px;
+}
+
+.brand-title-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.lughus-signature {
+  border-left: 1px solid var(--border);
+  color: var(--accent-indigo);
+  font: 700 9px var(--mono);
+  letter-spacing: .14em;
+  padding-left: 8px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-main);
+}
+
+.agent-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 620px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 14px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-subtle);
+  transition: all 0.3s ease;
+}
+
+.status-dot.streaming,
+.status-dot.running {
+  background: var(--accent-blue);
+  box-shadow: 0 0 6px var(--accent-blue);
+  animation: pulse 1.5s infinite alternate;
+}
+
+.status-dot.done {
+  background: var(--accent-green);
+  box-shadow: 0 0 6px var(--accent-green);
+}
+
+.status-dot.error {
+  background: var(--accent-red);
+  box-shadow: 0 0 6px var(--accent-red);
+}
+
+.status-text {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.theme-toggle {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font: 600 10.5px var(--mono);
+  gap: 5px;
+  height: 27px;
+  padding: 0 9px;
+  transition: background .15s ease, color .15s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--panel-hover);
+  color: var(--text-main);
+}
+
+.theme-icon { font-size: 13px; line-height: 1; }
+
+/* Protocol Mode Toggle */
+.mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.mode-toggle-btn {
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: 600 10.5px var(--mono);
+  padding: 3px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.mode-toggle-btn:hover {
+  color: var(--text-main);
+}
+
+.mode-toggle-btn.active {
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.mode-icon {
+  font-size: 11px;
+}
+
+.header-btn {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font: 600 10.5px var(--mono);
+  gap: 5px;
+  height: 27px;
+  padding: 0 9px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.header-btn:hover {
+  background: var(--panel-hover);
+  color: var(--text-main);
+}
+
+.btn-icon {
+  font-size: 12px;
+}
+
+:root[data-theme="light"] .status-badge,
+:root[data-theme="light"] .theme-toggle,
+:root[data-theme="light"] .header-btn {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+:root[data-theme="light"] .mode-toggle {
+  background: rgba(255, 255, 255, 0.7);
+}

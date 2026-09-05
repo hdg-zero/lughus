@@ -4,7 +4,7 @@ import asyncio
 import contextvars
 import logging
 import time
-from collections.abc import AsyncGenerator, AsyncIterator, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
@@ -156,6 +156,27 @@ def _prune_if_needed(
             pruned,
             estimated,
         )
+
+
+def _format_tool_calls(
+    tool_calls: Sequence[Any],
+) -> tuple[list[dict[str, Any]], list[tuple[str, str, str]]]:
+    """Format tool calls into provider payload and execution input tuples."""
+    payload, inputs = [], []
+    for tc in tool_calls:
+        if isinstance(tc, Mapping):
+            tc_id = str(tc.get("id") or "")
+            name, args = str(tc.get("name") or ""), str(tc.get("arguments") or "")
+        else:
+            fn = getattr(tc, "function", None)
+            tc_id = str(getattr(tc, "id", "") or "")
+            name = str(getattr(fn, "name", "") or "") if fn else ""
+            args = str(getattr(fn, "arguments", "") or "") if fn else ""
+        payload.append(
+            {"id": tc_id, "type": "function", "function": {"name": name, "arguments": args}}
+        )
+        inputs.append((tc_id, name, args))
+    return payload, inputs
 
 
 async def _run_tool_calls(
@@ -360,21 +381,7 @@ async def agent_loop(
                             llm.model,
                         )
 
-                    assistant_tool_payload = [
-                        {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {
-                                "name": tc.function.name,
-                                "arguments": tc.function.arguments,
-                            },
-                        }
-                        for tc in msg.tool_calls
-                    ]
-                    tc_inputs = [
-                        (tc.id or "", tc.function.name or "", tc.function.arguments or "")
-                        for tc in msg.tool_calls
-                    ]
+                    assistant_tool_payload, tc_inputs = _format_tool_calls(msg.tool_calls)
 
                     await _run_tool_calls(
                         tc_inputs,
@@ -518,18 +525,7 @@ async def agent_loop_stream(
                         return
 
                     sorted_tcs = [tc_map[i] for i in sorted(tc_map)]
-                    assistant_tool_payload = [
-                        {
-                            "id": tc["id"],
-                            "type": "function",
-                            "function": {
-                                "name": tc["name"],
-                                "arguments": tc["arguments"],
-                            },
-                        }
-                        for tc in sorted_tcs
-                    ]
-                    tc_inputs = [(tc["id"], tc["name"], tc["arguments"]) for tc in sorted_tcs]
+                    assistant_tool_payload, tc_inputs = _format_tool_calls(sorted_tcs)
 
                     await _run_tool_calls(
                         tc_inputs,

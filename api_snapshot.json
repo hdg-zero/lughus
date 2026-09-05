@@ -4,34 +4,6 @@
     "kind": "dataclass"
   },
   {
-    "name": "ApprovalRequest",
-    "kind": "dataclass"
-  },
-  {
-    "name": "ApprovalRequired",
-    "kind": "class"
-  },
-  {
-    "name": "ApprovalRequiredGroup",
-    "kind": "class"
-  },
-  {
-    "name": "ApprovalStatus",
-    "kind": "enum"
-  },
-  {
-    "name": "Artifact",
-    "kind": "dataclass"
-  },
-  {
-    "name": "ArtifactStore",
-    "kind": "class"
-  },
-  {
-    "name": "AttemptStatus",
-    "kind": "enum"
-  },
-  {
     "name": "BaseGateway",
     "kind": "class"
   },
@@ -40,163 +12,19 @@
     "kind": "dataclass"
   },
   {
-    "name": "BoundedInMemoryTaskStore",
-    "kind": "class"
-  },
-  {
-    "name": "BudgetAmount",
-    "kind": "dataclass"
-  },
-  {
-    "name": "BudgetExceeded",
-    "kind": "class"
-  },
-  {
-    "name": "BudgetLedger",
-    "kind": "class"
-  },
-  {
-    "name": "BudgetLimit",
-    "kind": "dataclass"
-  },
-  {
-    "name": "BudgetedLLM",
-    "kind": "class"
-  },
-  {
-    "name": "Checkpoint",
-    "kind": "dataclass"
-  },
-  {
-    "name": "CheckpointStore",
-    "kind": "class"
-  },
-  {
     "name": "CompletionEvent",
     "kind": "dataclass"
-  },
-  {
-    "name": "CompositePolicy",
-    "kind": "class"
   },
   {
     "name": "ConcurrencyMode",
     "kind": "enum"
   },
   {
-    "name": "ConcurrentUpdateError",
-    "kind": "class"
-  },
-  {
-    "name": "ContextBudgetExceeded",
-    "kind": "class"
-  },
-  {
-    "name": "ContextItem",
-    "kind": "dataclass"
-  },
-  {
-    "name": "ContextManager",
-    "kind": "class"
-  },
-  {
-    "name": "ContextWindow",
-    "kind": "dataclass"
-  },
-  {
-    "name": "DecisionKind",
-    "kind": "enum"
-  },
-  {
-    "name": "DelegationCycleError",
-    "kind": "class"
-  },
-  {
-    "name": "DelegationRequest",
-    "kind": "dataclass"
-  },
-  {
-    "name": "DelegationResult",
-    "kind": "dataclass"
-  },
-  {
-    "name": "Delegator",
-    "kind": "class"
-  },
-  {
-    "name": "EvaluationResult",
-    "kind": "dataclass"
-  },
-  {
-    "name": "EventSink",
-    "kind": "class"
-  },
-  {
-    "name": "EventStore",
-    "kind": "class"
-  },
-  {
-    "name": "EventVisibility",
-    "kind": "enum"
-  },
-  {
-    "name": "ExecutionAttempt",
-    "kind": "dataclass"
-  },
-  {
-    "name": "ExecutionRuntime",
-    "kind": "class"
-  },
-  {
-    "name": "GenerateLLM",
-    "kind": "class"
-  },
-  {
     "name": "GovernedAgentRunner",
     "kind": "class"
   },
   {
-    "name": "IdempotencyCapacityError",
-    "kind": "class"
-  },
-  {
-    "name": "IdempotencyKey",
-    "kind": "dataclass"
-  },
-  {
-    "name": "IdempotencyStore",
-    "kind": "class"
-  },
-  {
-    "name": "InMemoryApprovalStore",
-    "kind": "class"
-  },
-  {
-    "name": "InMemoryEventSink",
-    "kind": "class"
-  },
-  {
-    "name": "InMemoryIdempotencyStore",
-    "kind": "class"
-  },
-  {
-    "name": "InMemoryRunStore",
-    "kind": "class"
-  },
-  {
     "name": "LLM",
-    "kind": "class"
-  },
-  {
-    "name": "LLMResponseError",
-    "kind": "class"
-  },
-  {
-    "name": "LeastPrivilegePolicy",
-    "kind": "class"
-  },
-  {
-    "name": "LoopLimitError",
     "kind": "class"
   },
   {
@@ -208,92 +36,12 @@
     "kind": "class"
   },
   {
-    "name": "MCPAdapter",
-    "kind": "class"
-  },
-  {
-    "name": "MCPClient",
-    "kind": "class"
-  },
-  {
-    "name": "MCPServerConfig",
-    "kind": "dataclass"
-  },
-  {
-    "name": "MCPToolDescriptor",
-    "kind": "dataclass"
-  },
-  {
-    "name": "PolicyDecision",
-    "kind": "dataclass"
-  },
-  {
-    "name": "Principal",
-    "kind": "dataclass"
-  },
-  {
-    "name": "ProductionGuardMiddleware",
-    "kind": "class"
-  },
-  {
     "name": "ProgressEvent",
-    "kind": "dataclass"
-  },
-  {
-    "name": "RemoteAgentClient",
-    "kind": "class"
-  },
-  {
-    "name": "Run",
-    "kind": "dataclass"
-  },
-  {
-    "name": "RunCoordinator",
-    "kind": "class"
-  },
-  {
-    "name": "RunEvent",
-    "kind": "dataclass"
-  },
-  {
-    "name": "RunStatus",
-    "kind": "enum"
-  },
-  {
-    "name": "RunStore",
-    "kind": "class"
-  },
-  {
-    "name": "RunSuspended",
-    "kind": "class"
-  },
-  {
-    "name": "RunUnitOfWork",
-    "kind": "class"
-  },
-  {
-    "name": "RuntimeConfig",
     "kind": "dataclass"
   },
   {
     "name": "SafeToolError",
     "kind": "class"
-  },
-  {
-    "name": "Scenario",
-    "kind": "dataclass"
-  },
-  {
-    "name": "StreamChunk",
-    "kind": "dataclass"
-  },
-  {
-    "name": "StreamingLLM",
-    "kind": "class"
-  },
-  {
-    "name": "ToolDef",
-    "kind": "dataclass"
   },
   {
     "name": "ToolEffect",
@@ -304,40 +52,12 @@
     "kind": "dataclass"
   },
   {
-    "name": "ToolExecutionError",
-    "kind": "class"
-  },
-  {
-    "name": "ToolPolicy",
-    "kind": "class"
-  },
-  {
-    "name": "ToolProposal",
-    "kind": "dataclass"
-  },
-  {
     "name": "ToolRegistry",
     "kind": "class"
   },
   {
     "name": "ToolRisk",
     "kind": "enum"
-  },
-  {
-    "name": "ToolTimeoutError",
-    "kind": "class"
-  },
-  {
-    "name": "ToolValidationError",
-    "kind": "class"
-  },
-  {
-    "name": "TrustLevel",
-    "kind": "enum"
-  },
-  {
-    "name": "Usage",
-    "kind": "dataclass"
   },
   {
     "name": "agent_loop",
@@ -382,38 +102,12 @@
     ]
   },
   {
-    "name": "emit_a2a_request",
+    "name": "register_code_interpreter",
     "kind": "function",
     "parameters": [
-      "target_agent",
-      "url",
-      "method",
-      "objective",
-      "files",
-      "tool_name"
-    ]
-  },
-  {
-    "name": "emit_a2a_response",
-    "kind": "function",
-    "parameters": [
-      "target_agent",
-      "url",
-      "status",
-      "text",
-      "artifacts",
-      "remote_task_id",
-      "error_code",
-      "elapsed_ms",
-      "tool_name"
-    ]
-  },
-  {
-    "name": "evaluate_scenario",
-    "kind": "function",
-    "parameters": [
-      "scenario",
-      "execute"
+      "registry",
+      "timeout_s",
+      "requires_approval"
     ]
   },
   {
@@ -428,14 +122,6 @@
       "task_store",
       "setup_otel",
       "enable_console"
-    ]
-  },
-  {
-    "name": "setup_telemetry",
-    "kind": "function",
-    "parameters": [
-      "service_name",
-      "configure_logging"
     ]
   }
 ]

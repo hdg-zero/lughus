@@ -133,4 +133,24 @@ def get_tool(self, name: str) -> ToolDef | None:
 
 ---
 
+## Built-in Tools: Code Interpreter
+
+Lughus ships with an isolated Python execution environment with timeout handling, output character limits, and high-risk approval flags:
+
+```python
+from lughus.tools import register_code_interpreter
+
+# Register a sandboxed python interpreter tool
+register_code_interpreter(
+    registry,
+    name="code_interpreter",
+    timeout_s=30.0,
+    requires_approval=True,
+)
+```
+
+Exported from `lughus` root and `lughus.tools`.
+
+---
+
 **Related:** [Tools Guide](../guides/tools.md) · [Tools Contract](../contracts/tools.md) · [Policy API](policy.md) · [MCP Integration](../integrations/mcp.md)

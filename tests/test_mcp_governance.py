@@ -153,3 +153,10 @@ async def test_refresh_resets_fingerprint() -> None:
     # Should succeed because fingerprint was recomputed
     result = await adapter._invoke("tool_a", {"x": "hello"})
     assert result == {"ok": True}
+
+
+def test_mcp_client_cannot_hide_a_different_origin() -> None:
+    client = FakeMCPClient()
+    client.origin = "https://other.example"
+    with pytest.raises(ValueError, match="origin"):
+        MCPAdapter(client, MCPServerConfig("https://fake.example.com", frozenset()))

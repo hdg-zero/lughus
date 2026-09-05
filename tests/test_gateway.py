@@ -372,3 +372,41 @@ async def test_gateway_shutdown(monkeypatch) -> None:
     """BaseGateway.shutdown closes executor idempotently."""
     gw = _make_gateway(monkeypatch)
     await gw.shutdown()
+
+
+def test_gateway_create_tool_config_default(monkeypatch) -> None:
+    gw = _make_gateway(monkeypatch)
+    config = gw.create_tool_config()
+    assert config.max_parallel_tools == gw.settings.max_parallel_tools
+    assert config.tool_timeout == gw.settings.tool_timeout
+    assert config.tool_queue_timeout == gw.settings.tool_queue_timeout
+    assert config.max_tool_args_chars == gw.settings.max_tool_args_chars
+    assert config.max_tool_output_chars == gw.settings.max_tool_output_chars
+
+
+def test_gateway_with_runtime_delegation(monkeypatch) -> None:
+    from lughus.agent.application import AgentRuntime
+    from lughus.governance.policy import Principal
+
+    gw = _make_gateway(monkeypatch)
+    mock_runtime = MagicMock(spec=AgentRuntime)
+    mock_runtime.tool_config.return_value = MagicMock()
+
+    gw_with_rt = type(gw)(gw.llm, gw.settings, runtime=mock_runtime)
+    assert gw_with_rt.runtime is mock_runtime
+    assert gw_with_rt.runner is not None
+
+    principal = Principal("user-1", "tenant-1")
+    config = gw_with_rt.create_tool_config(run_id="run-123", principal=principal)
+    mock_runtime.tool_config.assert_called_once_with(run_id="run-123", principal=principal)
+    assert config == mock_runtime.tool_config.return_value
+
+
+def test_tools_module_reexports() -> None:
+    import lughus.tools as lt
+    from lughus.engine.tools import ConcurrencyMode, ToolRegistry, ToolRisk
+
+    assert lt.ToolRegistry is ToolRegistry
+    assert lt.ConcurrencyMode is ConcurrencyMode
+    assert lt.ToolRisk is ToolRisk
+    assert callable(lt.register_code_interpreter)

@@ -81,4 +81,4 @@ flowchart TD
 
 ---
 
-**Next steps:** [Guarantees](guarantees.md) · [Gateway API](api/gateway.md) · [Loop API](api/loop.md) · [Tool Registry](api/tools.md) · [Server API](api/server.md)
+**Next steps:** [5-Minute Quickstart](quickstart.md) · [Guarantees](guarantees.md) · [Gateway API](api/gateway.md) · [Loop API](api/loop.md) · [Tool Registry](api/tools.md) · [Server API](api/server.md)

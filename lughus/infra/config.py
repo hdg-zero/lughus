@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import os
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 
 from ..core._defaults import (
@@ -15,10 +17,23 @@ from ..core._defaults import (
     DEFAULT_TOOL_QUEUE_TIMEOUT,
 )
 
-__all__ = ["BaseSettings"]
+__all__ = ["BaseSettings", "isolated_env"]
 
 
 _DOTENV_LOADED = False
+_current_env: contextvars.ContextVar[Mapping[str, str] | None] = contextvars.ContextVar(
+    "_current_env", default=None
+)
+
+
+@contextlib.contextmanager
+def isolated_env(env: Mapping[str, str] | None = None) -> Iterator[None]:
+    """Temporarily scope environment variable lookups without mutating os.environ."""
+    token = _current_env.set({} if env is None else env)
+    try:
+        yield
+    finally:
+        _current_env.reset(token)
 
 
 def _ensure_dotenv() -> None:
@@ -28,72 +43,96 @@ def _ensure_dotenv() -> None:
         try:
             from dotenv import load_dotenv
 
-            dotenv_path = os.path.join(os.getcwd(), ".env")
-            if os.path.exists(dotenv_path):
-                load_dotenv(dotenv_path)
-            else:
-                load_dotenv()
+            path = os.path.join(os.getcwd(), ".env")
+            load_dotenv(path if os.path.exists(path) else None)
         except ImportError:
-            # Fallback to simple manual parsing if dotenv is not installed
             if os.path.exists(".env"):
                 with open(".env", encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
-                        if not line or line.startswith("#"):
-                            continue
-                        if "=" in line:
+                        if "=" in line and not line.startswith("#"):
                             k, v = line.split("=", 1)
-                            k = k.strip()
-                            v = v.strip().strip("'\"")
-                            if k and os.getenv(k) is None:
-                                os.environ[k] = v
+                            os.environ.setdefault(k.strip(), v.strip().strip("'\""))
+
+
+def _get_raw_env(key: str) -> str | None:
+    scoped = _current_env.get()
+    if scoped is not None:
+        return scoped.get(key)
+    _ensure_dotenv()
+    return os.getenv(key)
 
 
 def _getenv(key: str, default: str = "") -> str:
-    """os.getenv, but guarantees the .env file is loaded first.
-
-    Every BaseSettings field factory must go through this helper. Plain
-    ``os.getenv`` in a field factory silently misses the .env values when
-    that field is the *first* one dataclass instantiates — the dotenv load
-    only happened as a side effect of later ``_env_*`` helpers.
-    """
-    _ensure_dotenv()
-    return os.getenv(key, default)
+    """os.getenv, but guarantees the .env file is loaded first."""
+    val = _get_raw_env(key)
+    return default if val is None else val
 
 
 def _env_int(key: str, default: int) -> int:
-    _ensure_dotenv()
-    value = os.getenv(key)
-    if value is None:
+    val = _get_raw_env(key)
+    if val is None:
         return default
     try:
-        return int(value)
+        return int(val)
     except (TypeError, ValueError) as exc:
-        raise ValueError(f"{key} must be an integer, got {value!r}") from exc
+        raise ValueError(f"{key} must be an integer, got {val!r}") from exc
 
 
 def _env_float(key: str, default: float) -> float:
-    _ensure_dotenv()
-    value = os.getenv(key)
-    if value is None:
+    val = _get_raw_env(key)
+    if val is None:
         return default
     try:
-        return float(value)
+        return float(val)
     except (TypeError, ValueError) as exc:
-        raise ValueError(f"{key} must be a number, got {value!r}") from exc
+        raise ValueError(f"{key} must be a number, got {val!r}") from exc
 
 
 def _env_bool(key: str, default: bool) -> bool:
-    _ensure_dotenv()
-    value = os.getenv(key)
-    if value is None:
+    val = _get_raw_env(key)
+    if val is None:
         return default
-    normalized = value.strip().lower()
+    normalized = val.strip().lower()
     if normalized in {"1", "true", "yes", "on"}:
         return True
     if normalized in {"0", "false", "no", "off"}:
         return False
-    raise ValueError(f"{key} must be a boolean, got {value!r}")
+    raise ValueError(f"{key} must be a boolean, got {val!r}")
+
+
+_POSITIVE_FIELDS = (
+    "port",
+    "max_output_tokens",
+    "max_file_bytes",
+    "max_files",
+    "max_request_bytes",
+    "max_http_body_bytes",
+    "max_objective_chars",
+    "max_artifacts",
+    "max_artifact_bytes",
+    "max_total_artifact_bytes",
+    "max_parallel_tools",
+    "max_global_tools",
+    "max_sync_thread_workers",
+    "max_tool_args_chars",
+    "max_tool_output_chars",
+)
+
+_NON_NEGATIVE_FIELDS = (
+    "max_concurrent_requests",
+    "max_queue_backlog",
+    "max_retries",
+    "request_queue_timeout",
+    "llm_timeout",
+    "tool_timeout",
+    "tool_queue_timeout",
+    "agent_timeout",
+    "retry_base_delay",
+    "retry_max_elapsed",
+    "task_store_ttl_seconds",
+    "task_store_max_tasks",
+)
 
 
 @dataclass(frozen=True)
@@ -234,41 +273,10 @@ class BaseSettings:
         if isinstance(self.port, str):
             with contextlib.suppress(ValueError):
                 object.__setattr__(self, "port", int(self.port))
-        positive = {
-            "port": self.port,
-            "max_output_tokens": self.max_output_tokens,
-            "max_file_bytes": self.max_file_bytes,
-            "max_files": self.max_files,
-            "max_request_bytes": self.max_request_bytes,
-            "max_http_body_bytes": self.max_http_body_bytes,
-            "max_objective_chars": self.max_objective_chars,
-            "max_artifacts": self.max_artifacts,
-            "max_artifact_bytes": self.max_artifact_bytes,
-            "max_total_artifact_bytes": self.max_total_artifact_bytes,
-            "max_parallel_tools": self.max_parallel_tools,
-            "max_global_tools": self.max_global_tools,
-            "max_sync_thread_workers": self.max_sync_thread_workers,
-            "max_tool_args_chars": self.max_tool_args_chars,
-            "max_tool_output_chars": self.max_tool_output_chars,
-        }
-        invalid = [name for name, value in positive.items() if value <= 0]
+        invalid = [name for name in _POSITIVE_FIELDS if getattr(self, name) <= 0]
         if invalid:
             raise ValueError(f"Settings must be positive: {', '.join(sorted(invalid))}")
-        non_negative = {
-            "max_concurrent_requests": self.max_concurrent_requests,
-            "max_queue_backlog": self.max_queue_backlog,
-            "max_retries": self.max_retries,
-            "request_queue_timeout": self.request_queue_timeout,
-            "llm_timeout": self.llm_timeout,
-            "tool_timeout": self.tool_timeout,
-            "tool_queue_timeout": self.tool_queue_timeout,
-            "agent_timeout": self.agent_timeout,
-            "retry_base_delay": self.retry_base_delay,
-            "retry_max_elapsed": self.retry_max_elapsed,
-            "task_store_ttl_seconds": self.task_store_ttl_seconds,
-            "task_store_max_tasks": self.task_store_max_tasks,
-        }
-        neg = [name for name, value in non_negative.items() if value < 0]
+        neg = [name for name in _NON_NEGATIVE_FIELDS if getattr(self, name) < 0]
         if neg:
             raise ValueError(f"Settings must be non-negative: {', '.join(sorted(neg))}")
         if not 1 <= self.port <= 65535:

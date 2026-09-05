@@ -15,6 +15,9 @@ if TYPE_CHECKING:
     from .engine.delegation import DelegationResult as DelegationResult
     from .engine.delegation import Delegator as Delegator
     from .engine.delegation import RemoteAgentClient as RemoteAgentClient
+    from .engine.interpreter import InterpreterResult as InterpreterResult
+    from .engine.interpreter import InterpreterTimeoutError as InterpreterTimeoutError
+    from .engine.interpreter import register_code_interpreter as register_code_interpreter
     from .engine.llm import LLM as LLM
     from .engine.llm import GenerateLLM as GenerateLLM
     from .engine.llm import StreamingLLM as StreamingLLM
@@ -61,36 +64,10 @@ if TYPE_CHECKING:
     from .persistence.store import RunStore as RunStore
     from .persistence.store import RunUnitOfWork as RunUnitOfWork
 
-# ── Eager imports: stdlib-only modules (no asyncio / third-party) ────
-from .core.context import ContextItem, ContextManager, ContextWindow, TrustLevel
-from .core.domain import EventVisibility, Run, RunEvent, RunStatus, Usage
-from .core.errors import (
-    ApprovalRequired,
-    ApprovalRequiredGroup,
-    ContextBudgetExceeded,
-    IdempotencyCapacityError,
-    LLMResponseError,
-    LoopLimitError,
-    LughusError,
-    RunSuspended,
-    SafeToolError,
-    ToolExecutionError,
-    ToolTimeoutError,
-    ToolValidationError,
-)
-from .core.events import Artifact, CompletionEvent, ProgressEvent
-from .governance.approval import ApprovalRequest, ApprovalStatus, InMemoryApprovalStore
-from .governance.policy import (
-    CompositePolicy,
-    DecisionKind,
-    LeastPrivilegePolicy,
-    PolicyDecision,
-    Principal,
-    ToolPolicy,
-    ToolProposal,
-)
+# ── Eager imports: Core Tier-1 ──────────────────────────────────────
+from .core.errors import LughusError, SafeToolError
+from .core.events import CompletionEvent, ProgressEvent
 from .infra.config import BaseSettings
-from .testing.evaluation import EvaluationResult, Scenario, evaluate_scenario
 
 # ── Lazy-loaded symbols ─────────────────────────────────────────────
 #
@@ -104,14 +81,56 @@ from .testing.evaluation import EvaluationResult, Scenario, evaluate_scenario
 #   * several modules pull in asyncio (~50 ms) transitively via budget,
 #     persistence, event_stream, etc.
 _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
-    # ── artifacts (stdlib-only) ────────────────────────────────────────
+    # ── artifacts & context (core) ───────────────────────────────────
+    "Artifact": (".core.events", None),
     "ArtifactStore": (".core.artifacts", None),
+    "ContextItem": (".core.context", None),
+    "ContextManager": (".core.context", None),
+    "ContextWindow": (".core.context", None),
+    "TrustLevel": (".core.context", None),
+    # ── domain (core) ────────────────────────────────────────────────
+    "EventVisibility": (".core.domain", None),
+    "Run": (".core.domain", None),
+    "RunEvent": (".core.domain", None),
+    "RunStatus": (".core.domain", None),
+    "Usage": (".core.domain", None),
+    # ── errors (core) ────────────────────────────────────────────────
+    "ApprovalRequired": (".core.errors", None),
+    "ApprovalRequiredGroup": (".core.errors", None),
+    "ContextBudgetExceeded": (".core.errors", None),
+    "IdempotencyCapacityError": (".core.errors", None),
+    "LLMResponseError": (".core.errors", None),
+    "LoopLimitError": (".core.errors", None),
+    "RunSuspended": (".core.errors", None),
+    "ToolExecutionError": (".core.errors", None),
+    "ToolTimeoutError": (".core.errors", None),
+    "ToolValidationError": (".core.errors", None),
+    # ── approval (governance) ────────────────────────────────────────
+    "ApprovalRequest": (".governance.approval", None),
+    "ApprovalStatus": (".governance.approval", None),
+    "InMemoryApprovalStore": (".governance.approval", None),
+    # ── policy (governance) ──────────────────────────────────────────
+    "CompositePolicy": (".governance.policy", None),
+    "DecisionKind": (".governance.policy", None),
+    "LeastPrivilegePolicy": (".governance.policy", None),
+    "PolicyDecision": (".governance.policy", None),
+    "Principal": (".governance.policy", None),
+    "ToolPolicy": (".governance.policy", None),
+    "ToolProposal": (".governance.policy", None),
+    # ── evaluation (testing) ─────────────────────────────────────────
+    "EvaluationResult": (".testing.evaluation", None),
+    "Scenario": (".testing.evaluation", None),
+    "evaluate_scenario": (".testing.evaluation", None),
     # ── delegation (engine) ──────────────────────────────────────────
     "DelegationCycleError": (".engine.delegation", None),
     "DelegationRequest": (".engine.delegation", None),
     "DelegationResult": (".engine.delegation", None),
     "Delegator": (".engine.delegation", None),
     "RemoteAgentClient": (".engine.delegation", None),
+    # ── interpreter (engine) ─────────────────────────────────────────
+    "InterpreterResult": (".engine.interpreter", None),
+    "InterpreterTimeoutError": (".engine.interpreter", None),
+    "register_code_interpreter": (".engine.interpreter", None),
     # ── litellm (heavy) ─────────────────────────────────────────────
     "LLM": (".engine.llm", None),
     "GenerateLLM": (".engine.llm", None),
@@ -206,95 +225,22 @@ def __dir__() -> list[str]:
 __all__ = [
     "LLM",
     "AgentRuntime",
-    "ApprovalRequest",
-    "ApprovalRequired",
-    "ApprovalRequiredGroup",
-    "ApprovalStatus",
-    "Artifact",
-    "ArtifactStore",
-    "AttemptStatus",
     "BaseGateway",
     "BaseSettings",
-    "BoundedInMemoryTaskStore",
-    "BudgetAmount",
-    "BudgetExceeded",
-    "BudgetLedger",
-    "BudgetLimit",
-    "BudgetedLLM",
-    "Checkpoint",
-    "CheckpointStore",
     "CompletionEvent",
-    "CompositePolicy",
     "ConcurrencyMode",
-    "ConcurrentUpdateError",
-    "ContextBudgetExceeded",
-    "ContextItem",
-    "ContextManager",
-    "ContextWindow",
-    "DecisionKind",
-    "DelegationCycleError",
-    "DelegationRequest",
-    "DelegationResult",
-    "Delegator",
-    "EvaluationResult",
-    "EventSink",
-    "EventStore",
-    "EventVisibility",
-    "ExecutionAttempt",
-    "ExecutionRuntime",
-    "GenerateLLM",
     "GovernedAgentRunner",
-    "IdempotencyCapacityError",
-    "IdempotencyKey",
-    "IdempotencyStore",
-    "InMemoryApprovalStore",
-    "InMemoryEventSink",
-    "InMemoryIdempotencyStore",
-    "InMemoryRunStore",
-    "LLMResponseError",
-    "LeastPrivilegePolicy",
-    "LoopLimitError",
     "LoopResult",
     "LughusError",
-    "MCPAdapter",
-    "MCPClient",
-    "MCPServerConfig",
-    "MCPToolDescriptor",
-    "PolicyDecision",
-    "Principal",
-    "ProductionGuardMiddleware",
     "ProgressEvent",
-    "RemoteAgentClient",
-    "Run",
-    "RunCoordinator",
-    "RunEvent",
-    "RunStatus",
-    "RunStore",
-    "RunSuspended",
-    "RunUnitOfWork",
-    "RuntimeConfig",
     "SafeToolError",
-    "Scenario",
-    "StreamChunk",
-    "StreamingLLM",
-    "ToolDef",
     "ToolEffect",
     "ToolExecutionConfig",
-    "ToolExecutionError",
-    "ToolPolicy",
-    "ToolProposal",
     "ToolRegistry",
     "ToolRisk",
-    "ToolTimeoutError",
-    "ToolValidationError",
-    "TrustLevel",
-    "Usage",
     "agent_loop",
     "agent_loop_stream",
     "build_app",
-    "emit_a2a_request",
-    "emit_a2a_response",
-    "evaluate_scenario",
+    "register_code_interpreter",
     "serve",
-    "setup_telemetry",
 ]

@@ -49,7 +49,6 @@ async def decode_file_bytes(
             data = await run_sync_in_thread(
                 _decode_enc,
                 executor=executor,
-                max_workers=getattr(settings, "max_sync_thread_workers", 32),
             )
         else:
             data = await asyncio.to_thread(_decode_enc)
@@ -61,6 +60,21 @@ async def decode_file_bytes(
         raise ValueError(f"File '{safe_name}' exceeds max size {max_file_bytes} bytes")
 
     return data, safe_mime, safe_name
+
+
+def _validate_encoded_item(item: Any, index: int, settings: Any) -> str:
+    if not isinstance(item, dict):
+        raise ValueError(f"files[{index}] must be an object")
+    encoded = item.get("content_base64")
+    if not isinstance(encoded, str):
+        raise ValueError(f"files[{index}].content_base64 must be a string")
+
+    max_file_bytes = getattr(settings, "max_file_bytes", 25 * 1024 * 1024)
+    max_encoded_chars = ((max_file_bytes + 2) // 3) * 4
+    if len(encoded) > max_encoded_chars:
+        safe_name = _safe_filename(item.get("name"))
+        raise ValueError(f"File '{safe_name}' exceeds max size {max_file_bytes} bytes")
+    return encoded
 
 
 async def decode_files_payload(
@@ -83,17 +97,7 @@ async def decode_files_payload(
     total_bytes = 0
 
     for index, item in enumerate(raw_files):
-        if not isinstance(item, dict):
-            raise ValueError(f"files[{index}] must be an object")
-        encoded = item.get("content_base64")
-        if not isinstance(encoded, str):
-            raise ValueError(f"files[{index}].content_base64 must be a string")
-
-        max_file_bytes = getattr(settings, "max_file_bytes", 25 * 1024 * 1024)
-        max_encoded_chars = ((max_file_bytes + 2) // 3) * 4
-        if len(encoded) > max_encoded_chars:
-            safe_name = _safe_filename(item.get("name"))
-            raise ValueError(f"File '{safe_name}' exceeds max size {max_file_bytes} bytes")
+        encoded = _validate_encoded_item(item, index, settings)
 
         try:
             data, mime, name = await decode_file_bytes(

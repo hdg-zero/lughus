@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from starlette.requests import Request
+from starlette.testclient import TestClient
 
 from lughus import Artifact, BaseSettings, CompletionEvent, ProgressEvent, build_app, serve
 from lughus.interfaces.gateway import BaseGateway
@@ -352,10 +353,47 @@ async def test_console_page_renders_agent_metadata() -> None:
     response = await page(_request("GET", "/ui"))
 
     assert response.status_code == 200
+    assert "no-cache" in response.headers.get("cache-control", "")
     assert "test-agent" in response.body.decode()
     assert "/ui/assets/console.css" in response.body.decode()
     assert "/ui/assets/console.js" in response.body.decode()
     assert "/ui/assets/logo.svg" in response.body.decode()
+    assert "mode-direct-btn" in response.body.decode()
+    assert "mode-a2a-btn" in response.body.decode()
+    assert "agent-card-modal" in response.body.decode()
+
+
+def test_app_with_console_serves_a2a_stream_and_card() -> None:
+    gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
+    app = build_app(_agent_card(), gateway, setup_otel=False, enable_console=True)
+    with TestClient(app) as client:
+        # Check Agent Card discovery
+        card_resp = client.get("/.well-known/agent-card.json")
+        assert card_resp.status_code == 200
+        assert card_resp.json()["name"] == "test-agent"
+
+        # Check A2A message/stream simulation
+        stream_resp = client.post(
+            "/",
+            json={
+                "jsonrpc": "2.0",
+                "id": "sim-1",
+                "method": "message/stream",
+                "params": {
+                    "message": {
+                        "role": "user",
+                        "parts": [{"kind": "text", "text": "test objective"}],
+                        "messageId": "msg-1",
+                        "kind": "message",
+                    }
+                },
+            },
+        )
+        assert stream_resp.status_code == 200
+        assert "text/event-stream" in stream_resp.headers.get("content-type", "")
+        body = stream_resp.text
+        assert "status-update" in body
+        assert "artifact-update" in body
 
 
 @pytest.mark.asyncio
@@ -369,6 +407,30 @@ async def test_console_serves_favicon() -> None:
     assert response.status_code == 200
     assert response.media_type == "image/svg+xml"
     assert "<svg" in response.body.decode()
+
+
+def test_console_serves_modular_assets() -> None:
+    gateway = UIGateway(llm=MagicMock(), settings=BaseSettings())
+    app = build_app(_agent_card(), gateway, setup_otel=False, enable_console=True)
+    with TestClient(app) as client:
+        assets = [
+            "ui_base.css",
+            "ui_header.css",
+            "ui_sidebar.css",
+            "ui_flow.css",
+            "ui_events.css",
+            "ui_modal.css",
+            "ui_utils.js",
+            "ui_markdown.js",
+            "ui_client_direct.js",
+            "ui_client_a2a.js",
+            "ui_modal_card.js",
+        ]
+        for asset in assets:
+            res = client.get(f"/ui/assets/{asset}")
+            assert res.status_code == 200, f"Failed to serve asset {asset}"
+            assert "no-cache" in res.headers.get("cache-control", "")
+            assert len(res.text) > 0
 
 
 @pytest.mark.asyncio

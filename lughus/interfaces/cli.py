@@ -113,18 +113,12 @@ The agent exposes:
 
 
 def _env_example() -> str:
-    import os
     from dataclasses import fields
 
-    from lughus.infra.config import BaseSettings
+    from lughus.infra.config import BaseSettings, isolated_env
 
-    # Temporarily isolate environment variables to get true defaults
-    old_env = dict(os.environ)
-    os.environ.clear()
-    try:
+    with isolated_env():
         settings = BaseSettings()
-    finally:
-        os.environ.update(old_env)
 
     lines = [
         "AGENT_MODEL=openai/gpt-4o",
@@ -241,7 +235,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from lughus import BaseGateway, CompletionEvent, ProgressEvent, ToolExecutionConfig
+from lughus import BaseGateway, CompletionEvent, ProgressEvent
 
 from .workspace import Workspace
 
@@ -252,13 +246,7 @@ class {class_prefix}Gateway(BaseGateway):
         objective: str,
         files: list[tuple[bytes, str, str]],
     ) -> AsyncIterator[ProgressEvent | CompletionEvent]:
-        tool_config = ToolExecutionConfig(
-            max_parallel_tools=self.settings.max_parallel_tools,
-            tool_timeout=self.settings.tool_timeout,
-            tool_queue_timeout=self.settings.tool_queue_timeout,
-            max_tool_args_chars=self.settings.max_tool_args_chars,
-            max_tool_output_chars=self.settings.max_tool_output_chars,
-        )
+        tool_config = self.create_tool_config()
         workspace = Workspace(objective, self.llm, tool_config)
         async for event in workspace.run():
             yield event
