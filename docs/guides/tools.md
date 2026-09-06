@@ -28,17 +28,11 @@ from lughus import ConcurrencyMode, ToolRegistry
 registry = ToolRegistry()
 
 @registry.tool(
-    "update_record",
-    "Update a record by ID.",
-    {
-        "type": "object",
-        "properties": {"record_id": {"type": "string"}, "value": {"type": "string"}},
-        "required": ["record_id", "value"],
-    },
     concurrency=ConcurrencyMode.SERIAL_PER_RESOURCE,
     resource_key=lambda args: args["record_id"],
 )
-async def update_record(*, record_id: str, value: str, state) -> str:
+async def update_record(record_id: str, value: str) -> str:
+    """Update a record by ID."""
     ...
 ```
 

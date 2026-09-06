@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from lughus import ToolRegistry
+from lughus.engine.tools import ToolDef
 from lughus.interfaces.mcp import MCPAdapter, MCPServerConfig, MCPToolDescriptor
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -21,8 +22,10 @@ class FakeMCPClient:
     def __init__(self, tools: Sequence[MCPToolDescriptor] | None = None) -> None:
         self._tools: list[MCPToolDescriptor] = list(tools or [])
         self.call_log: list[tuple[str, Mapping[str, Any]]] = []
+        self.list_tools_count: int = 0
 
     async def list_tools(self) -> Sequence[MCPToolDescriptor]:
+        self.list_tools_count += 1
         return self._tools
 
     async def call_tool(self, name: str, arguments: Mapping[str, Any]) -> Any:
@@ -40,12 +43,14 @@ TOOL_A = MCPToolDescriptor(
 def _make_adapter(
     client: FakeMCPClient | None = None,
     tools: Sequence[MCPToolDescriptor] | None = None,
+    cache_tools: bool = True,
 ) -> tuple[MCPAdapter, FakeMCPClient]:
     if client is None:
         client = FakeMCPClient(tools or [TOOL_A])
     config = MCPServerConfig(
         origin="https://fake.example.com",
         allowed_tools=frozenset(t.name for t in (tools or [TOOL_A])),
+        cache_tools=cache_tools,
     )
     return MCPAdapter(client, config), client
 
@@ -108,7 +113,7 @@ async def test_remote_schema_drift_raises() -> None:
         input_schema={"type": "object", "properties": {"x": {"type": "string"}}},
     )
     client = FakeMCPClient([tool_v1])
-    adapter, _ = _make_adapter(client=client, tools=[tool_v1])
+    adapter, _ = _make_adapter(client=client, tools=[tool_v1], cache_tools=False)
     await adapter.refresh()
 
     # Simulate server-side schema drift WITHOUT calling refresh().
@@ -160,3 +165,40 @@ def test_mcp_client_cannot_hide_a_different_origin() -> None:
     client.origin = "https://other.example"
     with pytest.raises(ValueError, match="origin"):
         MCPAdapter(client, MCPServerConfig("https://fake.example.com", frozenset()))
+
+
+@pytest.mark.asyncio
+async def test_smart_cache_avoids_list_tools_on_invoke() -> None:
+    """Default cache_tools=True avoids list_tools on every invoke unless invalidated."""
+    adapter, client = _make_adapter(cache_tools=True)
+    await adapter.refresh()
+    assert client.list_tools_count == 1
+
+    # First invoke uses cache
+    res1 = await adapter._invoke("tool_a", {"x": 1})
+    assert res1 == {"ok": True}
+    assert client.list_tools_count == 1
+
+    # Invalidate cache -> next invoke triggers refresh
+    adapter.invalidate()
+    res2 = await adapter._invoke("tool_a", {"x": 2})
+    assert res2 == {"ok": True}
+    assert client.list_tools_count == 2
+
+
+@pytest.mark.asyncio
+async def test_as_tools_converts_to_tool_defs() -> None:
+    """as_tools converts approved MCP descriptors into ToolDef objects without state."""
+    adapter, client = _make_adapter()
+    tools = await adapter.as_tools()
+    assert len(tools) == 1
+    tool_def = tools[0]
+    assert isinstance(tool_def, ToolDef)
+    assert tool_def.name == "tool_a"
+    assert tool_def.takes_state is False
+    assert tool_def.requires_approval is True
+
+    # Calling tool_def executes remote tool
+    res = await tool_def(x=99)
+    assert res == {"ok": True}
+    assert client.call_log == [("tool_a", {"x": 99})]

@@ -7,14 +7,16 @@ import functools
 import inspect
 import json
 import logging
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, cast
 
 from jsonschema import Draft202012Validator, SchemaError  # type: ignore[import-untyped]
+from pydantic import BaseModel
 
 from ..core.errors import ToolValidationError
+from .schema import infer_tool_schema, parse_docstring, resolve_output_schema
 
 __all__ = [
     "ConcurrencyMode",
@@ -22,6 +24,7 @@ __all__ = [
     "ToolEffect",
     "ToolRegistry",
     "ToolRisk",
+    "tool",
 ]
 
 _logger = logging.getLogger(__name__)
@@ -102,7 +105,7 @@ def _is_async_callable(fn: Callable[..., Any]) -> bool:
     return bool(call and inspect.iscoroutinefunction(_unwrap_async_target(call)))
 
 
-def _validate_tool_callable(name: str, fn: Callable[..., Any], parameters_schema: dict) -> None:
+def _validate_tool_callable(name: str, fn: Callable[..., Any], parameters_schema: dict) -> bool:
     try:
         signature = inspect.signature(fn)
     except (TypeError, ValueError) as exc:
@@ -139,12 +142,8 @@ def _validate_tool_callable(name: str, fn: Callable[..., Any], parameters_schema
             inspect.Parameter.VAR_POSITIONAL,
         }:
             raise ToolValidationError(f"Tool '{name}' parameter 'state' must be keyword-callable")
-        return
-    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
-        return
-    raise ToolValidationError(
-        f"Tool '{name}' must accept a keyword-only or **kwargs 'state' parameter"
-    )
+        return True
+    return has_var_keyword
 
 
 class ToolEffect(StrEnum):
@@ -180,6 +179,7 @@ class ToolDef:
     validator: Draft202012Validator
     output_schema: dict | None = None
     output_validator: Draft202012Validator | None = None
+    output_model: type[BaseModel] | None = None
     version: str = "1"
     effects: frozenset[ToolEffect] = field(default_factory=frozenset)
     risk: ToolRisk = ToolRisk.UNKNOWN
@@ -189,24 +189,176 @@ class ToolDef:
     concurrency: ConcurrencyMode = ConcurrencyMode.PARALLEL_SAFE
     resource_key: Callable[[Mapping[str, Any]], str] | None = None
     is_async: bool = True
+    takes_state: bool = False
+    timeout: float | None = None
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self.fn(*args, **kwargs)
+
+
+def _build_tool_def(
+    fn: Callable[..., Any],
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    parameters: dict[str, Any] | None = None,
+    output_schema: dict[str, Any] | type[BaseModel] | None = None,
+    version: str = "1",
+    effects: frozenset[ToolEffect] | None = None,
+    risk: ToolRisk = ToolRisk.UNKNOWN,
+    required_scopes: frozenset[str] | None = None,
+    idempotent: bool = False,
+    requires_approval: bool = False,
+    concurrency: ConcurrencyMode = ConcurrencyMode.PARALLEL_SAFE,
+    resource_key: Callable[[Mapping[str, Any]], str] | None = None,
+    timeout: float | None = None,
+) -> ToolDef:
+    tool_name: str = name if name is not None else str(getattr(fn, "__name__", "tool"))
+    if concurrency == ConcurrencyMode.SERIAL_PER_RESOURCE and resource_key is None:
+        raise ToolValidationError(
+            f"Tool '{tool_name}' uses SERIAL_PER_RESOURCE but no resource_key was provided"
+        )
+
+    doc_desc, doc_params = parse_docstring(inspect.getdoc(fn))
+    tool_desc: str = description if description is not None else (doc_desc or tool_name)
+
+    if parameters is None:
+        params_schema, takes_state = infer_tool_schema(fn, doc_params=doc_params)
+    else:
+        takes_state = _validate_tool_callable(tool_name, fn, parameters)
+        params_schema = parameters
+
+    try:
+        Draft202012Validator.check_schema(params_schema)
+        validator = Draft202012Validator(params_schema)
+        resolved_output_schema, output_model = resolve_output_schema(fn, output_schema)
+        if resolved_output_schema is not None:
+            Draft202012Validator.check_schema(resolved_output_schema)
+            output_validator = Draft202012Validator(resolved_output_schema)
+        else:
+            output_validator = None
+    except SchemaError as exc:
+        raise ToolValidationError(f"Invalid schema for tool '{tool_name}': {exc.message}") from exc
+
+    is_async = _is_async_callable(fn)
+    return ToolDef(
+        name=tool_name,
+        description=tool_desc,
+        fn=fn,
+        parameters_schema=params_schema,
+        validator=validator,
+        output_schema=copy.deepcopy(resolved_output_schema),
+        output_validator=output_validator,
+        output_model=output_model,
+        version=version,
+        effects=effects or frozenset(),
+        risk=risk,
+        required_scopes=required_scopes or frozenset(),
+        idempotent=idempotent,
+        requires_approval=requires_approval,
+        concurrency=concurrency,
+        resource_key=resource_key,
+        is_async=is_async,
+        takes_state=takes_state,
+        timeout=timeout,
+    )
+
+
+def _attach_tool_def(fn: Any, td: ToolDef) -> None:
+    fn.__tool_def__ = td
+    fn.tool_def = td
+
+
+def tool(
+    name_or_fn: str | Callable[..., Any] | None = None,
+    description: str | None = None,
+    parameters: dict[str, Any] | None = None,
+    *,
+    output_schema: dict[str, Any] | type[BaseModel] | None = None,
+    version: str = "1",
+    effects: frozenset[ToolEffect] | None = None,
+    risk: ToolRisk = ToolRisk.UNKNOWN,
+    required_scopes: frozenset[str] | None = None,
+    idempotent: bool = False,
+    requires_approval: bool = False,
+    concurrency: ConcurrencyMode = ConcurrencyMode.PARALLEL_SAFE,
+    resource_key: Callable[[Mapping[str, Any]], str] | None = None,
+    timeout: float | None = None,
+    name: str | None = None,
+) -> Any:
+    """Define a tool independently of any registry.
+
+    Infers JSON schema from type hints and docstrings if parameters are omitted.
+    """
+    if name is not None and name_or_fn is None:
+        name_or_fn = name
+
+    if callable(name_or_fn):
+        fn = name_or_fn
+        td = _build_tool_def(
+            fn,
+            name=None,
+            description=description,
+            parameters=parameters,
+            output_schema=output_schema,
+            version=version,
+            effects=effects,
+            risk=risk,
+            required_scopes=required_scopes,
+            idempotent=idempotent,
+            requires_approval=requires_approval,
+            concurrency=concurrency,
+            resource_key=resource_key,
+            timeout=timeout,
+        )
+        _attach_tool_def(fn, td)
+        return fn
+
+    tool_name = name_or_fn
+
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        td = _build_tool_def(
+            fn,
+            name=tool_name,
+            description=description,
+            parameters=parameters,
+            output_schema=output_schema,
+            version=version,
+            effects=effects,
+            risk=risk,
+            required_scopes=required_scopes,
+            idempotent=idempotent,
+            requires_approval=requires_approval,
+            concurrency=concurrency,
+            resource_key=resource_key,
+            timeout=timeout,
+        )
+        _attach_tool_def(fn, td)
+        return fn
+
+    return decorator
 
 
 class ToolRegistry:
     """Per-instance tool registry — each agent creates its own."""
 
-    def __init__(self) -> None:
+    def __init__(self, tools: Sequence[Callable[..., Any] | ToolDef] | None = None) -> None:
         self._tools: dict[str, ToolDef] = {}
         self._declarations_cache: dict[
             tuple[tuple[str, ...], bool], tuple[tuple[dict, ...], str]
         ] = {}
+        if tools:
+            for t in tools:
+                self.register(t)
 
-    def tool(
+    def register(
         self,
-        name: str,
-        description: str,
-        parameters: dict,
+        tool_or_fn: Callable[..., Any] | ToolDef,
         *,
-        output_schema: dict | None = None,
+        name: str | None = None,
+        description: str | None = None,
+        parameters: dict[str, Any] | None = None,
+        output_schema: dict[str, Any] | type[BaseModel] | None = None,
         version: str = "1",
         effects: frozenset[ToolEffect] | None = None,
         risk: ToolRisk = ToolRisk.UNKNOWN,
@@ -215,45 +367,118 @@ class ToolRegistry:
         requires_approval: bool = False,
         concurrency: ConcurrencyMode = ConcurrencyMode.PARALLEL_SAFE,
         resource_key: Callable[[Mapping[str, Any]], str] | None = None,
-    ) -> Callable:
-        """Decorator to register a tool function (sync or async)."""
-        if name in self._tools:
-            raise ToolValidationError(f"Tool '{name}' is already registered")
-        if concurrency == ConcurrencyMode.SERIAL_PER_RESOURCE and resource_key is None:
-            raise ToolValidationError(
-                f"Tool '{name}' uses SERIAL_PER_RESOURCE but no resource_key was provided"
-            )
-        try:
-            Draft202012Validator.check_schema(parameters)
-            validator = Draft202012Validator(parameters)
-            if output_schema is not None:
-                Draft202012Validator.check_schema(output_schema)
-            output_validator = Draft202012Validator(output_schema) if output_schema else None
-        except SchemaError as exc:
-            raise ToolValidationError(f"Invalid schema for tool '{name}': {exc.message}") from exc
-
-        def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
-            _validate_tool_callable(name, fn, parameters)
-            is_async = _is_async_callable(fn)
-            self._tools[name] = ToolDef(
+        timeout: float | None = None,
+    ) -> ToolDef:
+        """Register a tool callable or ToolDef into the registry."""
+        if isinstance(tool_or_fn, ToolDef):
+            td = tool_or_fn
+        elif (
+            hasattr(tool_or_fn, "tool_def")
+            and isinstance(tool_or_fn.tool_def, ToolDef)
+            and name is None
+            and description is None
+            and parameters is None
+        ):
+            td = tool_or_fn.tool_def
+        else:
+            td = _build_tool_def(
+                tool_or_fn,
                 name=name,
                 description=description,
-                fn=fn,
-                parameters_schema=parameters,
-                validator=validator,
-                output_schema=copy.deepcopy(output_schema),
-                output_validator=output_validator,
+                parameters=parameters,
+                output_schema=output_schema,
                 version=version,
-                effects=effects or frozenset(),
+                effects=effects,
                 risk=risk,
-                required_scopes=required_scopes or frozenset(),
+                required_scopes=required_scopes,
                 idempotent=idempotent,
                 requires_approval=requires_approval,
                 concurrency=concurrency,
                 resource_key=resource_key,
-                is_async=is_async,
+                timeout=timeout,
             )
-            self._declarations_cache.clear()
+
+        if td.name in self._tools:
+            raise ToolValidationError(f"Tool '{td.name}' is already registered")
+
+        self._tools[td.name] = td
+        self._declarations_cache.clear()
+        return td
+
+    def tool(
+        self,
+        name_or_fn: str | Callable[..., Any] | None = None,
+        description: str | None = None,
+        parameters: dict[str, Any] | None = None,
+        *,
+        output_schema: dict[str, Any] | type[BaseModel] | None = None,
+        version: str = "1",
+        effects: frozenset[ToolEffect] | None = None,
+        risk: ToolRisk = ToolRisk.UNKNOWN,
+        required_scopes: frozenset[str] | None = None,
+        idempotent: bool = False,
+        requires_approval: bool = False,
+        concurrency: ConcurrencyMode = ConcurrencyMode.PARALLEL_SAFE,
+        resource_key: Callable[[Mapping[str, Any]], str] | None = None,
+        timeout: float | None = None,
+        name: str | None = None,
+    ) -> Any:
+        """Decorator to register a tool function (sync or async)."""
+        if name is not None and name_or_fn is None:
+            name_or_fn = name
+
+        if isinstance(name_or_fn, str):
+            if name_or_fn in self._tools:
+                raise ToolValidationError(f"Tool '{name_or_fn}' is already registered")
+            if parameters is not None:
+                try:
+                    Draft202012Validator.check_schema(parameters)
+                except SchemaError as exc:
+                    raise ToolValidationError(
+                        f"Invalid schema for tool '{name_or_fn}': {exc.message}"
+                    ) from exc
+
+        if callable(name_or_fn):
+            fn = name_or_fn
+            td = self.register(
+                fn,
+                name=None,
+                description=description,
+                parameters=parameters,
+                output_schema=output_schema,
+                version=version,
+                effects=effects,
+                risk=risk,
+                required_scopes=required_scopes,
+                idempotent=idempotent,
+                requires_approval=requires_approval,
+                concurrency=concurrency,
+                resource_key=resource_key,
+                timeout=timeout,
+            )
+            _attach_tool_def(fn, td)
+            return fn
+
+        tool_name = name_or_fn
+
+        def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+            td = self.register(
+                fn,
+                name=tool_name,
+                description=description,
+                parameters=parameters,
+                output_schema=output_schema,
+                version=version,
+                effects=effects,
+                risk=risk,
+                required_scopes=required_scopes,
+                idempotent=idempotent,
+                requires_approval=requires_approval,
+                concurrency=concurrency,
+                resource_key=resource_key,
+                timeout=timeout,
+            )
+            _attach_tool_def(fn, td)
             return fn
 
         return decorator

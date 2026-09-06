@@ -52,8 +52,9 @@ async def agent_loop(
     *,
     system: str,
     context: str,
-    registry: ToolRegistry,
-    tool_names: list[str],
+    registry: ToolRegistry | None = None,
+    tool_names: Sequence[str] | None = None,
+    tools: Sequence[Callable[..., Any] | ToolDef] | None = None,
     state: Any = None,
     max_iterations: int = 12,
     tool_config: ToolExecutionConfig | None = None,
@@ -65,9 +66,10 @@ async def agent_loop(
 *   `llm`: The [LLM](llm.md) wrapper instance.
 *   `system`: The system prompt instructing the agent on its role and rules.
 *   `context`: The user prompt or task objective.
-*   `registry`: The [ToolRegistry](tools.md) instance containing declared tools.
-*   `tool_names`: The list of tool names that the LLM is allowed to call.
-*   `state`: Optional state object passed to tools during execution.
+*   `registry`: Optional [ToolRegistry](tools.md) instance containing declared tools.
+*   `tool_names`: Optional sequence of tool names to enable (defaults to all tools in the registry or `tools` sequence).
+*   `tools`: Optional sequence of `@tool`-decorated functions, standard callables, or `ToolDef` objects passed directly without manual registry instantiation.
+*   `state`: Optional state object passed to tools declaring a `state` parameter during execution.
 *   `max_iterations`: Maximum number of tool-calling iterations before raising `LoopLimitError` (default: `12`).
 *   `tool_config`: Optional `ToolExecutionConfig` controlling per-iteration tool concurrency and per-tool timeout.
 *   `context_items`: Optional provenance-tracked context items rendered before the user objective inside the cacheable prefix.
@@ -93,8 +95,9 @@ async def agent_loop_stream(
     *,
     system: str,
     context: str,
-    registry: ToolRegistry,
-    tool_names: list[str],
+    registry: ToolRegistry | None = None,
+    tool_names: Sequence[str] | None = None,
+    tools: Sequence[Callable[..., Any] | ToolDef] | None = None,
     state: Any = None,
     max_iterations: int = 12,
     tool_config: ToolExecutionConfig | None = None,

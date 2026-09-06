@@ -64,10 +64,13 @@ async def test_my_agent():
 
     registry = ToolRegistry()
 
-    @registry.tool(
-        "greet", "Greet.", {"type": "object", "properties": {"name": {"type": "string"}}}
-    )
-    def greet(*, name: str, state) -> str:
+    @registry.tool
+    def greet(name: str) -> str:
+        """Greet someone.
+
+        Args:
+            name: The person to greet.
+        """
         return f"Hello {name}!"
 
     result = await agent_loop(
@@ -75,7 +78,6 @@ async def test_my_agent():
         system="Role prompt",
         context="Greet Alice",
         registry=registry,
-        tool_names=["greet"],
     )
 
     assert result == "Done greeting Alice."

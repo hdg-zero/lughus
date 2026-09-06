@@ -13,6 +13,7 @@ from .engine.tools import (
     ToolEffect,
     ToolRegistry,
     ToolRisk,
+    tool,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "ToolRegistry",
     "ToolRisk",
     "register_code_interpreter",
+    "tool",
 ]

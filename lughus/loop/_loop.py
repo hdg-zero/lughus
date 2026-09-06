@@ -4,7 +4,7 @@ import asyncio
 import contextvars
 import logging
 import time
-from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
@@ -14,7 +14,7 @@ from opentelemetry.trace import StatusCode
 from ..core._defaults import DEFAULT_MAX_ITERATIONS
 from ..core.artifacts import ArtifactStore
 from ..core.errors import LoopLimitError
-from ..engine.tools import ToolRegistry
+from ..engine.tools import ToolDef, ToolRegistry
 from ..infra.retry import retry_budget
 from ..infra.telemetry import meter, tracer
 from ._config import (
@@ -302,13 +302,32 @@ async def _loop_session(
             await owned_runtime.close()
 
 
+def _normalize_registry_and_tools(
+    registry: ToolRegistry | None,
+    tool_names: Sequence[str] | None,
+    tools: Sequence[Callable[..., Any] | ToolDef] | ToolRegistry | None,
+) -> tuple[ToolRegistry, list[str]]:
+    """Normalize registry, tool_names, and tools inputs into a ToolRegistry and list of names."""
+    if registry is None:
+        if isinstance(tools, ToolRegistry):
+            registry = tools
+        elif tools is not None:
+            registry = ToolRegistry(tools)
+        else:
+            registry = ToolRegistry()
+
+    names = list(tool_names) if tool_names is not None else list(registry.names())
+    return registry, names
+
+
 async def agent_loop(
     llm: GenerateLLM,
     *,
     system: str,
     context: str,
-    registry: ToolRegistry,
-    tool_names: list[str],
+    registry: ToolRegistry | None = None,
+    tool_names: Sequence[str] | None = None,
+    tools: Sequence[Callable[..., Any] | ToolDef] | ToolRegistry | None = None,
     state: Any = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     tool_config: ToolExecutionConfig | None = None,
@@ -320,7 +339,11 @@ async def agent_loop(
     metadata (``iterations``, ``elapsed``, ``prompt_tokens``,
     ``completion_tokens``, ``cached_tokens``, ``total_tokens``).
     """
-    async with _loop_session(registry, tool_names, tool_config) as (cfg, effective_tool_names):
+    effective_registry, effective_names = _normalize_registry_and_tools(registry, tool_names, tools)
+    async with _loop_session(effective_registry, effective_names, tool_config) as (
+        cfg,
+        effective_tool_names,
+    ):
         with tracer.start_as_current_span("agent_loop") as loop_span:
             with retry_budget(getattr(llm, "retry_max_elapsed", None)):
                 loop_span.set_attribute("gen_ai.system", "litellm")
@@ -328,10 +351,10 @@ async def agent_loop(
                 loop_span.set_attribute("gen_ai.operation.name", "chat")
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
 
-                history, tools, prefix_len = _prepare_loop(
+                history, tools_payload, prefix_len = _prepare_loop(
                     system,
                     context,
-                    registry,
+                    effective_registry,
                     effective_tool_names,
                     cfg,
                     context_items,
@@ -349,7 +372,7 @@ async def agent_loop(
                         llm_span.set_attribute("lughus.iteration", iteration + 1)
                         response = await llm.generate(
                             messages=history.view,
-                            tools=tools,
+                            tools=tools_payload,
                         )
 
                         if hasattr(response, "usage") and response.usage:
@@ -386,7 +409,7 @@ async def agent_loop(
                     await _run_tool_calls(
                         tc_inputs,
                         history,
-                        registry,
+                        effective_registry,
                         state,
                         cfg,
                         assistant_tool_payload,
@@ -402,8 +425,9 @@ async def agent_loop_stream(
     *,
     system: str,
     context: str,
-    registry: ToolRegistry,
-    tool_names: list[str],
+    registry: ToolRegistry | None = None,
+    tool_names: Sequence[str] | None = None,
+    tools: Sequence[Callable[..., Any] | ToolDef] | ToolRegistry | None = None,
     state: Any = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     tool_config: ToolExecutionConfig | None = None,
@@ -420,7 +444,11 @@ async def agent_loop_stream(
     if mode_str not in {"buffered", "live"}:
         raise ValueError("streaming_mode must be 'buffered' or 'live'")
     streaming_mode_normalized = mode_str
-    async with _loop_session(registry, tool_names, tool_config) as (cfg, effective_tool_names):
+    effective_registry, effective_names = _normalize_registry_and_tools(registry, tool_names, tools)
+    async with _loop_session(effective_registry, effective_names, tool_config) as (
+        cfg,
+        effective_tool_names,
+    ):
         with tracer.start_as_current_span("agent_loop") as loop_span:
             with retry_budget(getattr(llm, "retry_max_elapsed", None)):
                 loop_span.set_attribute("gen_ai.system", "litellm")
@@ -429,10 +457,10 @@ async def agent_loop_stream(
                 loop_span.set_attribute("lughus.max_iterations", max_iterations)
                 loop_span.set_attribute("lughus.streaming", True)
 
-                history, tools, prefix_len = _prepare_loop(
+                history, tools_payload, prefix_len = _prepare_loop(
                     system,
                     context,
-                    registry,
+                    effective_registry,
                     effective_tool_names,
                     cfg,
                     context_items,
@@ -452,7 +480,7 @@ async def agent_loop_stream(
                         llm_span.set_attribute("gen_ai.request.model", llm.model)
                         llm_span.set_attribute("lughus.iteration", iteration + 1)
 
-                        stream = await llm.astream(messages=history.view, tools=tools)
+                        stream = await llm.astream(messages=history.view, tools=tools_payload)
                         timeout = getattr(llm, "timeout", None)
                         async for chunk in _stream_with_timeout(stream, timeout):
                             _usage_recorded = False
@@ -530,7 +558,7 @@ async def agent_loop_stream(
                     await _run_tool_calls(
                         tc_inputs,
                         history,
-                        registry,
+                        effective_registry,
                         state,
                         cfg,
                         assistant_tool_payload,

@@ -6,6 +6,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-09-05
+
+### Added
+- **Pydantic-First DX & Automatic Schema Inference**: Introduced `lughus.engine.schema` with `infer_tool_schema`, automatically generating OpenAI Draft 2020-12 compatible JSON Schemas from Python 3.11+ type hints (`str`, `int`, `float`, `bool`, `list[T]`, `dict[str, T]`, `Literal`, `Union`, `Optional`, `BaseModel`, `Field(description=...)`) via Pydantic `TypeAdapter` and `create_model`.
+- **Automatic Docstring Extraction**: Added `parse_docstring` extracting overall tool descriptions and per-parameter documentation from standard Google-style (`Args:`) and Sphinx/reST-style (`:param x:`) docstrings directly into tool declarations.
+- **Standalone `@tool` Decorator**: Added `@tool` decorator in `lughus` and `lughus.tools` allowing tools to be defined anywhere in a codebase without requiring an existing `ToolRegistry` instance.
+- **Direct Callable Tools**: Decorated tool functions remain directly callable in standard Python code and unit tests while carrying `ToolDef` metadata.
+- **Native Pydantic Output Support**: Added automatic serialization of Pydantic `BaseModel` instances (`model_dump_json()`) and dataclasses (`asdict()`) returned by tools, with schema derivation and validation via `output_model`.
+- **Bulk Registry Initialization & Registration**: Added `ToolRegistry(tools=[...])` and `ToolRegistry.register(tool_or_fn)` for flexible composition of pre-defined tools.
+- **Per-Tool Timeout Override**: Added optional `timeout` attribute to `ToolDef` allowing tools to specify individual execution timeouts overriding global defaults.
+- **Simplified `agent_loop` & `agent_loop_stream` Ergonomics**: `tool_names` is now optional (defaults to all tools in the registry), and `tools=[...]` sequence can be passed directly instead of requiring manual `ToolRegistry` instantiation.
+- **Native Stdio & SSE MCP Transports**: Added `StdioMCPClient` (subprocess JSON-RPC 2.0 transport over stdin/stdout) and `SSEMCPClient` (remote HTTP SSE event streaming with JSON-RPC POST dispatch via `httpx`) in `lughus.interfaces.mcp`, enabling out-of-the-box connection to local or remote MCP servers without external client libraries.
+- **MCP Tool Bridge**: Added `descriptor_to_tool_def` and `as_tools` on `MCPAdapter` to automatically convert MCP tool descriptors into native Lughus `ToolDef` instances with custom governance overrides and no artificial `state` parameters.
+- **Smart MCP Tool Caching**: Replaced systematic synchronous `list_tools()` calls on every tool invocation with session-level caching (`cache_tools: bool = True` in `MCPServerConfig`), eliminating remote latency drift while preserving `invalidate()` hooks and event-driven updates via `notifications/tools/list_changed`.
+
+### Changed
+- **Intelligent Optional `state` Parameter**: Tools are no longer required to declare a `state` or `**kwargs` argument in their signature. `state` is only injected at runtime when explicitly present in the callable signature.
+- **Polymorphic `@registry.tool` API**: `@registry.tool` now supports bare usage (`@registry.tool`), keyword-configured usage (`@registry.tool(risk=...)`), and legacy positional syntax (`@registry.tool(name, desc, schema)`).
+- **CLI Starter Template**: Updated `lughus create` scaffolded `tools.py` to use the modern Pydantic-first `@registry.tool` syntax without boilerplate JSON Schema dicts or artificial `state` parameters.
+
 ## [0.17.0] — 2026-09-04
 
 ### Added

@@ -24,8 +24,12 @@ Every tool registered in `ToolRegistry` contains formal execution metadata:
 | `risk` | `ToolRisk` | `ToolRisk` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, `UNKNOWN`) | `ToolRisk.UNKNOWN` |
 | `required_scopes` | `frozenset[str]` | Required permission scopes for authorization | `frozenset()` |
 | `idempotent` | `bool` | Explicit business guarantee for retry safety | `False` |
-| `requires_approval` | `bool` | Flag requiring human approval prior to dispatch | `False` |
 | `concurrency` | `ConcurrencyMode` | `PARALLEL_SAFE`, `SERIAL_PER_TOOL`, `SERIAL_PER_RESOURCE`, or `GLOBAL_EXCLUSIVE` | `PARALLEL_SAFE` |
+| `takes_state` | `bool` | Flag indicating if callable requests `state` argument | `False` |
+| `output_model` | `type[BaseModel] \| None` | Optional Pydantic model for structured output validation | `None` |
+| `timeout` | `float \| None` | Optional per-tool execution timeout in seconds | `None` |
+
+> **Schema Inference:** When defining tools via `@tool` or `@registry.tool`, `parameters_schema` is automatically derived from Python 3.11+ type hints (via Pydantic Draft 2020-12 `TypeAdapter`), and `state` is only injected at runtime if explicitly present in the callable signature.
 
 ---
 

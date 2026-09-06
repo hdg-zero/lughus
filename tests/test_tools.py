@@ -48,12 +48,14 @@ def test_duplicate_tool_name_raises(registry: ToolRegistry) -> None:
         registry.tool("same", "Second.", {"type": "object", "properties": {}})
 
 
-def test_tool_without_state_raises(registry: ToolRegistry) -> None:
-    with pytest.raises(ToolValidationError, match="state"):
+def test_tool_without_state_succeeds(registry: ToolRegistry) -> None:
+    @registry.tool("no_state", "No state needed.", {"type": "object", "properties": {}})
+    def no_state() -> str:
+        return "ok"
 
-        @registry.tool("bad_signature", "Missing state.", {"type": "object", "properties": {}})
-        def bad_signature() -> str:
-            return "bad"
+    fn = registry.get_fn("no_state")
+    assert fn is not None
+    assert fn() == "ok"
 
 
 def test_tool_with_positional_only_parameter_raises(registry: ToolRegistry) -> None:
