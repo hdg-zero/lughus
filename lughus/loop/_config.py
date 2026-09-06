@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
@@ -70,6 +71,9 @@ class ToolExecutionConfig:
     approval_store: ApprovalStore | None = field(default=None, repr=False, compare=False)
     idempotency_store: IdempotencyStore | None = field(default=None, repr=False, compare=False)
     budget: Any = field(default=None, repr=False, compare=False)
+    on_tool_event: Callable[[dict[str, Any]], Awaitable[None]] | None = field(
+        default=None, repr=False, compare=False
+    )
     run_id: str = "untracked"
     artifact_projection: bool = False
     artifact_projection_threshold: int = DEFAULT_ARTIFACT_PROJECTION_THRESHOLD

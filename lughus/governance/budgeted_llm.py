@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import AsyncIterator, Mapping, Sequence
+from contextlib import aclosing
 from typing import TYPE_CHECKING, Any
 
 from ..core.domain import _extract_usage
@@ -26,6 +26,7 @@ class BudgetedLLM:
         self.inner, self.ledger = inner, ledger
         self.model = inner.model
         self.timeout = getattr(inner, "timeout", None)
+        self.retry_max_elapsed = getattr(inner, "retry_max_elapsed", None)
 
     async def generate(
         self,
@@ -53,23 +54,17 @@ class BudgetedLLM:
         async def _inner() -> AsyncIterator[Any]:
             reservation = await self.ledger.reserve(BudgetAmount(model_calls=1))
             actual = BudgetAmount(model_calls=1)
-            chunks_emitted = 0
             try:
                 inner_stream = await self.inner.astream(messages=messages, tools=tools)
-                async for chunk in inner_stream:
-                    usage = _usage(chunk)
-                    if usage.tokens:
-                        actual = usage
-                    chunks_emitted += 1
-                    yield chunk
+                async with aclosing(inner_stream):
+                    async for chunk in inner_stream:
+                        usage = _usage(chunk)
+                        if usage.tokens:
+                            actual = usage
+                        yield chunk
+            finally:
+                # One attempted model request is charged on every exit path.
+                # Provider usage, when available, is cumulative, not per delta.
                 await self.ledger.settle(reservation, actual)
-            except (GeneratorExit, asyncio.CancelledError):
-                if chunks_emitted > 0:
-                    await self.ledger.settle(reservation, actual)
-                else:
-                    await self.ledger.release(reservation)
-            except BaseException:
-                await self.ledger.release(reservation)
-                raise
 
         return _inner()

@@ -37,6 +37,12 @@ class AgentRuntime:
     budget: BudgetLedger
     context: ContextManager
 
+    def __post_init__(self) -> None:
+        if self.run_store is not self.event_store or self.run_store is not self.checkpoint_store:
+            raise ValueError(
+                "Run, event and checkpoint stores must share one transactional backend"
+            )
+
     def tool_config(self, *, run_id: str, principal: Principal) -> ToolExecutionConfig:
         """Create a ToolExecutionConfig bound to this runtime's governance and execution services.
 

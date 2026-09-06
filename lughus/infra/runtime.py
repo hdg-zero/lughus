@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 from collections.abc import AsyncIterator, Callable
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from functools import partial
 from typing import Any
@@ -59,6 +60,11 @@ class ExecutionRuntime:
         self._global_exclusive_lock = asyncio.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._closed = False
+        self._sync_capacity = asyncio.Semaphore(self.config.max_sync_workers)
+        self._active = 0
+        self._writers = 0
+        self._exclusive = False
+        self._gate = asyncio.Condition()
 
     def _get_executor(self) -> ThreadPoolExecutor:
         if self._executor is None:
@@ -105,8 +111,48 @@ class ExecutionRuntime:
 
     async def run_sync(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
         loop = self._bind()
-        context_call = partial(fn, *args, **kwargs)
-        return await loop.run_in_executor(self._get_executor(), context_call)
+        await self._sync_capacity.acquire()
+        context_call = partial(contextvars.copy_context().run, partial(fn, *args, **kwargs))
+        try:
+            future = loop.run_in_executor(self._get_executor(), context_call)
+        except BaseException:
+            self._sync_capacity.release()
+            raise
+        future.add_done_callback(lambda _: self._sync_capacity.release())
+        try:
+            return await asyncio.shield(future)
+        except asyncio.CancelledError:
+            # A Python thread cannot be killed. Keep caller-owned effect locks
+            # until it actually stops, rather than allowing overlapping writes.
+            with suppress(Exception):
+                await asyncio.shield(future)
+            raise
+
+    @asynccontextmanager
+    async def execution_slot(self, *, exclusive: bool = False) -> AsyncIterator[None]:
+        """Writer-preferring gate: exclusive tools exclude *all* other tools."""
+        self._bind()
+        async with self._gate:
+            if exclusive:
+                self._writers += 1
+                try:
+                    await self._gate.wait_for(lambda: not self._exclusive and self._active == 0)
+                    self._exclusive = True
+                finally:
+                    self._writers -= 1
+                    self._gate.notify_all()
+            else:
+                await self._gate.wait_for(lambda: not self._exclusive and self._writers == 0)
+                self._active += 1
+        try:
+            yield
+        finally:
+            async with self._gate:
+                if exclusive:
+                    self._exclusive = False
+                else:
+                    self._active -= 1
+                self._gate.notify_all()
 
     @asynccontextmanager
     async def resource_slot(self, key: str) -> AsyncIterator[None]:

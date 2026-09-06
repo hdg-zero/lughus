@@ -94,7 +94,7 @@ def _setup_artifact_projection(
     """
     if not cfg.artifact_projection:
         return cfg
-    store = ArtifactStore()
+    store = cfg.artifact_store if cfg.artifact_store is not None else ArtifactStore()
 
     if _FETCH_ARTIFACT_TOOL not in registry:
         registry.tool(
@@ -241,15 +241,20 @@ async def _stream_with_timeout(
     """Yield stream chunks, bounding the wait for each next chunk."""
     normalized_timeout = timeout if timeout and timeout > 0 else None
     iterator = stream.__aiter__()
-    while True:
-        try:
-            if normalized_timeout:
-                chunk = await asyncio.wait_for(iterator.__anext__(), normalized_timeout)
-            else:
-                chunk = await iterator.__anext__()
-        except StopAsyncIteration:
-            return
-        yield chunk
+    try:
+        while True:
+            try:
+                if normalized_timeout:
+                    chunk = await asyncio.wait_for(iterator.__anext__(), normalized_timeout)
+                else:
+                    chunk = await iterator.__anext__()
+            except StopAsyncIteration:
+                return
+            yield chunk
+    finally:
+        close = getattr(iterator, "aclose", None)
+        if close is not None:
+            await close()
 
 
 def _resolve_tool_config(

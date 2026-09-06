@@ -529,17 +529,18 @@ async def _dispatch_tool_with_locks(
             await cfg.approval_store.consume(approval_to_consume.request_id)
 
         mode = tool.concurrency
-        if mode == ConcurrencyMode.GLOBAL_EXCLUSIVE:
-            lock_ctx: Any = _runtime_of(cfg).global_exclusive_lock
-        elif mode == ConcurrencyMode.SERIAL_PER_TOOL:
-            lock_ctx = _runtime_of(cfg).resource_slot(tool.name)
+        if mode == ConcurrencyMode.SERIAL_PER_TOOL:
+            lock_ctx: Any = _runtime_of(cfg).resource_slot(tool.name)
         elif mode == ConcurrencyMode.SERIAL_PER_RESOURCE:
             rk = f"{tool.name}:{tool.resource_key(args)}"
             lock_ctx = _runtime_of(cfg).resource_slot(rk)
         else:
             lock_ctx = contextlib.nullcontext()
 
-        async with lock_ctx:
+        async with (
+            _runtime_of(cfg).execution_slot(exclusive=mode == ConcurrencyMode.GLOBAL_EXCLUSIVE),
+            lock_ctx,
+        ):
             output = await _invoke_tool_callable(
                 fn,
                 tool.is_async,
@@ -645,6 +646,16 @@ async def _execute_single_tool(
         {"type": "tool_start", "tool_call_id": tc_id, "tool_name": name, "arguments": raw_args}
     )
 
+    if cfg.on_tool_event is not None:
+        await cfg.on_tool_event(
+            {
+                "type": "tool_start",
+                "tool_call_id": tc_id,
+                "tool_name": name,
+                "arguments": raw_args,
+            }
+        )
+
     tool = registry.get_tool(name)
     if tool is None:
         unknown_exc = ToolValidationError(f"Unknown tool: {name}")
@@ -724,7 +735,19 @@ async def _execute_tools(
 
     async def _run(tc_id: str, name: str, raw_args: str) -> tuple[str, str]:
         async with semaphore:
-            return await _execute_single_tool(tc_id, name, raw_args, registry, state, cfg, timeout)
+            result = await _execute_single_tool(
+                tc_id, name, raw_args, registry, state, cfg, timeout
+            )
+            if cfg.on_tool_event is not None:
+                await cfg.on_tool_event(
+                    {
+                        "type": "tool_result",
+                        "tool_call_id": tc_id,
+                        "tool_name": name,
+                        "output": result[1],
+                    }
+                )
+            return result
 
     preflight_approvals = await _preflight_check_approvals(tool_calls, registry, cfg)
     if preflight_approvals:

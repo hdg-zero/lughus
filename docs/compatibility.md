@@ -1,11 +1,6 @@
-> [← Documentation index](index.md)
+# Pre-1.0 compatibility policy
 
-# Compatibility Policy
-
-Lughus follows Semantic Versioning 2.0 (SemVer).
-
-- **Patch releases (`x.y.Z`)**: Bug fixes, security corrections, and non-breaking optimizations.
-- **Minor releases (`x.Y.0`)**: Backward-compatible additive features and contract extensions.
-- **Major releases (`X.0.0`)**: Breaking changes or deprecation removals.
-- **Event Schemas**: Event schemas are independently versioned via `SCHEMA_VERSION`. Wire additions remain backward-compatible.
-- **Security Updates**: Security fixes may reject previously accepted unsafe configurations to protect production systems.
+Lughus is beta. Minor releases before 1.0 may remove or redesign APIs, wire
+contracts and storage formats. No compatibility shims are maintained. Pin your
+minor version and validate upgrades against your application tests. Release notes
+identify breaking changes. A stable compatibility policy will be defined for 1.0.
