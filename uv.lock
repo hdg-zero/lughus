@@ -1312,12 +1312,14 @@ wheels = [
 
 [[package]]
 name = "lughus"
-version = "0.17.0"
+version = "0.18.0"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "jsonschema" },
     { name = "litellm" },
     { name = "opentelemetry-api" },
+    { name = "pydantic" },
     { name = "python-dotenv" },
 ]
 
@@ -1363,6 +1365,7 @@ server = [
 requires-dist = [
     { name = "a2a-sdk", marker = "extra == 'server'", specifier = ">=0.3.0,<1.0" },
     { name = "fastapi", marker = "extra == 'server'" },
+    { name = "httpx", specifier = ">=0.25" },
     { name = "jsonschema", specifier = ">=4.0" },
     { name = "litellm", specifier = ">=1.0,<2.0" },
     { name = "lughus", extras = ["all"], marker = "extra == 'dev'" },
@@ -1372,6 +1375,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "extra == 'otel'", specifier = ">=1.20" },
     { name = "opentelemetry-sdk", marker = "extra == 'otel'", specifier = ">=1.20" },
     { name = "pre-commit", marker = "extra == 'dev'" },
+    { name = "pydantic", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
