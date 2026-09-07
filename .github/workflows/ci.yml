@@ -132,11 +132,11 @@ jobs:
       - name: Generate base branch report
         run: |
           git fetch origin ${{ github.base_ref }} --depth=1
-          git checkout FETCH_HEAD -- . 2>/dev/null || true
+          git checkout FETCH_HEAD
           uv sync --all-extras --dev --locked
           mkdir -p reports/base
           uv run pytest tests/ -q --junitxml=reports/base/junit.xml || true
-          git checkout ${{ github.sha }} -- .
+          git checkout ${{ github.sha }}
 
       - name: Run differential comparison
         run: python scripts/diff_junit.py reports/base/junit.xml reports/head/junit.xml

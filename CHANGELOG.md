@@ -6,6 +6,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-07
+
+### Breaking
+- Unify governed run/stream identity, policy, budget, approval and event lifecycle.
+- Governed entry points reject caller overrides of their tool configuration.
+- GLOBAL_EXCLUSIVE excludes all tool execution, not only other exclusive tools.
+- Sync cancellation drains the worker before releasing effect locks.
+- Pre-1.0 minor releases are explicitly allowed to break compatibility.
+
+### Reliability
+- Bound streaming queues and threadpool submissions; preserve contextvars.
+- Persist tool events during execution, not only at loop completion.
+- Propagate streaming cancellation and settle observed provider usage.
+- Respect injected artifact stores and close provider streams on exit.
+
+### Fixed
+- Fixed CI differential check checkout by detaching to base ref instead of tracking over PR tree.
+- Added safety timeouts in runtime exclusion tests to prevent deadlock on contract failure.
+
+
 ## [0.18.0] — 2026-09-05
 
 ### Added

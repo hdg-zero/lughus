@@ -190,6 +190,11 @@ All configuration is managed through environment variables loaded automatically 
 - [CHANGELOG](CHANGELOG.md)
 - [CONTRIBUTING](CONTRIBUTING.md)
 
+## Governed execution
+
+See [the unified run/stream guide](docs/guides/governed-execution.md). Before 1.0,
+minor releases may break APIs; pin and test upgrades.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

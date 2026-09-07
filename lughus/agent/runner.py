@@ -1,234 +1,211 @@
-"""Event-oriented unified runner with optional governance."""
+"""One lifecycle and governance pipeline for blocking and streamed execution."""
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Sequence
-from typing import TYPE_CHECKING, Any
+import asyncio
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import aclosing, suppress
+from dataclasses import replace
+from typing import Any
 
 from ..core.domain import EventVisibility, Run, RunEvent, RunStatus
+from ..core.errors import ApprovalRequiredGroup, RunSuspended
 from ..core.event_stream import EventSink, InMemoryEventSink
+from ..governance.budgeted_llm import BudgetedLLM
 from ..loop import LoopResult, agent_loop, agent_loop_stream
-
-if TYPE_CHECKING:
-    from ..core.context import ContextItem
-    from ..engine.tools import ToolRegistry
-    from ..governance.policy import Principal
+from ..persistence.coordinator import RunCoordinator
+from ..persistence.store import RunUnitOfWork
+from .application import AgentRuntime
 
 
 class GovernedAgentRunner:
-    """Unified runner with optional governance.
+    """Own run lifecycle, not infrastructure. The supplied runtime is caller-owned.
 
-    Without an *AgentRuntime* the runner wraps :func:`agent_loop` /
-    :func:`agent_loop_stream` with lightweight event emission.
-
-    With an *AgentRuntime* the full governance pipeline is applied:
-    run coordination, budget tracking, policy enforcement, approval gates,
-    idempotent execution, tool-event persistence and checkpointing.
+    Both entry points enforce the same identity, policy, approval and budget
+    configuration. Streaming uses a bounded queue; closing the iterator cancels
+    its producer. Public text deltas are provisional, not persisted checkpoints.
     """
 
     def __init__(
         self,
-        runtime: Any = None,
+        runtime: AgentRuntime | None = None,
         *,
         event_sink: EventSink | None = None,
+        stream_buffer: int = 64,
     ) -> None:
+        if stream_buffer <= 0:
+            raise ValueError("stream_buffer must be positive")
         self.runtime = runtime
-        if event_sink is not None:
-            self.events = event_sink
-        elif runtime is not None:
-            self.events = runtime.events
-        else:
-            self.events = InMemoryEventSink()
-
-    # ── public API ───────────────────────────────────────────────────
+        self.events = (
+            event_sink
+            if event_sink is not None
+            else (runtime.events if runtime is not None else InMemoryEventSink())
+        )
+        self.stream_buffer = stream_buffer
 
     async def run(self, llm: Any, **kwargs: Any) -> LoopResult:
-        """Execute an agent loop, optionally governed.
-
-        When *self.runtime* is ``None`` all keyword arguments are forwarded
-        directly to :func:`agent_loop`.  When a runtime is present the
-        governed path is taken and the caller must supply *objective*,
-        *principal* and *registry* at minimum.
-        """
-        if self.runtime is not None:
-            return await self._governed_run(llm, **kwargs)
-        return await self._simple_run(llm, **kwargs)
+        return await self._execute(llm, streaming=False, deliver=None, **kwargs)
 
     async def stream(
-        self, llm: Any, *, streaming_mode: str = "live", **kwargs: Any
-    ) -> AsyncIterator[RunEvent]:
-        """Stream agent loop events (ungoverned path only)."""
-        run = Run(objective=kwargs.get("context", "agent run"), status=RunStatus.RUNNING)
-        sequence = 0
-        event = RunEvent("run.started", run.run_id, sequence, visibility=EventVisibility.PUBLIC)
-        await self.events.append(event)
-        yield event
-        try:
-            async for item in agent_loop_stream(llm, streaming_mode=streaming_mode, **kwargs):
-                sequence += 1
-                if isinstance(item, LoopResult):
-                    event = RunEvent(
-                        "run.completed",
-                        run.run_id,
-                        sequence,
-                        {"text": str(item), "iterations": item.iterations},
-                        visibility=EventVisibility.PUBLIC,
-                    )
-                else:
-                    event = RunEvent(
-                        "text.delta",
-                        run.run_id,
-                        sequence,
-                        {"delta": item.content},
-                        visibility=EventVisibility.PUBLIC,
-                    )
-                await self.events.append(event)
-                yield event
-        except BaseException as exc:
-            sequence += 1
-            event = RunEvent(
-                "run.failed",
-                run.run_id,
-                sequence,
-                {"error_code": type(exc).__name__},
-                visibility=EventVisibility.PUBLIC,
-            )
-            await self.events.append(event)
-            yield event
-            raise
-
-    # ── simple (ungoverned) path ─────────────────────────────────────
-
-    async def _simple_run(self, llm: Any, **kwargs: Any) -> LoopResult:
-        run = Run(objective=kwargs.get("context", "agent run"), status=RunStatus.RUNNING)
-        sequence = 0
-        await self.events.append(RunEvent("run.started", run.run_id, sequence))
-        try:
-            result = await agent_loop(llm, **kwargs)
-        except BaseException as exc:
-            await self.events.append(
-                RunEvent(
-                    "run.failed",
-                    run.run_id,
-                    sequence + 1,
-                    {"error_code": type(exc).__name__},
-                    visibility=EventVisibility.INTERNAL,
-                )
-            )
-            raise
-        await self.events.append(
-            RunEvent(
-                "run.completed",
-                run.run_id,
-                sequence + 1,
-                {"text": str(result), "iterations": result.iterations},
-                visibility=EventVisibility.PUBLIC,
-            )
-        )
-        return result
-
-    # ── governed path ────────────────────────────────────────────────
-
-    async def _governed_run(
         self,
         llm: Any,
         *,
-        objective: str,
-        principal: Principal,
-        registry: ToolRegistry,
-        state: Any = None,
-        context_items: Sequence[ContextItem] = (),
-        max_iterations: int = 20,
-        system: str = "You are a helpful assistant.",
-    ) -> LoopResult:
-        from ..core.errors import ApprovalRequiredGroup, RunSuspended
-        from ..governance.budgeted_llm import BudgetedLLM
-        from ..loop._execute import collect_tool_events
-        from ..persistence.coordinator import RunCoordinator
-        from ..persistence.store import Checkpoint, RunUnitOfWork
+        streaming_mode: str = "live",
+        **kwargs: Any,
+    ) -> AsyncIterator[RunEvent]:
+        queue: asyncio.Queue[RunEvent | None] = asyncio.Queue(self.stream_buffer)
 
-        rt = self.runtime
-        if not isinstance(rt.run_store, RunUnitOfWork):
-            raise TypeError("AgentRuntime.run_store must implement RunUnitOfWork protocol")
-        coordinator = RunCoordinator(rt.run_store)
-        run = await coordinator.start(
-            objective, tenant_id=principal.tenant_id, principal_id=principal.subject
-        )
-        running = await coordinator.transition(run, RunStatus.RUNNING, "run.started")
-        tool_names = list(registry.names())
-
-        tool_events: list[dict[str, Any]] = []
-
-        def _on_tool_event(event: dict[str, Any]) -> None:
-            tool_events.append(event)
-
-        async def _persist_tool_checkpoint(state_payload: dict[str, Any]) -> None:
-            if not tool_events:
-                return
-            last_seq = -1
-            for te in tool_events:
-                seq = coordinator.next_sequence(run.run_id)
-                last_seq = seq
-                run_event = RunEvent(
-                    te["type"], run.run_id, seq, te, visibility=EventVisibility.AUDIT
+        async def produce() -> LoopResult:
+            try:
+                return await self._execute(
+                    llm,
+                    streaming=True,
+                    deliver=queue.put,
+                    streaming_mode=streaming_mode,
+                    **kwargs,
                 )
-                await rt.event_store.append(run_event)
-            checkpoint = Checkpoint(
-                run.run_id,
-                running.version,
-                last_seq,
-                state_payload,
-            )
-            await rt.checkpoint_store.save(checkpoint, expected_version=running.version)
+            finally:
+                # On consumer cancellation nobody remains to drain a full queue.
+                task = asyncio.current_task()
+                if task is None or not task.cancelling():
+                    await queue.put(None)
 
+        producer = asyncio.create_task(produce(), name="lughus-run")
         try:
-            with collect_tool_events(_on_tool_event):
-                result = await agent_loop(
-                    BudgetedLLM(llm, rt.budget),
-                    system=system,
-                    context=objective,
-                    registry=registry,
-                    tool_names=tool_names,
-                    state=state,
-                    max_iterations=max_iterations,
-                    tool_config=rt.tool_config(run_id=run.run_id, principal=principal),
-                    context_items=context_items,
+            while (event := await queue.get()) is not None:
+                yield event
+            await producer  # propagate provider failures and RunSuspended
+        finally:
+            if not producer.done():
+                producer.cancel()
+            with suppress(asyncio.CancelledError):
+                await producer
+
+    async def _execute(
+        self,
+        llm: Any,
+        *,
+        streaming: bool,
+        deliver: Callable[[RunEvent | None], Awaitable[None]] | None,
+        streaming_mode: str = "live",
+        **kwargs: Any,
+    ) -> LoopResult:
+        rt = self.runtime
+        coordinator: RunCoordinator | None = None
+        lock = asyncio.Lock()
+        sequence = 0
+        if rt is not None:
+            forbidden = {"tool_config", "context", "tools"} & kwargs.keys()
+            if forbidden:
+                raise ValueError(f"Governed execution owns these arguments: {sorted(forbidden)}")
+            principal = kwargs.pop("principal", None)
+            objective = kwargs.pop("objective", "")
+            if principal is None or not principal.subject or not principal.tenant_id:
+                raise ValueError("An authenticated principal is required")
+            if "registry" not in kwargs:
+                raise ValueError("Governed execution requires a registry")
+            if not isinstance(rt.run_store, RunUnitOfWork):
+                raise TypeError("run_store must implement RunUnitOfWork")
+            coordinator = RunCoordinator(rt.run_store)
+            run = await coordinator.start(
+                objective,
+                tenant_id=principal.tenant_id,
+                principal_id=principal.subject,
+            )
+            # Shared configured ledger is intentionally application-scoped.
+            llm = BudgetedLLM(llm, rt.budget)
+            kwargs["context"] = objective
+            kwargs.setdefault("system", "You are a helpful assistant.")
+            kwargs["context_items"] = rt.context.select(kwargs.get("context_items", ())).items
+            kwargs["tool_config"] = rt.tool_config(run_id=run.run_id, principal=principal)
+        else:
+            run = Run(objective=kwargs.get("context") or "agent run", status=RunStatus.RUNNING)
+
+        async def emit(
+            kind: str,
+            data: dict[str, Any],
+            *,
+            audit: bool = False,
+            terminal: RunStatus | None = None,
+        ) -> None:
+            nonlocal sequence, run
+            async with lock:
+                if coordinator is not None:
+                    if terminal is not None:
+                        run = await coordinator.transition(run, terminal, kind, data)
+                        assert rt is not None
+                        checkpoint = await rt.checkpoint_store.latest(run.run_id)
+                        if checkpoint is None:
+                            raise RuntimeError("Committed run checkpoint is missing")
+                        seq = checkpoint.sequence
+                    else:
+                        seq = coordinator.next_sequence(run.run_id)
+                else:
+                    seq, sequence = sequence, sequence + 1
+                event = RunEvent(
+                    kind,
+                    run.run_id,
+                    seq,
+                    data,
+                    visibility=EventVisibility.AUDIT if audit else EventVisibility.PUBLIC,
                 )
-        except ApprovalRequiredGroup as e:
-            # Persist any tool events that completed before the suspension.
-            await _persist_tool_checkpoint(
+                if rt is not None and terminal is None:
+                    await rt.event_store.append(event)
+                if self.events is not (rt.event_store if rt else None):
+                    await self.events.append(event)
+                if deliver is not None:
+                    await deliver(event)
+
+        async def tool_event(event: dict[str, Any]) -> None:
+            await emit(str(event["type"]), event, audit=True)
+
+        if rt is not None:
+            kwargs["tool_config"] = replace(kwargs["tool_config"], on_tool_event=tool_event)
+        try:
+            await emit("run.started", {}, terminal=RunStatus.RUNNING if rt else None)
+            result: LoopResult | None = None
+            if streaming:
+                async with aclosing(
+                    agent_loop_stream(
+                        llm,
+                        streaming_mode=streaming_mode,
+                        **kwargs,
+                    )
+                ) as stream:
+                    async for item in stream:
+                        if isinstance(item, LoopResult):
+                            result = item
+                        else:
+                            await emit("text.delta", {"delta": item.content})
+            else:
+                result = await agent_loop(llm, **kwargs)
+            if result is None:
+                raise RuntimeError("Agent stream ended without a final result")
+            await emit(
+                "run.completed",
                 {
-                    "status": RunStatus.WAITING.value,
-                    "pending_approvals": [r.request_id for r in e.requests],
-                }
+                    "text": str(result),
+                    "iterations": result.iterations,
+                    "tokens": result.total_tokens,
+                },
+                terminal=RunStatus.COMPLETED,
             )
-            # Transition to WAITING — the run is suspended, not failed.
-            await coordinator.transition(
-                running,
-                RunStatus.WAITING,
+            return result
+        except ApprovalRequiredGroup as exc:
+            await emit(
                 "run.waiting",
-                {"pending_approvals": [r.request_id for r in e.requests]},
+                {"pending_approvals": [request.request_id for request in exc.requests]},
+                terminal=RunStatus.WAITING,
             )
-            raise RunSuspended(run.run_id, e.requests) from e
-        except BaseException as exc:
-            await coordinator.transition(
-                running, RunStatus.FAILED, "run.failed", {"error_code": type(exc).__name__}
-            )
+            raise RunSuspended(run.run_id, exc.requests) from exc
+        except asyncio.CancelledError:
+            # Persist cancellation without blocking on an abandoned stream queue.
+            deliver = None
+            await emit("run.cancelled", {}, terminal=RunStatus.CANCELLED)
             raise
-
-        # Persist completed tool events and post-execution checkpoint.
-        await _persist_tool_checkpoint(
-            {
-                "status": running.status.value,
-                "iterations": result.iterations,
-                "total_tokens": result.total_tokens,
-            }
-        )
-
-        await coordinator.transition(
-            running,
-            RunStatus.COMPLETED,
-            "run.completed",
-            {"iterations": result.iterations, "tokens": result.total_tokens},
-        )
-        return result
+        except Exception as exc:
+            if not run.status.terminal:
+                await emit(
+                    "run.failed", {"error_code": type(exc).__name__}, terminal=RunStatus.FAILED
+                )
+            raise
