@@ -21,6 +21,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Propagate streaming cancellation and settle observed provider usage.
 - Respect injected artifact stores and close provider streams on exit.
 
+### Fixed
+- Fixed CI differential check checkout by detaching to base ref instead of tracking over PR tree.
+- Added safety timeouts in runtime exclusion tests to prevent deadlock on contract failure.
+
 
 ## [0.18.0] — 2026-09-05
 

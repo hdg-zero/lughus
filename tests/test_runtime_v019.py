@@ -33,11 +33,13 @@ class Runtime019Tests(unittest.IsolatedAsyncioTestCase):
 
         one = asyncio.create_task(exclusive())
         two = asyncio.create_task(parallel())
-        await entered.wait()
+        async with asyncio.timeout(5):
+            await entered.wait()
         await asyncio.sleep(0)
         self.assertEqual(seen, [])
         release.set()
-        await asyncio.gather(one, two)
+        async with asyncio.timeout(5):
+            await asyncio.gather(one, two)
         self.assertEqual(seen, ["exclusive", "parallel"])
         await runtime.close()
 
