@@ -84,6 +84,10 @@ from .infra.config import BaseSettings
 #   * several modules pull in asyncio (~50 ms) transitively via budget,
 #     persistence, event_stream, etc.
 _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
+    "A2AClient": (".interfaces.a2a", None),
+    "ContainerPythonBackend": (".engine.interpreter", None),
+    "ContainerConfig": (".engine.interpreter", None),
+    "FileArtifactStore": (".core.binary_artifacts", None),
     # ── artifacts & context (core) ───────────────────────────────────
     "Artifact": (".core.events", None),
     "ArtifactStore": (".core.artifacts", None),
@@ -230,11 +234,15 @@ def __dir__() -> list[str]:
 
 __all__ = [
     "LLM",
+    "A2AClient",
     "AgentRuntime",
     "BaseGateway",
     "BaseSettings",
     "CompletionEvent",
     "ConcurrencyMode",
+    "ContainerConfig",
+    "ContainerPythonBackend",
+    "FileArtifactStore",
     "GovernedAgentRunner",
     "LoopResult",
     "LughusError",

@@ -3,21 +3,23 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import logging
+import os
 import shlex
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlsplit
 
 import httpx
 from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
 
 from ..core.domain import canonical_hash
+from ..core.errors import SafeToolError
 from ..engine.tools import ConcurrencyMode, ToolDef, ToolEffect, ToolRisk
+from ..infra.http import read_json, same_origin_url, sse_events
 
 __all__ = [
     "MCPAdapter",
@@ -67,8 +69,156 @@ class MCPServerConfig:
             raise ValueError("MCP limits must be positive")
 
 
-class StdioMCPClient:
-    """Native MCP client communicating with a local subprocess over stdio via JSON-RPC 2.0."""
+class _RPCClient:
+    """Shared bounded correlation, pagination and MCP result semantics."""
+
+    timeout: float
+    max_response_bytes: int
+    on_tools_changed: Callable[[], None] | None
+
+    def _init_rpc(self) -> None:
+        self._pending: dict[int, asyncio.Future[Any]] = {}
+        self._request_id = 0
+        self._failure: Exception | None = None
+        self._closed = False
+        self._initialized = False
+        self._lock = asyncio.Lock()
+
+    def _accept(self, message: Any) -> None:
+        if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
+            raise ValueError("Invalid MCP JSON-RPC response")
+        request_id = message.get("id")
+        if isinstance(request_id, int) and request_id in self._pending:
+            future = self._pending[request_id]
+            if not future.done():
+                if "error" in message:
+                    future.set_exception(RuntimeError("MCP protocol request failed"))
+                elif "result" in message:
+                    future.set_result(message["result"])
+                else:
+                    future.set_exception(ValueError("Missing MCP result"))
+        elif message.get("method") == "notifications/tools/list_changed":
+            if self.on_tools_changed is not None:
+                self.on_tools_changed()
+
+    def _fail(self, exc: Exception) -> None:
+        self._failure = exc
+        for future in self._pending.values():
+            if not future.done():
+                future.set_exception(exc)
+
+    async def _write(self, payload: Mapping[str, Any]) -> None:
+        raise NotImplementedError
+
+    async def _ensure_connected(self) -> None:
+        raise NotImplementedError
+
+    async def _send_request(self, method: str, params: Mapping[str, Any]) -> Any:
+        if self._closed or self._failure is not None:
+            raise ConnectionError("MCP transport is closed or failed") from self._failure
+        if len(self._pending) >= 128:
+            raise RuntimeError("Too many outstanding MCP requests")
+        self._request_id += 1
+        request_id = self._request_id
+        future = asyncio.get_running_loop().create_future()
+        self._pending[request_id] = future  # before POST/write: SSE may answer immediately
+        try:
+            async with asyncio.timeout(self.timeout):
+                await self._write(
+                    {"jsonrpc": "2.0", "id": request_id, "method": method, "params": dict(params)}
+                )
+                return await future
+        finally:
+            self._pending.pop(request_id, None)
+            if not future.done():
+                future.cancel()
+            elif not future.cancelled():
+                future.exception()  # observe a concurrent disconnect if writing failed
+
+    async def _initialize(self) -> None:
+        result = await self._send_request(
+            "initialize",
+            {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "lughus", "version": "0.20.0"},
+            },
+        )
+        if not isinstance(result, dict) or result.get("protocolVersion") != "2024-11-05":
+            raise ValueError("Unsupported MCP protocol version")
+        await self._write({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}})
+        self._initialized = True
+
+    async def list_tools(self) -> Sequence[MCPToolDescriptor]:
+        async with asyncio.timeout(self.timeout):
+            await self._ensure_connected()
+            result: list[MCPToolDescriptor] = []
+            cursor: str | None = None
+            seen: set[str] = set()
+            for _ in range(100):
+                page = await self._send_request("tools/list", {"cursor": cursor} if cursor else {})
+                if not isinstance(page, dict) or not isinstance(page.get("tools"), list):
+                    raise ValueError("Invalid MCP tools page")
+                for tool in page["tools"]:
+                    if not isinstance(tool, dict) or not isinstance(tool.get("name"), str):
+                        raise ValueError("Invalid MCP tool descriptor")
+                    result.append(
+                        MCPToolDescriptor(
+                            tool["name"],
+                            tool.get("description", ""),
+                            tool.get("inputSchema", {}),
+                            tool.get("outputSchema"),
+                        )
+                    )
+                    if len(result) > 10_000:
+                        raise ValueError("MCP discovery exceeds limit")
+                cursor = page.get("nextCursor")
+                if cursor is None:
+                    return tuple(result)
+                if not isinstance(cursor, str) or not cursor or cursor in seen:
+                    raise ValueError("Invalid or cyclic MCP pagination")
+                seen.add(cursor)
+            raise ValueError("MCP pagination exceeds limit")
+
+    async def call_tool(self, name: str, arguments: Mapping[str, Any]) -> Any:
+        async with asyncio.timeout(self.timeout):
+            await self._ensure_connected()
+            result = await self._send_request(
+                "tools/call", {"name": name, "arguments": dict(arguments)}
+            )
+        if not isinstance(result, dict):
+            raise ValueError("Invalid MCP tool result")
+        if result.get("isError") is True:
+            raise SafeToolError("mcp_tool_error", "Remote MCP tool reported failure")
+        if "structuredContent" in result:
+            return result["structuredContent"]
+        content = result.get("content", [])
+        if (
+            isinstance(content, list)
+            and content
+            and all(isinstance(item, dict) and item.get("type") == "text" for item in content)
+        ):
+            return "\n".join(str(item.get("text", "")) for item in content)
+        return content  # preserve multimodal blocks instead of silently dropping them
+
+    async def close(self) -> None:
+        self._closed = True
+        self._fail(ConnectionError("MCP client closed"))
+
+    async def __aenter__(self) -> _RPCClient:
+        try:
+            await self._ensure_connected()
+        except BaseException:
+            await self.close()
+            raise
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        await self.close()
+
+
+class StdioMCPClient(_RPCClient):
+    """Local trusted executable. This transport is not a sandbox."""
 
     def __init__(
         self,
@@ -78,194 +228,94 @@ class StdioMCPClient:
         env: Mapping[str, str] | None = None,
         origin: str | None = None,
         on_tools_changed: Callable[[], None] | None = None,
+        timeout: float = 30.0,
+        max_response_bytes: int = 2_000_000,
     ) -> None:
-        if isinstance(command, str):
-            self.command = tuple(shlex.split(command))
-        else:
-            self.command = tuple(command)
-
-        if not self.command:
-            raise ValueError("Command must not be empty")
-
-        cmd_name = Path(self.command[0]).name
-        self.origin = origin or f"stdio://local/{cmd_name}"
-        self.cwd = str(cwd) if cwd else None
-        self.env = env
+        self.command = tuple(shlex.split(command) if isinstance(command, str) else command)
+        if not self.command or timeout <= 0 or max_response_bytes <= 0:
+            raise ValueError("Command and positive transport limits are required")
+        self.origin = origin or f"stdio://local/{Path(self.command[0]).name}"
+        self.cwd = str(cwd) if cwd is not None else None
+        # Do not implicitly give a third-party subprocess the application's secrets.
+        self.env = dict(env) if env is not None else {"PATH": os.defpath}
+        self.timeout, self.max_response_bytes = timeout, max_response_bytes
         self.on_tools_changed = on_tools_changed
-
         self._process: asyncio.subprocess.Process | None = None
-        self._reader_task: asyncio.Task[None] | None = None
-        self._pending: dict[int, asyncio.Future[Any]] = {}
-        self._request_id = 0
-        self._initialized = False
-        self._lock = asyncio.Lock()
+        self._tasks: list[asyncio.Task[None]] = []
+        self._write_lock = asyncio.Lock()
+        self._init_rpc()
 
     async def _ensure_connected(self) -> None:
-        async with self._lock:
-            if self._process is None or self._process.returncode is not None:
+        async with asyncio.timeout(self.timeout), self._lock:
+            if self._closed or self._failure is not None:
+                raise ConnectionError("MCP transport unavailable") from self._failure
+            if self._process is None:
                 self._process = await asyncio.create_subprocess_exec(
                     *self.command,
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     cwd=self.cwd,
-                    env=dict(self.env) if self.env else None,
+                    env=self.env,
+                    limit=self.max_response_bytes,
                 )
-                self._reader_task = asyncio.create_task(self._read_loop())
-                self._initialized = False
-
+                self._tasks = [
+                    asyncio.create_task(self._read_loop()),
+                    asyncio.create_task(self._drain_stderr()),
+                ]
             if not self._initialized:
-                await self._send_request(
-                    "initialize",
-                    {
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": {},
-                        "clientInfo": {"name": "lughus", "version": "0.18.0"},
-                    },
-                )
-                await self._send_notification("notifications/initialized", {})
-                self._initialized = True
+                await self._initialize()
 
     async def _read_loop(self) -> None:
+        assert self._process is not None and self._process.stdout is not None
         try:
-            while self._process and self._process.stdout:
-                line = await self._process.stdout.readline()
-                if not line:
-                    break
-                text = line.decode("utf-8").strip()
-                if not text:
-                    continue
-                try:
-                    msg = json.loads(text)
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    continue
-
-                if "id" in msg and msg["id"] in self._pending:
-                    fut = self._pending.pop(msg["id"])
-                    if not fut.done():
-                        if msg.get("error"):
-                            err = msg["error"]
-                            msg_str = (
-                                err.get("message", "MCP error")
-                                if isinstance(err, dict)
-                                else str(err)
-                            )
-                            fut.set_exception(RuntimeError(f"MCP error: {msg_str}"))
-                        else:
-                            fut.set_result(msg.get("result"))
-                elif (
-                    msg.get("method") == "notifications/tools/list_changed"
-                    and self.on_tools_changed
-                ):
-                    self.on_tools_changed()
+            while line := await self._process.stdout.readline():
+                if len(line) > self.max_response_bytes:
+                    raise ValueError("MCP response exceeds size limit")
+                self._accept(json.loads(line))
         except asyncio.CancelledError:
-            pass
+            raise
+        except Exception as exc:  # noqa: BLE001
+            self._fail(exc)
         finally:
-            for fut in self._pending.values():
-                if not fut.done():
-                    fut.set_exception(ConnectionError("MCP stdio connection closed"))
-            self._pending.clear()
+            self._fail(self._failure or ConnectionError("MCP stdout closed"))
 
-    async def _send_request(self, method: str, params: Mapping[str, Any]) -> Any:
+    async def _drain_stderr(self) -> None:
+        assert self._process is not None and self._process.stderr is not None
+        while await self._process.stderr.read(8192):
+            pass  # drain without retaining unbounded diagnostics or logging secrets
+
+    async def _write(self, payload: Mapping[str, Any]) -> None:
         if self._process is None or self._process.stdin is None:
-            raise ConnectionError("StdioMCPClient is not connected")
-
-        loop = asyncio.get_running_loop()
-        fut: asyncio.Future[Any] = loop.create_future()
-        self._request_id += 1
-        req_id = self._request_id
-        self._pending[req_id] = fut
-
-        payload = (
-            json.dumps(
-                {
-                    "jsonrpc": "2.0",
-                    "id": req_id,
-                    "method": method,
-                    "params": params,
-                }
-            )
-            + "\n"
-        )
-        self._process.stdin.write(payload.encode("utf-8"))
-        await self._process.stdin.drain()
-        return await fut
-
-    async def _send_notification(self, method: str, params: Mapping[str, Any]) -> None:
-        if self._process is None or self._process.stdin is None:
-            raise ConnectionError("StdioMCPClient is not connected")
-        payload = (
-            json.dumps(
-                {
-                    "jsonrpc": "2.0",
-                    "method": method,
-                    "params": params,
-                }
-            )
-            + "\n"
-        )
-        self._process.stdin.write(payload.encode("utf-8"))
-        await self._process.stdin.drain()
-
-    async def list_tools(self) -> Sequence[MCPToolDescriptor]:
-        await self._ensure_connected()
-        res = await self._send_request("tools/list", {})
-        tools_data = res.get("tools", []) if isinstance(res, dict) else []
-        descriptors: list[MCPToolDescriptor] = []
-        for t in tools_data:
-            descriptors.append(
-                MCPToolDescriptor(
-                    name=t.get("name", ""),
-                    description=t.get("description", ""),
-                    input_schema=t.get("inputSchema", {}),
-                    output_schema=t.get("outputSchema"),
-                )
-            )
-        return tuple(descriptors)
-
-    async def call_tool(self, name: str, arguments: Mapping[str, Any]) -> Any:
-        await self._ensure_connected()
-        res = await self._send_request("tools/call", {"name": name, "arguments": arguments})
-        if isinstance(res, dict) and "content" in res:
-            content = res["content"]
-            if isinstance(content, list):
-                text_items = [
-                    item.get("text", "")
-                    for item in content
-                    if isinstance(item, dict) and item.get("type") == "text"
-                ]
-                if text_items:
-                    return "\n".join(text_items)
-            return content
-        return res
+            raise ConnectionError("MCP process unavailable")
+        data = (json.dumps(payload) + "\n").encode()
+        if len(data) > self.max_response_bytes:
+            raise ValueError("MCP request exceeds size limit")
+        async with self._write_lock:
+            self._process.stdin.write(data)
+            await self._process.stdin.drain()
 
     async def close(self) -> None:
-        if self._reader_task:
-            self._reader_task.cancel()
-            self._reader_task = None
-        if self._process:
-            if self._process.stdin:
-                with contextlib.suppress(OSError):
-                    self._process.stdin.close()
-                    await self._process.stdin.wait_closed()
+        await super().close()
+        if self._process is not None and self._process.returncode is None:
+            self._process.terminate()
             try:
-                self._process.terminate()
-                await asyncio.wait_for(self._process.wait(), timeout=2.0)
-            except (OSError, TimeoutError):
-                with contextlib.suppress(OSError):
-                    self._process.kill()
-            self._process = None
-
-    async def __aenter__(self) -> StdioMCPClient:
-        await self._ensure_connected()
-        return self
-
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        await self.close()
+                await asyncio.wait_for(self._process.wait(), 2.0)
+            except TimeoutError:
+                self._process.kill()
+                await self._process.wait()
+        for task in self._tasks:
+            task.cancel()
+        await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks.clear()
 
 
-class SSEMCPClient:
-    """Native MCP client communicating with a remote server via SSE and HTTP POST."""
+class SSEMCPClient(_RPCClient):
+    """MCP 2024-11-05 HTTP+SSE transport with origin pinning and bounded RPCs.
+
+    No silent reconnection or replay of possibly-effectful requests. Construct a
+    new client after a failed session. HTTP redirects are always rejected.
+    """
 
     def __init__(
         self,
@@ -276,184 +326,98 @@ class SSEMCPClient:
         timeout: float = 30.0,
         on_tools_changed: Callable[[], None] | None = None,
         client: httpx.AsyncClient | None = None,
+        max_response_bytes: int = 2_000_000,
     ) -> None:
-        self.endpoint = endpoint
+        from ..infra.http import origin as parse_origin
+
+        scheme, host, _ = parse_origin(endpoint)
+        if scheme != "https" and host not in {"localhost", "127.0.0.1", "::1"}:
+            raise ValueError("Cleartext MCP requires a loopback endpoint")
+        if timeout <= 0 or max_response_bytes <= 0:
+            raise ValueError("Transport limits must be positive")
         parsed = urlsplit(endpoint)
         self.origin = origin or f"{parsed.scheme}://{parsed.netloc}"
+        if parse_origin(self.origin) != parse_origin(endpoint):
+            raise ValueError("Origin does not match endpoint")
+        self.endpoint, self.timeout = endpoint, timeout
+        self.max_response_bytes = max_response_bytes
         self.headers = dict(headers or {})
-        self.timeout = timeout
         self.on_tools_changed = on_tools_changed
-
-        self._custom_client = client
-        self._client: httpx.AsyncClient | None = None
-        self._post_url: str = endpoint
-        self._endpoint_ready = asyncio.Event()
-        self._request_id = 0
-        self._initialized = False
-        self._pending: dict[int, asyncio.Future[Any]] = {}
+        self._owned = client is None
+        self._client = (
+            client
+            if client is not None
+            else httpx.AsyncClient(timeout=timeout, follow_redirects=False)
+        )
+        self._post_url: str | None = None
+        self._ready = asyncio.Event()
         self._sse_task: asyncio.Task[None] | None = None
-        self._lock = asyncio.Lock()
+        self._init_rpc()
 
     async def _ensure_connected(self) -> None:
-        async with self._lock:
-            if self._client is None or self._client.is_closed:
-                self._endpoint_ready = asyncio.Event()
-                if self._custom_client is not None and not self._custom_client.is_closed:
-                    self._client = self._custom_client
-                else:
-                    self._client = httpx.AsyncClient(headers=self.headers, timeout=self.timeout)
-                self._sse_task = asyncio.create_task(self._sse_listener())
-                self._initialized = False
-
+        async with asyncio.timeout(self.timeout), self._lock:
+            if self._closed or self._failure is not None:
+                raise ConnectionError("MCP session unavailable") from self._failure
+            if self._sse_task is None:
+                self._sse_task = asyncio.create_task(self._listen())
+            await self._ready.wait()
+            if self._failure is not None:
+                raise ConnectionError("MCP SSE initialization failed") from self._failure
             if not self._initialized:
-                with contextlib.suppress(TimeoutError):
-                    await asyncio.wait_for(
-                        self._endpoint_ready.wait(), timeout=min(self.timeout, 5.0)
-                    )
+                await self._initialize()
 
-                await self._send_request(
-                    "initialize",
-                    {
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": {},
-                        "clientInfo": {"name": "lughus", "version": "0.18.0"},
-                    },
-                )
-                await self._send_notification("notifications/initialized", {})
-                self._initialized = True
-
-    async def _sse_listener(self) -> None:
-        if self._client is None:
-            return
-        sse_headers = {"Accept": "text/event-stream", **self.headers}
+    async def _listen(self) -> None:
         try:
-            async with self._client.stream("GET", self.endpoint, headers=sse_headers) as response:
-                current_event = "message"
-                async for line in response.aiter_lines():
-                    line = line.strip()
-                    if not line:
-                        continue
-                    if line.startswith("event:"):
-                        current_event = line.split(":", 1)[1].strip()
-                    elif line.startswith("data:"):
-                        data_str = line.split(":", 1)[1].strip()
-                        if current_event == "endpoint":
-                            self._post_url = urljoin(self.endpoint, data_str)
-                            self._endpoint_ready.set()
-                        elif current_event == "message":
-                            try:
-                                msg = json.loads(data_str)
-                                if "id" in msg and msg["id"] in self._pending:
-                                    fut = self._pending.pop(msg["id"])
-                                    if not fut.done():
-                                        if msg.get("error"):
-                                            fut.set_exception(
-                                                RuntimeError(f"MCP error: {msg['error']}")
-                                            )
-                                        else:
-                                            fut.set_result(msg.get("result"))
-                                elif (
-                                    msg.get("method") == "notifications/tools/list_changed"
-                                    and self.on_tools_changed
-                                ):
-                                    self.on_tools_changed()
-                            except (json.JSONDecodeError, KeyError, ValueError):
-                                pass
+            async with self._client.stream(
+                "GET",
+                self.endpoint,
+                headers={**self.headers, "Accept": "text/event-stream"},
+                follow_redirects=False,
+            ) as response:
+                if "text/event-stream" not in response.headers.get("content-type", ""):
+                    raise ValueError("Expected MCP SSE content type")
+                async for kind, data in sse_events(response, self.max_response_bytes):
+                    if kind == "endpoint":
+                        url = same_origin_url(self.endpoint, data)
+                        if self._post_url is not None and url != self._post_url:
+                            raise ValueError("MCP endpoint changed during a session")
+                        self._post_url = url
+                        self._ready.set()
+                    elif kind == "message":
+                        self._accept(json.loads(data))
         except asyncio.CancelledError:
-            pass
-        except (httpx.HTTPError, OSError):
-            pass
+            raise
+        except Exception as exc:  # noqa: BLE001
+            self._fail(exc)
+        finally:
+            self._fail(self._failure or ConnectionError("MCP SSE connection closed"))
+            self._ready.set()
 
-    async def _send_request(self, method: str, params: Mapping[str, Any]) -> Any:
-        if self._client is None:
-            raise ConnectionError("SSEMCPClient is not connected")
-
-        self._request_id += 1
-        req_id = self._request_id
-        payload = {
-            "jsonrpc": "2.0",
-            "id": req_id,
-            "method": method,
-            "params": params,
-        }
-
-        resp = await self._client.post(self._post_url, json=payload)
-        resp.raise_for_status()
-
-        if resp.content:
-            try:
-                data = resp.json()
-                if data.get("error"):
-                    err = data["error"]
-                    msg = err.get("message", "MCP error") if isinstance(err, dict) else str(err)
-                    raise RuntimeError(f"MCP error: {msg}")
-                if "result" in data:
-                    return data["result"]
-            except ValueError:
-                pass
-
-        loop = asyncio.get_running_loop()
-        fut: asyncio.Future[Any] = loop.create_future()
-        self._pending[req_id] = fut
-        return await fut
-
-    async def _send_notification(self, method: str, params: Mapping[str, Any]) -> None:
-        if self._client is None:
-            raise ConnectionError("SSEMCPClient is not connected")
-        payload = {
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params,
-        }
-        await self._client.post(self._post_url, json=payload)
-
-    async def list_tools(self) -> Sequence[MCPToolDescriptor]:
-        await self._ensure_connected()
-        res = await self._send_request("tools/list", {})
-        tools_data = res.get("tools", []) if isinstance(res, dict) else []
-        descriptors: list[MCPToolDescriptor] = []
-        for t in tools_data:
-            descriptors.append(
-                MCPToolDescriptor(
-                    name=t.get("name", ""),
-                    description=t.get("description", ""),
-                    input_schema=t.get("inputSchema", {}),
-                    output_schema=t.get("outputSchema"),
-                )
-            )
-        return tuple(descriptors)
-
-    async def call_tool(self, name: str, arguments: Mapping[str, Any]) -> Any:
-        await self._ensure_connected()
-        res = await self._send_request("tools/call", {"name": name, "arguments": arguments})
-        if isinstance(res, dict) and "content" in res:
-            content = res["content"]
-            if isinstance(content, list):
-                text_items = [
-                    item.get("text", "")
-                    for item in content
-                    if isinstance(item, dict) and item.get("type") == "text"
-                ]
-                if text_items:
-                    return "\n".join(text_items)
-            return content
-        return res
+    async def _write(self, payload: Mapping[str, Any]) -> None:
+        if self._post_url is None:
+            raise ConnectionError("MCP POST endpoint not established")
+        async with self._client.stream(
+            "POST",
+            self._post_url,
+            json=dict(payload),
+            headers=self.headers,
+            follow_redirects=False,
+        ) as response:
+            response.raise_for_status()
+            if response.status_code not in {
+                202,
+                204,
+            } and "application/json" in response.headers.get("content-type", ""):
+                self._accept(await read_json(response, self.max_response_bytes))
 
     async def close(self) -> None:
-        if self._sse_task:
+        await super().close()
+        if self._sse_task is not None:
             self._sse_task.cancel()
+            await asyncio.gather(self._sse_task, return_exceptions=True)
             self._sse_task = None
-        if self._client:
-            if self._custom_client is None:
-                await self._client.aclose()
-            self._client = None
-
-    async def __aenter__(self) -> SSEMCPClient:
-        await self._ensure_connected()
-        return self
-
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        await self.close()
+        if self._owned:
+            await self._client.aclose()
 
 
 class MCPAdapter:
@@ -479,6 +443,7 @@ class MCPAdapter:
         """Compute a SHA-256 fingerprint of all tool schemas in the snapshot."""
         schemas = {
             name: {
+                "description": desc.description,
                 "input_schema": dict(desc.input_schema),
                 "output_schema": dict(desc.output_schema) if desc.output_schema else None,
             }
@@ -499,29 +464,27 @@ class MCPAdapter:
         return selected
 
     async def _invoke(self, name: str, arguments: Mapping[str, Any]) -> Any:
-        if not self._cache_valid or not self._snapshot:
-            await self.refresh()
+        if not self._snapshot:
+            raise PermissionError("Call refresh() to approve MCP descriptors before use")
+        if not self._cache_valid or not self.config.cache_tools:
+            remote = tuple(await self.client.list_tools())
+            if len(remote) > self.config.max_tools:
+                raise ValueError("MCP server advertised too many tools")
+            selected = {
+                tool.name: tool for tool in remote if tool.name in self.config.allowed_tools
+            }
+            if len(selected) != sum(tool.name in self.config.allowed_tools for tool in remote):
+                raise ValueError("MCP server advertised duplicate tools")
+            if self._compute_fingerprint(selected) != self._schema_fingerprint:
+                raise RuntimeError(
+                    "MCP descriptors changed; explicitly refresh and rebuild registry"
+                )
+            self._cache_valid = True
 
         if name not in self._snapshot:
             raise PermissionError("MCP tool is not present in the approved snapshot")
 
-        if not self.config.cache_tools:
-            # When caching is disabled, re-query server to detect schema drift
-            remote = {t.name: t for t in await self.client.list_tools()}
-            if len(remote) > self.config.max_tools:
-                raise ValueError("MCP server advertised too many tools")
-            remote_selected = {
-                n: d
-                for n, d in remote.items()
-                if n in self.config.allowed_tools and n in self._snapshot
-            }
-            current_fingerprint = self._compute_fingerprint(remote_selected)
-            if current_fingerprint != self._schema_fingerprint:
-                raise RuntimeError(
-                    "MCP tool schemas changed on the server since last refresh; "
-                    "call refresh() to re-approve before invoking"
-                )
-
+        Draft202012Validator(dict(self._snapshot[name].input_schema)).validate(dict(arguments))
         result = await self.client.call_tool(name, arguments)
         if len(str(result)) > self.config.max_output_characters:
             raise ValueError("MCP tool result exceeds configured limit")

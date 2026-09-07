@@ -119,7 +119,7 @@ async def test_remote_schema_drift_raises() -> None:
     # Simulate server-side schema drift WITHOUT calling refresh().
     client._tools = [tool_v2]
 
-    with pytest.raises(RuntimeError, match="schemas changed on the server"):
+    with pytest.raises(RuntimeError, match="MCP descriptors changed"):
         await adapter._invoke("tool_a", {"x": 1})
 
 

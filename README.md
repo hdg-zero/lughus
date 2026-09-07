@@ -138,7 +138,7 @@ def deploy(service: str) -> str:
     return json.dumps({"status": "deployed", "service": service})
 ```
 
-### Sandboxed Python Code Interpreter
+### Container-confined Python Code Interpreter
 
 Lughus provides an isolated Python code execution tool with automatic output truncation and timeout handling:
 
@@ -198,3 +198,9 @@ minor releases may break APIs; pin and test upgrades.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Native clients and Python confinement
+
+See [A2A](docs/integrations/a2a-client.md), [MCP](docs/integrations/mcp.md) and
+[Python security](docs/security/python-execution.md). The interpreter now requires
+an explicit Docker/Podman backend and artifact store; there is no unsafe fallback.
