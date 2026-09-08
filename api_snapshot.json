@@ -1,5 +1,9 @@
 [
   {
+    "name": "A2AClient",
+    "kind": "class"
+  },
+  {
     "name": "AgentRuntime",
     "kind": "dataclass"
   },
@@ -18,6 +22,18 @@
   {
     "name": "ConcurrencyMode",
     "kind": "enum"
+  },
+  {
+    "name": "ContainerConfig",
+    "kind": "dataclass"
+  },
+  {
+    "name": "ContainerPythonBackend",
+    "kind": "class"
+  },
+  {
+    "name": "FileArtifactStore",
+    "kind": "class"
   },
   {
     "name": "GovernedAgentRunner",
@@ -108,7 +124,8 @@
     "kind": "function",
     "parameters": [
       "registry",
-      "timeout_s",
+      "backend",
+      "artifact_store",
       "requires_approval"
     ]
   },

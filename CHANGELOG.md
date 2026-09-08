@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-09-07
+
+### Breaking
+- Replace local Python subprocess execution with an explicit OCI backend.
+- Require pinned images, a configured backend and a binary artifact store.
+- Remove eager engine/interface re-exports; import the owning modules or root API.
+- MCP subprocesses no longer inherit application credentials implicitly.
+- MCP descriptor drift requires explicit approval and registry reconstruction.
+
+### Added / fixed
+- Native A2A 0.3 JSON-RPC send/stream, task get/cancel/resubscribe and discovery.
+- Bounded HTTP/SSE parsing, same-origin pinning and per-operation deadlines.
+- MCP correlation-before-send, structured errors/results, pagination and cleanup.
+- Docker/Podman confinement and durable, bounded binary artifact export.
+
+
 ## [0.19.0] - 2026-09-07
 
 ### Breaking

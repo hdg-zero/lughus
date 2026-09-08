@@ -1,86 +1,68 @@
-"""Tests for the sandboxed code_interpreter tool."""
+"""Confinement contract tests; no container daemon required."""
 
-from __future__ import annotations
+import base64
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
 
-import asyncio
-
-import pytest
-
+from lughus.core.binary_artifacts import FileArtifactStore
 from lughus.engine.interpreter import (
-    MAX_OUTPUT_CHARS,
-    InterpreterTimeoutError,
-    register_code_interpreter,
-    run_python,
+    ContainerConfig,
+    ContainerPythonBackend,
+    SandboxUnavailableError,
 )
-from lughus.engine.tools import ToolRegistry
+
+IMAGE = "python@sha256:" + "a" * 64
 
 
-class TestRunPython:
-    def test_captures_stdout(self) -> None:
-        result = run_python("print(2 + 3)")
-        assert result.exit_code == 0
-        assert result.stdout.strip() == "5"
+class InterpreterTests(unittest.TestCase):
+    def test_requires_pinned_image(self) -> None:
+        with self.assertRaises(ValueError):
+            ContainerConfig("python:latest")
 
-    def test_captures_stderr_and_exit_code(self) -> None:
-        result = run_python("import sys; sys.stderr.write('boom'); raise SystemExit(3)")
-        assert result.exit_code == 3
-        assert "boom" in result.stderr
+    def test_missing_engine_fails_closed(self) -> None:
+        with patch("shutil.which", return_value=None), self.assertRaises(SandboxUnavailableError):
+            ContainerPythonBackend(ContainerConfig(IMAGE)).command("test")
 
-    def test_lists_produced_files(self) -> None:
-        code = "open('out.txt','w').write('hello')"
-        result = run_python(code)
-        assert result.exit_code == 0
-        assert "out.txt" in result.files
+    def test_confinement_flags(self) -> None:
+        with patch("shutil.which", return_value="/usr/bin/docker"):
+            command = ContainerPythonBackend(ContainerConfig(IMAGE)).command("test")
+        for flag in (
+            "--network=none",
+            "--read-only",
+            "--cap-drop=ALL",
+            "--pull=never",
+            "--security-opt=no-new-privileges",
+            "--user=65534:65534",
+        ):
+            self.assertIn(flag, command)
+        self.assertNotIn("--privileged", command)
+        self.assertNotIn("--volume", command)
 
-    def test_timeout_raises(self) -> None:
-        with pytest.raises(InterpreterTimeoutError):
-            run_python("while True: pass", timeout_s=1.0)
+    def test_artifacts_survive_execution_result(self) -> None:
+        envelope = {
+            "stdout": "ok",
+            "stderr": "",
+            "exit_code": 0,
+            "files": [{"name": "out.txt", "data": base64.b64encode(b"hello").decode()}],
+        }
+        result = ContainerPythonBackend(ContainerConfig(IMAGE))._decode(
+            json.dumps(envelope).encode()
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            ref = FileArtifactStore(directory).put(result.files[0])
+            self.assertEqual((Path(directory) / ref.artifact_id).read_bytes(), b"hello")
 
-    def test_output_truncated(self) -> None:
-        result = run_python(f"print('x' * {MAX_OUTPUT_CHARS * 3})")
-        assert len(result.stdout) < MAX_OUTPUT_CHARS * 3
-        assert "truncated" in result.stdout
-
-
-class TestRegisterCodeInterpreter:
-    def test_registers_tool_on_registry(self) -> None:
-        registry = ToolRegistry()
-        name = register_code_interpreter(registry)
-        assert name in registry
-
-    def test_idempotent_registration(self) -> None:
-        registry = ToolRegistry()
-        assert register_code_interpreter(registry) == register_code_interpreter(registry)
-
-    def test_tool_executes_code(self) -> None:
-        registry = ToolRegistry()
-        register_code_interpreter(registry)
-        tool_def = registry._tools["code_interpreter"]
-        outcome = asyncio.run(tool_def.fn(state={}, code="print('ok')"))
-        assert outcome["exit_code"] == 0
-        assert outcome["stdout"].strip() == "ok"
-
-    def test_tool_reports_timeout_gracefully(self) -> None:
-        registry = ToolRegistry()
-        register_code_interpreter(registry, timeout_s=1.0)
-        tool_def = registry._tools["code_interpreter"]
-        outcome = asyncio.run(tool_def.fn(state={}, code="while True: pass"))
-        assert outcome["exit_code"] == -1
-        assert "exceeded" in outcome["error"]
-
-    def test_security_defaults(self) -> None:
-        from lughus.engine.tools import ToolEffect, ToolRisk
-
-        registry = ToolRegistry()
-        register_code_interpreter(registry)
-        tool_def = registry._tools["code_interpreter"]
-        assert tool_def.requires_approval is True
-        assert tool_def.risk == ToolRisk.HIGH
-        assert ToolEffect.EXTERNAL in tool_def.effects
-        assert ToolEffect.WRITE in tool_def.effects
-
-    def test_custom_approval_flag(self) -> None:
-        registry = ToolRegistry()
-        register_code_interpreter(registry, requires_approval=False)
-        tool_def = registry._tools["code_interpreter"]
-        assert tool_def.requires_approval is False
+    def test_rejects_traversal_and_oversized_data(self) -> None:
+        backend = ContainerPythonBackend(ContainerConfig(IMAGE, max_artifact_bytes=2))
+        for name, data in (("../escape", "YQ=="), ("/absolute", "YQ=="), ("a", "YWJj")):
+            envelope = {
+                "stdout": "",
+                "stderr": "",
+                "exit_code": 0,
+                "files": [{"name": name, "data": data}],
+            }
+            with self.assertRaises(ValueError):
+                backend._decode(json.dumps(envelope).encode())
