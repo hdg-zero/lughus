@@ -41,10 +41,22 @@ class IdempotencyKey:
     run_id: str
     tool_name: str
     arguments_hash: str
+    invocation_id: str = ""
+    tool_version: str = "1"
 
     @classmethod
-    def from_args(cls, run_id: str, tool_name: str, arguments: Mapping[str, Any]) -> IdempotencyKey:
-        return cls(run_id, tool_name, idempotency_hash(tool_name, arguments))
+    def from_args(
+        cls,
+        run_id: str,
+        tool_name: str,
+        arguments: Mapping[str, Any],
+        *,
+        invocation_id: str = "",
+        tool_version: str = "1",
+    ) -> IdempotencyKey:
+        return cls(
+            run_id, tool_name, idempotency_hash(tool_name, arguments), invocation_id, tool_version
+        )
 
 
 @dataclass(frozen=True, slots=True)

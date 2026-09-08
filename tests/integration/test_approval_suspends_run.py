@@ -227,7 +227,7 @@ async def test_two_tools_produce_single_suspension() -> None:
 
 
 @pytest.mark.asyncio
-async def test_approved_then_resumed() -> None:
+async def test_preapproved_happy_path() -> None:
     """Pre-approved tool runs to completion normally (happy path)."""
     runtime, _run_store = _build_runtime(approval_store=_PreApprovedStore())
     registry = ToolRegistry()

@@ -104,7 +104,11 @@ class BaseGateway(AgentExecutor):
         **overrides: Any,
     ) -> ToolExecutionConfig:
         """Create a ToolExecutionConfig bound to settings and optional runtime/governance."""
-        if self.runtime is not None and run_id and principal:
+        if self.runtime is not None:
+            if not run_id or principal is None:
+                raise ValueError("Governed gateway requires run_id and principal")
+            if overrides or approval_store is not None:
+                raise ValueError("Governed gateway configuration cannot be overridden")
             return self.runtime.tool_config(run_id=run_id, principal=principal)
         params: dict[str, Any] = {
             "max_parallel_tools": self.settings.max_parallel_tools,

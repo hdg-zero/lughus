@@ -97,3 +97,11 @@ Decision records — read in order if you want the "why":
 | [Recovery](operations/recovery.md) | Crash recovery, checkpoints, resumption |
 | [Scaling](operations/scaling.md) | Horizontal scaling, durable stores |
 | [Operations Readiness](operations-readiness.md) | Production readiness checklist |
+
+## Beta runtime and integrations
+
+- [Governed run/stream](guides/governed-execution.md)
+- [Native A2A client](integrations/a2a-client.md)
+- [Python confinement](security/python-execution.md)
+- [Durable recovery](operations/recovery.md)
+- [Breaking beta upgrades](guides/beta-upgrades.md)

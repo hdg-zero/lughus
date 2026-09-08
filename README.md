@@ -204,3 +204,9 @@ MIT — see [LICENSE](LICENSE).
 See [A2A](docs/integrations/a2a-client.md), [MCP](docs/integrations/mcp.md) and
 [Python security](docs/security/python-execution.md). The interpreter now requires
 an explicit Docker/Podman backend and artifact store; there is no unsafe fallback.
+
+## Durable beta execution
+
+Version 0.21 adds [SQLite-backed resume/resume_stream](docs/operations/recovery.md).
+Read its single-host, stateless-tool and reconciliation constraints before deployment.
+See [the breaking upgrade guide](docs/guides/beta-upgrades.md).

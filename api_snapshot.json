@@ -52,8 +52,20 @@
     "kind": "class"
   },
   {
+    "name": "OutcomeUnknown",
+    "kind": "class"
+  },
+  {
     "name": "ProgressEvent",
     "kind": "dataclass"
+  },
+  {
+    "name": "SQLiteApprovalStore",
+    "kind": "class"
+  },
+  {
+    "name": "SQLiteStore",
+    "kind": "class"
   },
   {
     "name": "SafeToolError",

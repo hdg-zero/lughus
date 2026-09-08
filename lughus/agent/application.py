@@ -12,6 +12,7 @@ from ..governance.idempotency import IdempotencyStore
 from ..governance.policy import Principal, ToolPolicy
 from ..infra.runtime import ExecutionRuntime
 from ..loop import ToolExecutionConfig
+from ..persistence.sqlite import SQLiteApprovalStore, SQLiteStore
 from ..persistence.store import CheckpointStore, EventStore, RunStore
 
 __all__ = ["AgentRuntime"]
@@ -36,12 +37,22 @@ class AgentRuntime:
     events: EventSink
     budget: BudgetLedger
     context: ContextManager
+    journal: SQLiteStore | None = None
 
     def __post_init__(self) -> None:
         if self.run_store is not self.event_store or self.run_store is not self.checkpoint_store:
             raise ValueError(
                 "Run, event and checkpoint stores must share one transactional backend"
             )
+
+        if self.journal is not None:
+            if self.journal is not self.run_store:
+                raise ValueError("Execution journal must share the lifecycle database")
+            if (
+                not isinstance(self.approvals, SQLiteApprovalStore)
+                or self.approvals.store is not self.journal
+            ):
+                raise ValueError("Durable execution requires approvals in the same SQLite database")
 
     def tool_config(self, *, run_id: str, principal: Principal) -> ToolExecutionConfig:
         """Create a ToolExecutionConfig bound to this runtime's governance and execution services.

@@ -74,6 +74,11 @@ class ToolExecutionConfig:
     on_tool_event: Callable[[dict[str, Any]], Awaitable[None]] | None = field(
         default=None, repr=False, compare=False
     )
+    journal: Any = field(default=None, repr=False, compare=False)
+    loop_state: Any = field(default=None, repr=False, compare=False)
+    on_checkpoint: Any = field(default=None, repr=False, compare=False)
+    allowed_tool_names: frozenset[str] | None = None
+    turn_id: int = 0
     run_id: str = "untracked"
     artifact_projection: bool = False
     artifact_projection_threshold: int = DEFAULT_ARTIFACT_PROJECTION_THRESHOLD

@@ -1,5 +1,6 @@
 import asyncio
 import json
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -26,6 +27,7 @@ from lughus.governance.policy import LeastPrivilegePolicy, Principal
 from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 from lughus.loop import ToolExecutionConfig, _execute_tools
 from lughus.persistence import Checkpoint, InMemoryRunStore
+from lughus.persistence.sqlite import SQLiteStore
 
 
 @pytest.mark.asyncio
@@ -238,7 +240,7 @@ async def test_governed_runtime_060_e2e_gate():
     assert consumed_req.status == ApprovalStatus.CONSUMED
 
     idem_key = IdempotencyKey.from_args(
-        run_id, "transfer_funds", {"to_account": "bob", "amount": 500}
+        run_id, "transfer_funds", {"to_account": "bob", "amount": 500}, invocation_id="0:tc_1"
     )
     receipt = await idempotency.get(idem_key)
     assert receipt is not None
@@ -262,9 +264,7 @@ async def test_governed_runtime_060_e2e_gate():
     assert reloaded_ckpt_2.pending_action is None
 
     # --- Phase 3: Final verification & Idempotency Cached Re-invocation ---
-    results_retry = await _execute_tools(
-        [("tc_1_retry", "transfer_funds", args_json)], registry, {}, cfg
-    )
+    results_retry = await _execute_tools([("tc_1", "transfer_funds", args_json)], registry, {}, cfg)
     retry_data = json.loads(results_retry[0][1])
     assert retry_data["ok"] is True
     assert retry_data["result"] == "transferred_500_to_bob"
@@ -272,3 +272,83 @@ async def test_governed_runtime_060_e2e_gate():
     assert executed_count == 1
 
     await execution.close()
+
+
+def test_agent_runtime_validation_and_config() -> None:
+    execution = ExecutionRuntime()
+    policy = LeastPrivilegePolicy()
+    approvals = InMemoryApprovalStore()
+    idempotency = InMemoryIdempotencyStore()
+    store1 = InMemoryRunStore()
+    store2 = InMemoryRunStore()
+    events = InMemoryEventSink()
+    budget = BudgetLedger(BudgetLimit())
+    context = ContextManager(10_000)
+
+    # store mismatch
+    with pytest.raises(ValueError, match="share one transactional backend"):
+        AgentRuntime(
+            execution=execution,
+            policy=policy,
+            approvals=approvals,
+            idempotency=idempotency,
+            run_store=store1,
+            event_store=store2,
+            checkpoint_store=store1,
+            events=events,
+            budget=budget,
+            context=context,
+        )
+
+    # journal mismatch with run_store
+    mock_journal = MagicMock(spec=SQLiteStore)
+    with pytest.raises(ValueError, match="Execution journal must share the lifecycle database"):
+        AgentRuntime(
+            execution=execution,
+            policy=policy,
+            approvals=approvals,
+            idempotency=idempotency,
+            run_store=store1,
+            event_store=store1,
+            checkpoint_store=store1,
+            events=events,
+            budget=budget,
+            context=context,
+            journal=mock_journal,
+        )
+
+    # journal without SQLiteApprovalStore sharing the same store
+    with pytest.raises(ValueError, match="Durable execution requires approvals"):
+        AgentRuntime(
+            execution=execution,
+            policy=policy,
+            approvals=approvals,
+            idempotency=idempotency,
+            run_store=mock_journal,
+            event_store=mock_journal,
+            checkpoint_store=mock_journal,
+            events=events,
+            budget=budget,
+            context=context,
+            journal=mock_journal,
+        )
+
+    # tool_config invalid run_id or principal
+    runtime = AgentRuntime(
+        execution=execution,
+        policy=policy,
+        approvals=approvals,
+        idempotency=idempotency,
+        run_store=store1,
+        event_store=store1,
+        checkpoint_store=store1,
+        events=events,
+        budget=budget,
+        context=context,
+    )
+    with pytest.raises(ValueError, match="A run id and authenticated principal are required"):
+        runtime.tool_config(run_id="", principal=Principal(subject="a", tenant_id="b"))
+    with pytest.raises(ValueError, match="A run id and authenticated principal are required"):
+        runtime.tool_config(run_id="r1", principal=Principal(subject="", tenant_id="b"))
+    with pytest.raises(ValueError, match="A run id and authenticated principal are required"):
+        runtime.tool_config(run_id="r1", principal=Principal(subject="a", tenant_id=""))

@@ -5,15 +5,19 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import aclosing, suppress
-from dataclasses import replace
+from dataclasses import asdict, replace
 from typing import Any
+from uuid import uuid4
 
-from ..core.domain import EventVisibility, Run, RunEvent, RunStatus
+from ..core._defaults import DEFAULT_MAX_ITERATIONS
+from ..core.context import ContextItem, TrustLevel
+from ..core.domain import EventVisibility, Run, RunEvent, RunStatus, canonical_hash
 from ..core.errors import ApprovalRequiredGroup, RunSuspended
 from ..core.event_stream import EventSink, InMemoryEventSink
 from ..governance.budgeted_llm import BudgetedLLM
 from ..loop import LoopResult, agent_loop, agent_loop_stream
 from ..persistence.coordinator import RunCoordinator
+from ..persistence.execution import ExecutionJournal, JournalBudget, LoopCheckpoint, OutcomeUnknown
 from ..persistence.store import RunUnitOfWork
 from .application import AgentRuntime
 
@@ -45,6 +49,26 @@ class GovernedAgentRunner:
 
     async def run(self, llm: Any, **kwargs: Any) -> LoopResult:
         return await self._execute(llm, streaming=False, deliver=None, **kwargs)
+
+    async def resume(self, run_id: str, llm: Any, *, principal: Any, registry: Any) -> LoopResult:
+        """Resume the recorded objective, history and tool manifest under current policy."""
+        if self.runtime is None or self.runtime.journal is None:
+            raise ValueError("Resumption requires a durable execution journal")
+        return await self._execute(
+            llm,
+            streaming=False,
+            deliver=None,
+            _resume_run_id=run_id,
+            principal=principal,
+            registry=registry,
+        )
+
+    def resume_stream(
+        self, run_id: str, llm: Any, *, principal: Any, registry: Any
+    ) -> AsyncIterator[RunEvent]:
+        if self.runtime is None or self.runtime.journal is None:
+            raise ValueError("Resumption requires a durable execution journal")
+        return self.stream(llm, _resume_run_id=run_id, principal=principal, registry=registry)
 
     async def stream(
         self,
@@ -94,6 +118,9 @@ class GovernedAgentRunner:
         coordinator: RunCoordinator | None = None
         lock = asyncio.Lock()
         sequence = 0
+        resume_id = kwargs.pop("_resume_run_id", None)
+        journal: ExecutionJournal | None = None
+        saved: dict[str, Any] | None = None
         if rt is not None:
             forbidden = {"tool_config", "context", "tools"} & kwargs.keys()
             if forbidden:
@@ -107,17 +134,112 @@ class GovernedAgentRunner:
             if not isinstance(rt.run_store, RunUnitOfWork):
                 raise TypeError("run_store must implement RunUnitOfWork")
             coordinator = RunCoordinator(rt.run_store)
-            run = await coordinator.start(
-                objective,
-                tenant_id=principal.tenant_id,
-                principal_id=principal.subject,
-            )
-            # Shared configured ledger is intentionally application-scoped.
-            llm = BudgetedLLM(llm, rt.budget)
+            if resume_id is not None:
+                if rt.journal is None:
+                    raise ValueError("No durable journal configured")
+                existing = await rt.run_store.get(resume_id)
+                if (
+                    existing is None
+                    or existing.tenant_id != principal.tenant_id
+                    or existing.principal_id != principal.subject
+                ):
+                    raise PermissionError("Run is unavailable to this principal")
+                if existing.status not in {RunStatus.RUNNING, RunStatus.WAITING}:
+                    raise ValueError("Only interrupted or waiting runs may resume")
+                run = existing
+                objective = run.objective
+            else:
+                run = await coordinator.start(
+                    objective,
+                    tenant_id=principal.tenant_id,
+                    principal_id=principal.subject,
+                )
             kwargs["context"] = objective
             kwargs.setdefault("system", "You are a helpful assistant.")
             kwargs["context_items"] = rt.context.select(kwargs.get("context_items", ())).items
             kwargs["tool_config"] = rt.tool_config(run_id=run.run_id, principal=principal)
+            ledger = rt.budget
+            if rt.journal is not None:
+                registry = kwargs["registry"]
+                if kwargs.get("state") is not None:
+                    raise ValueError("Durable execution does not accept mutable injected state")
+                # Persisted execution must not depend on mutable in-process tool state.
+                if any(registry.get_tool(name).takes_state for name in registry.names()):
+                    raise ValueError(
+                        "Durable tools must not accept injected state; use explicit typed arguments"
+                    )
+                manifest = canonical_hash(
+                    [
+                        {
+                            "name": name,
+                            "version": registry.get_tool(name).version,
+                            "schema": registry.get_tool(name).parameters_schema,
+                            "description": registry.get_tool(name).description,
+                            "concurrency": registry.get_tool(name).concurrency.value,
+                            "idempotent": registry.get_tool(name).idempotent,
+                            "output_schema": registry.get_tool(name).output_schema,
+                            "effects": sorted(registry.get_tool(name).effects),
+                            "scopes": sorted(registry.get_tool(name).required_scopes),
+                            "approval": registry.get_tool(name).requires_approval,
+                            "risk": registry.get_tool(name).risk.value,
+                        }
+                        for name in sorted(registry.names())
+                    ]
+                )
+                owner = uuid4().hex
+                snapshot = (
+                    None
+                    if resume_id
+                    else {
+                        "schema_version": 1,
+                        "manifest": manifest,
+                        "model": llm.model,
+                        "system": kwargs["system"],
+                        "tool_names": kwargs.get("tool_names"),
+                        "context_items": [asdict(item) for item in kwargs["context_items"]],
+                        "max_iterations": kwargs.get("max_iterations", DEFAULT_MAX_ITERATIONS),
+                        "loop": LoopCheckpoint().to_dict(),
+                    }
+                )
+                saved = await rt.journal.open_execution(run.run_id, owner, snapshot)
+                journal = ExecutionJournal(rt.journal, run.run_id, owner)
+                try:
+                    if (
+                        saved.get("schema_version") != 1
+                        or saved["manifest"] != manifest
+                        or saved["model"] != llm.model
+                    ):
+                        raise ValueError(
+                            "Recorded schema, model or tool manifest changed; migration is explicit"
+                        )
+                    kwargs["system"] = saved["system"]
+                    kwargs["context_items"] = [
+                        ContextItem(**{**item, "trust": TrustLevel(item["trust"])})
+                        for item in saved["context_items"]
+                    ]
+                    kwargs["tool_names"] = saved["tool_names"]
+                    kwargs["max_iterations"] = saved["max_iterations"]
+                    ledger = JournalBudget(
+                        rt.budget.limit, journal, await rt.journal.budget(run.run_id, owner)
+                    )
+
+                    async def checkpoint(value: LoopCheckpoint) -> None:
+                        assert saved is not None and journal is not None
+                        saved["loop"] = value.to_dict()
+                        await journal.store.snapshot_execution(run.run_id, journal.owner, saved)
+
+                    kwargs["tool_config"] = replace(
+                        kwargs["tool_config"],
+                        journal=journal,
+                        idempotency_store=None,
+                        budget=ledger,
+                        loop_state=LoopCheckpoint(**saved["loop"]),
+                        on_checkpoint=checkpoint,
+                    )
+                except BaseException:
+                    await rt.journal.release_execution(run.run_id, owner)
+                    raise
+            llm = BudgetedLLM(llm, ledger)
         else:
             run = Run(objective=kwargs.get("context") or "agent run", status=RunStatus.RUNNING)
 
@@ -162,7 +284,11 @@ class GovernedAgentRunner:
         if rt is not None:
             kwargs["tool_config"] = replace(kwargs["tool_config"], on_tool_event=tool_event)
         try:
-            await emit("run.started", {}, terminal=RunStatus.RUNNING if rt else None)
+            await emit(
+                "run.resumed" if resume_id else "run.started",
+                {},
+                terminal=RunStatus.RUNNING if rt else None,
+            )
             result: LoopResult | None = None
             if streaming:
                 async with aclosing(
@@ -198,14 +324,36 @@ class GovernedAgentRunner:
                 terminal=RunStatus.WAITING,
             )
             raise RunSuspended(run.run_id, exc.requests) from exc
+        except OutcomeUnknown as exc:
+            await emit(
+                "run.reconciliation_required", {"call_id": exc.call_id}, terminal=RunStatus.WAITING
+            )
+            raise
         except asyncio.CancelledError:
             # Persist cancellation without blocking on an abandoned stream queue.
             deliver = None
-            await emit("run.cancelled", {}, terminal=RunStatus.CANCELLED)
+            if not run.status.terminal:
+                await emit(
+                    "run.interrupted" if journal else "run.cancelled",
+                    {},
+                    terminal=RunStatus.WAITING if journal else RunStatus.CANCELLED,
+                )
             raise
         except Exception as exc:
+            if journal is not None and not run.status.terminal:
+                unresolved = await journal.store.unresolved_action(run.run_id, journal.owner)
+                if unresolved is not None:
+                    await emit(
+                        "run.reconciliation_required",
+                        {"call_id": unresolved},
+                        terminal=RunStatus.WAITING,
+                    )
+                    raise OutcomeUnknown(run.run_id, unresolved) from exc
             if not run.status.terminal:
                 await emit(
                     "run.failed", {"error_code": type(exc).__name__}, terminal=RunStatus.FAILED
                 )
             raise
+        finally:
+            if journal is not None:
+                await journal.store.release_execution(run.run_id, journal.owner)

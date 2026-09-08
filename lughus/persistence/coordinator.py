@@ -11,6 +11,7 @@ from .store import Checkpoint, RunUnitOfWork
 _ALLOWED = {
     RunStatus.PENDING: {RunStatus.RUNNING, RunStatus.CANCELLED},
     RunStatus.RUNNING: {
+        RunStatus.RUNNING,
         RunStatus.WAITING,
         RunStatus.COMPLETED,
         RunStatus.FAILED,
@@ -74,10 +75,12 @@ class RunCoordinator:
                 cp = await self.store.latest(run.run_id)
                 if cp is not None:
                     self._sequences[run.run_id] = cp.sequence + 1
-            elif hasattr(self.store, "read"):
+            if hasattr(self.store, "read"):
                 events = await self.store.read(run.run_id)
                 if events:
-                    self._sequences[run.run_id] = max(e.sequence for e in events) + 1
+                    self._sequences[run.run_id] = max(
+                        self._sequences.get(run.run_id, 0), max(e.sequence for e in events) + 1
+                    )
 
         sequence = self.next_sequence(run.run_id)
         event = RunEvent(

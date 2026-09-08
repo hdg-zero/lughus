@@ -6,6 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-09-07
+
+### Breaking
+- Unify blocking/streaming loop state through one checkpoint-aware engine.
+- Scope receipts by invocation and tool version, not equal arguments alone.
+- Stop on budget exhaustion; suspend unknown external effects for reconciliation.
+- Require stateless explicit-argument tools for durable execution.
+- Replace implicit recovery claims with a documented single-host SQLite contract.
+
+### Added / fixed
+- resume/resume_stream, durable snapshots and per-action receipts.
+- Transactional SQLite lifecycle, exclusive owner claims, durable approvals and budget floors.
+- Audited operator crash recovery and effect reconciliation, with no automatic replay.
+- Actual Pydantic input hydration, Annotated constraints and canonical validated arguments.
+- Guaranteed reservation cleanup on admission failure, tool error and cancellation.
+- Tool-name execution allowlists, expiry handling and governed gateway fail-closed behavior.
+- Regression tests for real process crashes, transactions, typed inputs and public resumption.
+
+
 ## [0.20.0] - 2026-09-07
 
 ### Breaking
