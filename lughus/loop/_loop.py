@@ -5,8 +5,9 @@ import contextvars
 import logging
 import time
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping, Sequence
-from contextlib import asynccontextmanager
+from contextlib import aclosing, asynccontextmanager
 from dataclasses import replace
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from opentelemetry.trace import StatusCode
@@ -17,6 +18,7 @@ from ..core.errors import LoopLimitError
 from ..engine.tools import ToolDef, ToolRegistry
 from ..infra.retry import retry_budget
 from ..infra.telemetry import meter, tracer
+from ..persistence.execution import LoopCheckpoint
 from ._config import (
     StreamingMode,
     ToolExecutionConfig,
@@ -130,6 +132,10 @@ def _prepare_loop(
         tool_names,
         strict=True,
     )
+    if cfg.loop_state is not None and cfg.loop_state.messages:
+        history = MessageHistory()
+        history.extend(cfg.loop_state.messages)
+        prefix_len = cfg.loop_state.prefix_len
     return history, tools, prefix_len
 
 
@@ -179,6 +185,34 @@ def _format_tool_calls(
     return payload, inputs
 
 
+async def _save_loop(
+    checkpoint: LoopCheckpoint, history: MessageHistory, cfg: ToolExecutionConfig
+) -> None:
+    checkpoint.messages = list(history.view)
+    if cfg.on_checkpoint is not None:
+        await cfg.on_checkpoint(checkpoint)
+
+
+async def _finish_pending(
+    checkpoint: LoopCheckpoint,
+    history: MessageHistory,
+    registry: ToolRegistry,
+    state: Any,
+    cfg: ToolExecutionConfig,
+) -> None:
+    dispatch = replace(cfg, turn_id=checkpoint.iteration)
+    results = await _execute_tools(
+        [(call[0], call[1], call[2]) for call in checkpoint.pending_calls],
+        registry,
+        state,
+        dispatch,
+    )
+    for call_id, output in results:
+        history.append({"role": "tool", "tool_call_id": call_id, "content": output})
+    checkpoint.pending_calls = []
+    await _save_loop(checkpoint, history, cfg)
+
+
 async def _run_tool_calls(
     tool_calls: list[tuple[str, str, str]],
     history: MessageHistory,
@@ -186,23 +220,13 @@ async def _run_tool_calls(
     state: Any,
     cfg: ToolExecutionConfig,
     assistant_tool_calls_payload: list[dict],
+    checkpoint: LoopCheckpoint,
     content: str | None = None,
 ) -> None:
-    history.append(
-        _assistant_tool_message(
-            assistant_tool_calls_payload,
-            content=content,
-        )
-    )
-    results = await _execute_tools(tool_calls, registry, state, cfg)
-    for tc_id, output in results:
-        history.append(
-            {
-                "role": "tool",
-                "tool_call_id": tc_id,
-                "content": output,
-            }
-        )
+    history.append(_assistant_tool_message(assistant_tool_calls_payload, content=content))
+    checkpoint.pending_calls = [list(call) for call in tool_calls]
+    await _save_loop(checkpoint, history, cfg)  # durable before approval/dispatch
+    await _finish_pending(checkpoint, history, registry, state, cfg)
 
 
 def _finalize_loop(
@@ -298,6 +322,7 @@ async def _loop_session(
     cfg, owned_runtime = _resolve_tool_config(tool_config)
     effective_tool_names = list(tool_names)
     cfg = _setup_artifact_projection(registry, effective_tool_names, cfg)
+    cfg = replace(cfg, allowed_tool_names=frozenset(effective_tool_names))
     token = _active_artifact_store.set(cfg.artifact_store)
     try:
         yield cfg, effective_tool_names
@@ -325,6 +350,35 @@ def _normalize_registry_and_tools(
     return registry, names
 
 
+class _GenerateAsStream:
+    def __init__(self, inner: Any) -> None:
+        self.inner = inner
+        self.model = inner.model
+        self.timeout = getattr(inner, "timeout", None)
+        self.retry_max_elapsed = getattr(inner, "retry_max_elapsed", None)
+
+    async def astream(self, **kwargs: Any) -> AsyncIterator[Any]:
+        async def iterate() -> AsyncIterator[Any]:
+            response = await self.inner.generate(**kwargs)
+            if not response.choices:
+                raise ValueError("Provider returned no choices")
+            message = response.choices[0].message
+            calls = [
+                SimpleNamespace(index=index, id=call.id, function=call.function)
+                for index, call in enumerate(message.tool_calls or [])
+            ]
+            yield SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(content=message.content, tool_calls=calls)
+                    )
+                ],
+                usage=getattr(response, "usage", None),
+            )
+
+        return iterate()
+
+
 async def agent_loop(
     llm: GenerateLLM,
     *,
@@ -338,91 +392,25 @@ async def agent_loop(
     tool_config: ToolExecutionConfig | None = None,
     context_items: Sequence[ContextItem] = (),
 ) -> LoopResult:
-    """Run an agentic loop until the LLM produces a text response.
-
-    Returns a :class:`LoopResult` — a ``str`` subclass with attached usage
-    metadata (``iterations``, ``elapsed``, ``prompt_tokens``,
-    ``completion_tokens``, ``cached_tokens``, ``total_tokens``).
-    """
-    effective_registry, effective_names = _normalize_registry_and_tools(registry, tool_names, tools)
-    async with _loop_session(effective_registry, effective_names, tool_config) as (
-        cfg,
-        effective_tool_names,
-    ):
-        with tracer.start_as_current_span("agent_loop") as loop_span:
-            with retry_budget(getattr(llm, "retry_max_elapsed", None)):
-                loop_span.set_attribute("gen_ai.system", "litellm")
-                loop_span.set_attribute("gen_ai.request.model", llm.model)
-                loop_span.set_attribute("gen_ai.operation.name", "chat")
-                loop_span.set_attribute("lughus.max_iterations", max_iterations)
-
-                history, tools_payload, prefix_len = _prepare_loop(
-                    system,
-                    context,
-                    effective_registry,
-                    effective_tool_names,
-                    cfg,
-                    context_items,
-                )
-
-                t0 = time.perf_counter()
-                prompt_tokens = 0
-                completion_tokens = 0
-                cached_tokens = 0
-
-                for iteration in range(max_iterations):
-                    _prune_if_needed(history, cfg, prefix_len, llm.model)
-                    with tracer.start_as_current_span("llm.generate") as llm_span:
-                        llm_span.set_attribute("gen_ai.request.model", llm.model)
-                        llm_span.set_attribute("lughus.iteration", iteration + 1)
-                        response = await llm.generate(
-                            messages=history.view,
-                            tools=tools_payload,
-                        )
-
-                        if hasattr(response, "usage") and response.usage:
-                            p, c, ca = _record_llm_usage(
-                                llm_span,
-                                response.usage,
-                                llm.model,
-                            )
-                            prompt_tokens += p
-                            completion_tokens += c
-                            cached_tokens += ca
-
-                    msg = response.choices[0].message
-
-                    if not msg.tool_calls:
-                        if not (msg.content or ""):
-                            _logger.warning(
-                                "LLM returned neither content nor tool calls at iteration %d",
-                                iteration + 1,
-                            )
-                        return _finalize_loop(
-                            loop_span,
-                            msg.content or "",
-                            iteration,
-                            t0,
-                            prompt_tokens,
-                            completion_tokens,
-                            cached_tokens,
-                            llm.model,
-                        )
-
-                    assistant_tool_payload, tc_inputs = _format_tool_calls(msg.tool_calls)
-
-                    await _run_tool_calls(
-                        tc_inputs,
-                        history,
-                        effective_registry,
-                        state,
-                        cfg,
-                        assistant_tool_payload,
-                        content=msg.content,
-                    )
-
-                loop_span.set_status(StatusCode.ERROR, "max iterations exceeded")
-                raise LoopLimitError(f"Agent loop exceeded {max_iterations} iterations")
+    """Non-streamed presentation of the same checkpoint-aware execution engine."""
+    async with aclosing(
+        agent_loop_stream(
+            _GenerateAsStream(llm),
+            system=system,
+            context=context,
+            registry=registry,
+            tool_names=tool_names,
+            tools=tools,
+            state=state,
+            max_iterations=max_iterations,
+            tool_config=tool_config,
+            context_items=context_items,
+        )
+    ) as stream:
+        async for item in stream:
+            if isinstance(item, LoopResult):
+                return item
+    raise RuntimeError("Agent engine ended without a final result")
 
 
 async def agent_loop_stream(
@@ -471,12 +459,23 @@ async def agent_loop_stream(
                     context_items,
                 )
 
+                if max_iterations <= 0:
+                    raise ValueError("max_iterations must be positive")
+                checkpoint = cfg.loop_state if cfg.loop_state is not None else LoopCheckpoint()
+                checkpoint.prefix_len = prefix_len
+                if checkpoint.result is not None:
+                    result_data = dict(checkpoint.result)
+                    yield LoopResult(result_data.pop("text"), **result_data)
+                    return
+                await _save_loop(checkpoint, history, cfg)
+                if checkpoint.pending_calls:
+                    await _finish_pending(checkpoint, history, effective_registry, state, cfg)
                 t0 = time.perf_counter()
-                prompt_tokens = 0
-                completion_tokens = 0
-                cached_tokens = 0
+                prompt_tokens = checkpoint.prompt_tokens
+                completion_tokens = checkpoint.completion_tokens
+                cached_tokens = checkpoint.cached_tokens
 
-                for iteration in range(max_iterations):
+                for iteration in range(checkpoint.iteration, max_iterations):
                     _prune_if_needed(history, cfg, prefix_len, llm.model)
                     content_parts: list[str] = []
                     tc_map: dict[int, dict[str, str]] = {}
@@ -540,12 +539,16 @@ async def agent_loop_stream(
                                 cached_tokens += ca
 
                     full_content = "".join(content_parts)
+                    checkpoint.iteration = iteration + 1
+                    checkpoint.prompt_tokens = prompt_tokens
+                    checkpoint.completion_tokens = completion_tokens
+                    checkpoint.cached_tokens = cached_tokens
 
                     if not tc_map:
                         if streaming_mode_normalized == "buffered":
                             for content in content_parts:
                                 yield StreamChunk(content=content)
-                        yield _finalize_loop(
+                        result = _finalize_loop(
                             loop_span,
                             full_content,
                             iteration,
@@ -555,6 +558,16 @@ async def agent_loop_stream(
                             cached_tokens,
                             llm.model,
                         )
+                        checkpoint.result = {
+                            "text": str(result),
+                            "iterations": result.iterations,
+                            "elapsed": result.elapsed,
+                            "prompt_tokens": result.prompt_tokens,
+                            "completion_tokens": result.completion_tokens,
+                            "cached_tokens": result.cached_tokens,
+                        }
+                        await _save_loop(checkpoint, history, cfg)
+                        yield result
                         return
 
                     sorted_tcs = [tc_map[i] for i in sorted(tc_map)]
@@ -567,6 +580,7 @@ async def agent_loop_stream(
                         state,
                         cfg,
                         assistant_tool_payload,
+                        checkpoint,
                         content=full_content,
                     )
 

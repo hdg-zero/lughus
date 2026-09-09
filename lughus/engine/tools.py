@@ -16,7 +16,7 @@ from jsonschema import Draft202012Validator, SchemaError  # type: ignore[import-
 from pydantic import BaseModel
 
 from ..core.errors import ToolValidationError
-from .schema import infer_tool_schema, parse_docstring, resolve_output_schema
+from .schema import infer_input_model, parse_docstring, resolve_output_schema
 
 __all__ = [
     "ConcurrencyMode",
@@ -177,6 +177,7 @@ class ToolDef:
     fn: Callable[..., Any]
     parameters_schema: dict
     validator: Draft202012Validator
+    input_model: type[BaseModel] | None = None
     output_schema: dict | None = None
     output_validator: Draft202012Validator | None = None
     output_model: type[BaseModel] | None = None
@@ -222,8 +223,11 @@ def _build_tool_def(
     doc_desc, doc_params = parse_docstring(inspect.getdoc(fn))
     tool_desc: str = description if description is not None else (doc_desc or tool_name)
 
+    input_model = None
     if parameters is None:
-        params_schema, takes_state = infer_tool_schema(fn, doc_params=doc_params)
+        input_model, takes_state = infer_input_model(fn, doc_params=doc_params)
+        params_schema = input_model.model_json_schema()
+        params_schema.pop("title", None)
     else:
         takes_state = _validate_tool_callable(tool_name, fn, parameters)
         params_schema = parameters
@@ -247,6 +251,7 @@ def _build_tool_def(
         fn=fn,
         parameters_schema=params_schema,
         validator=validator,
+        input_model=input_model,
         output_schema=copy.deepcopy(resolved_output_schema),
         output_validator=output_validator,
         output_model=output_model,

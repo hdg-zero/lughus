@@ -9,6 +9,7 @@ import logging
 import re
 import time
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from jsonschema import Draft202012Validator, ValidationError  # type: ignore[import-untyped]
@@ -31,6 +32,7 @@ from ..governance.budget import BudgetAmount
 from ..governance.idempotency import AttemptStatus, ExecutionAttempt, IdempotencyKey
 from ..governance.policy import DecisionKind, ToolProposal
 from ..infra.telemetry import meter, tracer
+from ..persistence.execution import OutcomeUnknown
 from ._config import ToolExecutionConfig
 
 if TYPE_CHECKING:
@@ -224,6 +226,23 @@ def _validate_tool_args(
     return args
 
 
+def _tool_arguments(
+    tool: Any, name: str, raw_args: str, cfg: ToolExecutionConfig
+) -> dict[str, Any]:
+    args = _validate_tool_args(
+        name=name,
+        raw_args=raw_args,
+        validator=tool.validator,
+        max_tool_args_chars=cfg.max_tool_args_chars,
+    )
+    if tool.input_model is not None:
+        try:
+            args = tool.input_model.model_validate(args).model_dump(mode="json", by_alias=True)
+        except Exception as exc:
+            raise ToolValidationError(f"Invalid typed arguments for '{name}'") from exc
+    return args
+
+
 def _truncate_json(value: Any, max_chars: int) -> str:
     """Structurally truncate a parsed JSON value to fit within *max_chars* using binary search."""
     if isinstance(value, list):
@@ -294,10 +313,10 @@ def _normalize_tool_error(
 ) -> tuple[Exception, str, str, bool]:
     """Return (wrapped_exc, error_type, metric_error_type, needs_unknown_reconciliation)."""
     if isinstance(exc, ToolTimeoutError):
-        return exc, type(exc).__name__, "timeout", False
+        return exc, type(exc).__name__, "timeout", True
     if isinstance(exc, TimeoutError):
         timeout_exc = ToolTimeoutError(f"Tool '{name}' timed out after {timeout}s")
-        return timeout_exc, type(timeout_exc).__name__, "timeout", False
+        return timeout_exc, type(timeout_exc).__name__, "timeout", True
     if isinstance(exc, ToolValidationError):
         return exc, type(exc).__name__, "validation", True
     wrapped = (
@@ -358,6 +377,11 @@ async def _resolve_approval(
         raise ApprovalRequired("unknown", name)
     digest = proposal_digest(name, args)
     request = await cfg.approval_store.find(cfg.run_id, digest)
+    if request is not None and (
+        request.status.value in {"consumed", "expired"}
+        or (request.expires_at and datetime.fromisoformat(request.expires_at) <= datetime.now(UTC))
+    ):
+        request = None
     if request is not None:
         if request.status.value == "approved":
             return request
@@ -375,6 +399,7 @@ async def _resolve_approval(
 
 
 async def _check_call_approval(
+    tc_id: str,
     name: str,
     raw_args: str,
     registry: ToolRegistry,
@@ -384,12 +409,7 @@ async def _check_call_approval(
     if tool is None:
         return None
     try:
-        args = _validate_tool_args(
-            name=name,
-            raw_args=raw_args,
-            validator=tool.validator,
-            max_tool_args_chars=cfg.max_tool_args_chars,
-        )
+        args = _tool_arguments(tool, name, raw_args, cfg)
     except ToolValidationError:
         return None
 
@@ -407,8 +427,19 @@ async def _check_call_approval(
         if decision.kind == DecisionKind.DENY:
             return None
 
+    if cfg.journal is not None:
+        completed = await cfg.journal.lookup(f"{cfg.turn_id}:{tc_id}", name, tool.version, args)
+        if completed is not None:
+            return None
+
     if cfg.idempotency_store is not None and tool.idempotent:
-        check_key = IdempotencyKey.from_args(cfg.run_id, name, args)
+        check_key = IdempotencyKey.from_args(
+            cfg.run_id,
+            name,
+            args,
+            invocation_id=f"{cfg.turn_id}:{tc_id}",
+            tool_version=tool.version,
+        )
         existing_completed = await cfg.idempotency_store.get(check_key)
         if existing_completed is not None and existing_completed.status == AttemptStatus.COMPLETED:
             return None
@@ -430,7 +461,7 @@ async def _preflight_check_approvals(
     """Scan all tool calls in a turn before dispatch to detect pending approvals."""
     requests: list[ApprovalRequired] = []
     for _tc_id, name, raw_args in tool_calls:
-        req = await _check_call_approval(name, raw_args, registry, cfg)
+        req = await _check_call_approval(_tc_id, name, raw_args, registry, cfg)
         if req is not None:
             requests.append(req)
     return requests
@@ -468,6 +499,7 @@ async def _check_governance(
     args: dict[str, Any],
     cfg: ToolExecutionConfig,
     span: Any,
+    tc_id: str,
 ) -> tuple[ApprovalRequest | None, IdempotencyKey | None, str | None]:
     decision = None
     if cfg.policy is not None:
@@ -485,8 +517,19 @@ async def _check_governance(
         if decision.kind == DecisionKind.DENY:
             raise ToolExecutionError(f"Tool policy denied action: {decision.code}")
 
+    if cfg.journal is not None:
+        completed = await cfg.journal.lookup(f"{cfg.turn_id}:{tc_id}", name, tool.version, args)
+        if completed is not None:
+            return None, None, completed
+
     if cfg.idempotency_store is not None and tool.idempotent:
-        check_key = IdempotencyKey.from_args(cfg.run_id, name, args)
+        check_key = IdempotencyKey.from_args(
+            cfg.run_id,
+            name,
+            args,
+            invocation_id=f"{cfg.turn_id}:{tc_id}",
+            tool_version=tool.version,
+        )
         existing_completed = await cfg.idempotency_store.get(check_key)
         if existing_completed is not None and existing_completed.status == AttemptStatus.COMPLETED:
             span.set_attribute("lughus.tool.idempotent_hit", True)
@@ -497,7 +540,13 @@ async def _check_governance(
 
     idem_key: IdempotencyKey | None = None
     if cfg.idempotency_store is not None and tool.idempotent:
-        idem_key = IdempotencyKey.from_args(cfg.run_id, name, args)
+        idem_key = IdempotencyKey.from_args(
+            cfg.run_id,
+            name,
+            args,
+            invocation_id=f"{cfg.turn_id}:{tc_id}",
+            tool_version=tool.version,
+        )
         existing = await cfg.idempotency_store.claim(
             ExecutionAttempt(key=idem_key, status=AttemptStatus.PENDING)
         )
@@ -511,6 +560,11 @@ async def _check_governance(
     return approval_to_consume, idem_key, None
 
 
+@dataclasses.dataclass
+class _DispatchState:
+    started: bool = False
+
+
 async def _dispatch_tool_with_locks(
     tool: Any,
     fn: Any,
@@ -519,38 +573,53 @@ async def _dispatch_tool_with_locks(
     cfg: ToolExecutionConfig,
     timeout: float | None,
     approval_to_consume: ApprovalRequest | None,
-) -> tuple[Any, str | None]:
-    budget_reservation: str | None = None
-    slot = _runtime_of(cfg).tool_slot(cfg.tool_queue_timeout)
-    async with slot:
-        if cfg.budget is not None:
-            budget_reservation = await cfg.budget.reserve(BudgetAmount(tool_calls=1))
-        if approval_to_consume is not None and cfg.approval_store is not None:
-            await cfg.approval_store.consume(approval_to_consume.request_id)
-
-        mode = tool.concurrency
-        if mode == ConcurrencyMode.SERIAL_PER_TOOL:
-            lock_ctx: Any = _runtime_of(cfg).resource_slot(tool.name)
-        elif mode == ConcurrencyMode.SERIAL_PER_RESOURCE:
-            rk = f"{tool.name}:{tool.resource_key(args)}"
-            lock_ctx = _runtime_of(cfg).resource_slot(rk)
-        else:
-            lock_ctx = contextlib.nullcontext()
-
-        async with (
-            _runtime_of(cfg).execution_slot(exclusive=mode == ConcurrencyMode.GLOBAL_EXCLUSIVE),
-            lock_ctx,
-        ):
-            output = await _invoke_tool_callable(
-                fn,
-                tool.is_async,
-                state,
-                args,
-                cfg,
-                timeout,
-                getattr(tool, "takes_state", True),
+    tc_id: str,
+    dispatch_state: _DispatchState,
+) -> Any:
+    reservation: str | None = None
+    started = False
+    if tool.input_model is not None:
+        model = tool.input_model.model_validate(args)
+        call_args = {key: getattr(model, key) for key in type(model).model_fields}
+    else:
+        call_args = args
+    mode = tool.concurrency
+    runtime = _runtime_of(cfg)
+    if mode == ConcurrencyMode.SERIAL_PER_TOOL:
+        lock_ctx: Any = runtime.resource_slot(tool.name)
+    elif mode == ConcurrencyMode.SERIAL_PER_RESOURCE:
+        lock_ctx = runtime.resource_slot(f"{tool.name}:{tool.resource_key(args)}")
+    else:
+        lock_ctx = contextlib.nullcontext()
+    async with (
+        runtime.tool_slot(cfg.tool_queue_timeout),
+        runtime.execution_slot(exclusive=mode == ConcurrencyMode.GLOBAL_EXCLUSIVE),
+        lock_ctx,
+    ):
+        try:
+            if cfg.budget is not None:
+                reservation = await cfg.budget.reserve(BudgetAmount(tool_calls=1))
+            if approval_to_consume is not None and cfg.approval_store is not None:
+                await cfg.approval_store.consume(approval_to_consume.request_id)
+            if cfg.journal is not None:
+                await cfg.journal.start(f"{cfg.turn_id}:{tc_id}", tool.name, tool.version, args)
+            started = True
+            dispatch_state.started = True
+            return await _invoke_tool_callable(
+                fn, tool.is_async, state, call_args, cfg, timeout, tool.takes_state
             )
-    return output, budget_reservation
+        except (asyncio.CancelledError, OutcomeUnknown):
+            raise
+        except Exception as exc:
+            if started and cfg.journal is not None:
+                raise OutcomeUnknown(cfg.run_id, f"{cfg.turn_id}:{tc_id}") from exc
+            raise
+        finally:
+            if reservation is not None and cfg.budget is not None:
+                if started:
+                    await cfg.budget.settle(reservation, BudgetAmount(tool_calls=1))
+                else:
+                    await cfg.budget.release(reservation)
 
 
 async def _postprocess_tool_output(
@@ -584,7 +653,7 @@ async def _postprocess_tool_output(
         parsed = None
     elif isinstance(output, BaseModel):
         text = output.model_dump_json()
-        parsed = output.model_dump()
+        parsed = output.model_dump(mode="json")
     elif dataclasses.is_dataclass(output) and not isinstance(output, type):
         parsed = dataclasses.asdict(output)
         text = json.dumps(parsed, ensure_ascii=False, default=str)
@@ -657,7 +726,7 @@ async def _execute_single_tool(
         )
 
     tool = registry.get_tool(name)
-    if tool is None:
+    if tool is None or (cfg.allowed_tool_names is not None and name not in cfg.allowed_tool_names):
         unknown_exc = ToolValidationError(f"Unknown tool: {name}")
         output = _error_payload(unknown_exc)
         return _emit_tool_result(
@@ -672,26 +741,49 @@ async def _execute_single_tool(
         span.set_attribute("lughus.tool.timeout_s", effective_timeout or 0)
         status, error_type = "ok", None
         idem_key: IdempotencyKey | None = None
-        budget_reservation: str | None = None
+        dispatch_state = _DispatchState()
         try:
-            args = _validate_tool_args(
-                name=name,
-                raw_args=raw_args,
-                validator=tool.validator,
-                max_tool_args_chars=cfg.max_tool_args_chars,
-            )
+            args = _tool_arguments(tool, name, raw_args, cfg)
             approval_to_consume, idem_key, early_result = await _check_governance(
-                tool, name, args, cfg, span
+                tool, name, args, cfg, span, tc_id
             )
             if early_result is not None:
                 return _emit_tool_result(tc_id, name, started_at, "ok", early_result, idem_hit=True)
 
-            raw_output, budget_reservation = await _dispatch_tool_with_locks(
-                tool, tool.fn, state, args, cfg, effective_timeout, approval_to_consume
+            raw_output = await _dispatch_tool_with_locks(
+                tool,
+                tool.fn,
+                state,
+                args,
+                cfg,
+                effective_timeout,
+                approval_to_consume,
+                tc_id,
+                dispatch_state,
             )
-            output = await _postprocess_tool_output(raw_output, tool, name, cfg, idem_key)
+            try:
+                output = await _postprocess_tool_output(raw_output, tool, name, cfg, idem_key)
+                if cfg.journal is not None:
+                    await cfg.journal.complete(f"{cfg.turn_id}:{tc_id}", output)
+            except Exception as exc:
+                if cfg.journal is not None:
+                    raise OutcomeUnknown(cfg.run_id, f"{cfg.turn_id}:{tc_id}") from exc
+                raise
             span.set_status(StatusCode.OK)
-        except ApprovalRequired:
+        except (ApprovalRequired, OutcomeUnknown):
+            raise
+        except asyncio.CancelledError:
+            if idem_key is not None and cfg.idempotency_store is not None:
+                if dispatch_state.started:
+                    await cfg.idempotency_store.save(
+                        ExecutionAttempt(
+                            key=idem_key,
+                            status=AttemptStatus.OUTCOME_UNKNOWN,
+                            error="reconciliation required",
+                        )
+                    )
+                else:
+                    await cfg.idempotency_store.expire(idem_key)
             raise
         except Exception as exc:  # noqa: BLE001
             wrapped, error_type, metric_type, needs_reconcile = _normalize_tool_error(
@@ -701,7 +793,13 @@ async def _execute_single_tool(
             if metric_type == "exception":
                 span.record_exception(exc)
             _tool_errors.add(1, {"lughus.tool.name": name, "lughus.error.type": metric_type})
-            if idem_key is not None and cfg.idempotency_store is not None and needs_reconcile:
+            if (
+                idem_key is not None
+                and cfg.idempotency_store is not None
+                and not dispatch_state.started
+            ):
+                await cfg.idempotency_store.expire(idem_key)
+            elif idem_key is not None and cfg.idempotency_store is not None and needs_reconcile:
                 await cfg.idempotency_store.save(
                     ExecutionAttempt(
                         key=idem_key,
@@ -710,9 +808,6 @@ async def _execute_single_tool(
                     )
                 )
             output, status = _error_payload(wrapped), "error"
-        finally:
-            if budget_reservation is not None and cfg.budget is not None:
-                await cfg.budget.settle(budget_reservation, BudgetAmount(tool_calls=1))
     return _emit_tool_result(tc_id, name, started_at, status, output, err_type=error_type)
 
 
@@ -730,6 +825,9 @@ async def _execute_tools(
             "ToolExecutionConfig(runtime=ExecutionRuntime()) explicitly."
         )
     cfg = config
+    ids = [call[0] for call in tool_calls]
+    if any(not call_id for call_id in ids) or len(set(ids)) != len(ids):
+        raise ToolValidationError("Tool invocation IDs must be nonempty and unique within a turn")
     timeout = cfg.tool_timeout if cfg.tool_timeout and cfg.tool_timeout > 0 else None
     semaphore = asyncio.Semaphore(max(1, cfg.max_parallel_tools))
 

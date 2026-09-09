@@ -9,3 +9,10 @@ Streaming supports two explicit modes (`StreamingMode`):
 - `LIVE`: Low-latency time-to-first-token streaming where provider chunks are yielded immediately.
 
 A timeout around a synchronous Python tool stops waiting but cannot terminate its worker thread. Tools that perform side effects remain responsible for idempotency and cooperative cancellation. Prompts are not authorization controls.
+
+## 0.21 scope clarification
+
+Integrated recovery requires the SQLite execution journal, not merely the presence
+of a CheckpointStore. See [recovery](operations/recovery.md) for ownership, state,
+budget and unknown-effect limitations. Token accounting is observed after calls;
+it is not a hard pre-call monetary ceiling. Beta minors may break APIs.

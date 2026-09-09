@@ -130,7 +130,7 @@ async def test_approval_not_consumed_when_claim_signals_in_progress():
     await approval_store.decide(request.request_id, ApprovalStatus.APPROVED, "reviewer")
 
     # Plant a PENDING receipt so the claim sees an in-progress execution
-    idem_key = IdempotencyKey.from_args(RUN_ID, "idem_tool", {})
+    idem_key = IdempotencyKey.from_args(RUN_ID, "idem_tool", {}, invocation_id="0:call_1")
     await idem_store.claim(ExecutionAttempt(key=idem_key, status=AttemptStatus.PENDING))
 
     cfg = owned_config(
@@ -381,7 +381,7 @@ async def test_no_receipt_when_policy_denies():
     finally:
         await cfg.runtime.close()
 
-    key = IdempotencyKey.from_args(RUN_ID, "denied_tool", {})
+    key = IdempotencyKey.from_args(RUN_ID, "denied_tool", {}, invocation_id="0:call_1")
     assert await idem_store.get(key) is None
     assert len(idem_store) == 0
 
@@ -502,7 +502,7 @@ async def test_completed_receipt_replayed_without_new_approval():
     idem_store = InMemoryIdempotencyStore()
 
     # Write a COMPLETED receipt directly (wrapped in the tool-result envelope)
-    key = IdempotencyKey.from_args(RUN_ID, "replay_tool", {})
+    key = IdempotencyKey.from_args(RUN_ID, "replay_tool", {}, invocation_id="0:call_a")
     await idem_store.save(
         ExecutionAttempt(
             key=key,

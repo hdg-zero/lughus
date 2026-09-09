@@ -141,7 +141,7 @@ class _RPCClient:
             {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "lughus", "version": "0.20.0"},
+                "clientInfo": {"name": "lughus", "version": "0.21.0"},
             },
         )
         if not isinstance(result, dict) or result.get("protocolVersion") != "2024-11-05":
@@ -463,7 +463,9 @@ class MCPAdapter:
         self._cache_valid = True
         return selected
 
-    async def _invoke(self, name: str, arguments: Mapping[str, Any]) -> Any:
+    async def _invoke(
+        self, name: str, arguments: Mapping[str, Any], *, expected_fingerprint: str | None = None
+    ) -> Any:
         if not self._snapshot:
             raise PermissionError("Call refresh() to approve MCP descriptors before use")
         if not self._cache_valid or not self.config.cache_tools:
@@ -481,6 +483,8 @@ class MCPAdapter:
                 )
             self._cache_valid = True
 
+        if expected_fingerprint is not None and expected_fingerprint != self._schema_fingerprint:
+            raise RuntimeError("Registered MCP tool belongs to an obsolete descriptor snapshot")
         if name not in self._snapshot:
             raise PermissionError("MCP tool is not present in the approved snapshot")
 
@@ -505,10 +509,11 @@ class MCPAdapter:
     ) -> ToolDef:
         """Convert an MCPToolDescriptor to a Lughus ToolDef."""
         target_name = descriptor.name
+        fingerprint = self._schema_fingerprint
 
         async def remote_tool_fn(**kwargs: Any) -> Any:
             call_kwargs = {k: v for k, v in kwargs.items() if k != "state"}
-            return await self._invoke(target_name, call_kwargs)
+            return await self._invoke(target_name, call_kwargs, expected_fingerprint=fingerprint)
 
         input_schema = dict(descriptor.input_schema)
         output_schema = (

@@ -148,7 +148,6 @@ class ContainerPythonBackend:
         return [
             engine,
             "run",
-            "--rm",
             "--interactive",
             "--name",
             name,
@@ -264,8 +263,10 @@ class ContainerPythonBackend:
             raise SandboxUnavailableError(
                 "Container cleanup timed out; worker reconciliation required"
             ) from exc
-        # A missing container is normal after --rm. Operators must reconcile
-        # abandoned lughus-* containers after daemon/host failures.
+        if proc.returncode != 0:
+            raise SandboxUnavailableError(
+                "Container removal failed; worker reconciliation required"
+            )
 
     def _decode(self, output: bytes) -> InterpreterResult:
         c = self.config

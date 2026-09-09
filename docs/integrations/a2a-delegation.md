@@ -7,7 +7,7 @@ Agent-to-Agent (A2A) delegation allows a primary Lughus run to orchestrate child
 ## The Delegation Model
 Delegation in Lughus (`lughus.engine.delegation`) revolves around safely requesting and tracking remote execution.
 - `DelegationRequest`: Defines the target, required skill, objective, and crucially, the causal chain.
-- `RemoteAgentClient`: A protocol your application implements to handle the actual wire transport (e.g., gRPC, HTTP).
+- `RemoteAgentClient`: A transport protocol implemented natively by `A2AClient` for the A2A 0.3 JSON-RPC HTTP binding. See [the client guide](a2a-client.md).
 - `Delegator`: The orchestrator that wraps requests, applying budget constraints before dispatch.
 
 ## Child Budgets

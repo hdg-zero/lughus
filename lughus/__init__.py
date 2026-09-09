@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from .agent.application import AgentRuntime as AgentRuntime
     from .agent.runner import GovernedAgentRunner as GovernedAgentRunner
     from .core.artifacts import ArtifactStore as ArtifactStore
+    from .core.binary_artifacts import FileArtifactStore
     from .core.event_stream import EventSink as EventSink
     from .core.event_stream import InMemoryEventSink as InMemoryEventSink
     from .engine.delegation import DelegationCycleError as DelegationCycleError
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
     from .engine.delegation import DelegationResult as DelegationResult
     from .engine.delegation import Delegator as Delegator
     from .engine.delegation import RemoteAgentClient as RemoteAgentClient
+    from .engine.interpreter import ContainerConfig, ContainerPythonBackend
     from .engine.interpreter import InterpreterResult as InterpreterResult
     from .engine.interpreter import InterpreterTimeoutError as InterpreterTimeoutError
     from .engine.interpreter import register_code_interpreter as register_code_interpreter
@@ -40,6 +42,7 @@ if TYPE_CHECKING:
     from .infra.runtime import ExecutionRuntime as ExecutionRuntime
     from .infra.runtime import RuntimeConfig as RuntimeConfig
     from .infra.telemetry import setup_telemetry as setup_telemetry
+    from .interfaces.a2a import A2AClient
     from .interfaces.gateway import BaseGateway as BaseGateway
     from .interfaces.mcp import MCPAdapter as MCPAdapter
     from .interfaces.mcp import MCPClient as MCPClient
@@ -59,6 +62,8 @@ if TYPE_CHECKING:
     from .loop import emit_a2a_request as emit_a2a_request
     from .loop import emit_a2a_response as emit_a2a_response
     from .persistence.coordinator import RunCoordinator as RunCoordinator
+    from .persistence.execution import OutcomeUnknown
+    from .persistence.sqlite import SQLiteApprovalStore, SQLiteStore
     from .persistence.store import Checkpoint as Checkpoint
     from .persistence.store import CheckpointStore as CheckpointStore
     from .persistence.store import ConcurrentUpdateError as ConcurrentUpdateError
@@ -84,6 +89,9 @@ from .infra.config import BaseSettings
 #   * several modules pull in asyncio (~50 ms) transitively via budget,
 #     persistence, event_stream, etc.
 _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
+    "SQLiteStore": (".persistence.sqlite", None),
+    "SQLiteApprovalStore": (".persistence.sqlite", None),
+    "OutcomeUnknown": (".persistence.execution", None),
     "A2AClient": (".interfaces.a2a", None),
     "ContainerPythonBackend": (".engine.interpreter", None),
     "ContainerConfig": (".engine.interpreter", None),
@@ -246,7 +254,10 @@ __all__ = [
     "GovernedAgentRunner",
     "LoopResult",
     "LughusError",
+    "OutcomeUnknown",
     "ProgressEvent",
+    "SQLiteApprovalStore",
+    "SQLiteStore",
     "SafeToolError",
     "ToolEffect",
     "ToolExecutionConfig",

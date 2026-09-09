@@ -16,7 +16,9 @@ SCHEMA_VERSION = "1.0"
 
 def canonical_json(data: Any) -> str:
     """Return compact, sorted UTF-8 JSON representation for deterministic hashing."""
-    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return json.dumps(
+        data, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    )
 
 
 def canonical_hash(data: Any) -> str:
