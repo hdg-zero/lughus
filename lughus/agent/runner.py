@@ -224,7 +224,8 @@ class GovernedAgentRunner:
                     )
 
                     async def checkpoint(value: LoopCheckpoint) -> None:
-                        assert saved is not None and journal is not None
+                        if saved is None or journal is None:
+                            raise RuntimeError("Execution snapshot or journal is unexpectedly None")
                         saved["loop"] = value.to_dict()
                         await journal.store.snapshot_execution(run.run_id, journal.owner, saved)
 
@@ -255,7 +256,10 @@ class GovernedAgentRunner:
                 if coordinator is not None:
                     if terminal is not None:
                         run = await coordinator.transition(run, terminal, kind, data)
-                        assert rt is not None
+                        if rt is None:
+                            raise RuntimeError(
+                                "Agent runtime is required for coordinated run transitions"
+                            )
                         checkpoint = await rt.checkpoint_store.latest(run.run_id)
                         if checkpoint is None:
                             raise RuntimeError("Committed run checkpoint is missing")
