@@ -1,4 +1,4 @@
-# Native A2A client (0.20)
+# Native A2A client
 
 `lughus.interfaces.a2a.A2AClient` implements the **A2A 0.3 JSON-RPC HTTP binding**
 using httpx, without importing the server SDK. This is a scoped binding, not a

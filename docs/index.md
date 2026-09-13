@@ -104,4 +104,4 @@ Decision records — read in order if you want the "why":
 - [Native A2A client](integrations/a2a-client.md)
 - [Python confinement](security/python-execution.md)
 - [Durable recovery](operations/recovery.md)
-- [Breaking beta upgrades](guides/beta-upgrades.md)
+- [Beta runtime conventions](guides/beta-upgrades.md)

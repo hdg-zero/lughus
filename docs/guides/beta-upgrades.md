@@ -1,42 +1,41 @@
-# Upgrading the stacked beta releases
+# Beta Runtime Conventions and Architecture
 
-## 0.19
+Lughus is in beta. There is no backward compatibility guaranteed between beta
+releases. No compatibility shims, implicit store migrations, image auto-pulls,
+transport auto-replays or fake sandbox fallbacks are retained.
 
-Use the same objective/principal/registry signature for governed run and stream.
-Do not pass tool_config to bypass the configured runtime. Runtime stores must
-share one transactional backend. Close streaming iterators on early exit.
+## Governed Execution and Shared Engine
 
-## 0.20
+Use the same objective, principal, and registry signatures for governed run and stream.
+Do not pass tool execution configurations to bypass the configured runtime. Runtime stores
+must share one transactional backend. Close streaming iterators on early exit.
 
-Import engine/interfaces from their owning modules. Configure an explicit
-ContainerPythonBackend and BinaryArtifactStore; remove calls to run_python.
-Provision a digest-pinned image on the worker. Stdio MCP environments must be
-supplied explicitly when tools require credentials. Pin supported protocol
-bindings rather than assuming every MCP/A2A revision is compatible.
+## Confined Execution and External Protocols
 
-## 0.21
+Import engine and interfaces from their owning modules. Configure an explicit
+`ContainerPythonBackend` and `BinaryArtifactStore`; direct unconfined execution is forbidden.
+Provision a digest-pinned image on the worker. Stdio MCP environments must be supplied
+explicitly when tools require credentials. Supported protocol bindings are pinned rather
+than assuming every MCP or A2A revision is compatible.
 
-A ToolDef now retains its inferred Pydantic input model. Policies and receipts use
+## Typed Tool Definitions and Resumption
+
+A `ToolDef` retains its inferred Pydantic input model. Policies and receipts use
 canonical JSON; callables receive hydrated Python objects. Annotated constraints
 are preserved. For explicit manual JSON schemas, callable arguments remain JSON
-unless an input model is explicitly provided on ToolDef.
+unless an input model is explicitly provided on `ToolDef`.
 
-Use SQLiteStore + SQLiteApprovalStore + AgentRuntime(journal=store) for integrated
+Use `SQLiteStore` + `SQLiteApprovalStore` + `AgentRuntime(journal=store)` for integrated
 resumption. Durable tools must not accept injected mutable state. Receipt identity
-is invocation-scoped, not a cache across arbitrary equal-argument calls. Use the
-same invocation ID when replaying the same attempt in low-level tests. Import
-non-root governance contracts from their owning modules.
+is invocation-scoped, not a cache across arbitrary equal-argument calls.
 
-Tool failures settle/release their reservations. Budget exhaustion stops execution
+Tool failures settle or release their reservations. Budget exhaustion stops execution
 rather than becoming a model-retryable tool result. Unknown effects suspend
 execution for reconciliation. See the recovery guide for operational boundaries.
 
-No compatibility shims, implicit store migrations, image auto-pulls, transport
-auto-replays or fake sandbox fallback are retained.
+## Runtime Invariants and Hardening
 
-## 0.22
-
-Production invariants no longer rely on `assert` statements; explicit runtime
+Production invariants do not rely on `assert` statements; explicit runtime
 exceptions (`RuntimeError`, `ValueError`) are raised uniformly across persistence,
 governance, and transports, guaranteeing enforcement under `python -O`.
 

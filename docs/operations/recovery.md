@@ -1,4 +1,4 @@
-# Durable execution and resumption (0.21 / 0.22)
+# Durable execution and resumption
 
 The integrated reference implementation is SQLiteStore on a local filesystem.
 This is **not** multi-replica/distributed execution and does not claim universal
@@ -92,6 +92,6 @@ raw database or these methods to model-generated tools.
   between them requires reconciliation or external idempotency. No universal
   exactly-once claim is made.
 
-Tests: `test_sqlite_v021.py` includes a real child-process `os._exit` boundary;
-`test_resume_v021.py` exercises public suspend/approve/resume with a new runtime;
-`test_functional_v021.py` covers typed inputs and budget settlement.
+Tests: test suite includes a real child-process `os._exit` boundary,
+public suspend/approve/resume with a new runtime, typed inputs, and budget settlement.
+
