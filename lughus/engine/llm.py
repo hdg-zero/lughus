@@ -253,7 +253,10 @@ class LLM:
         tools_payload = _prepare_tools_payload(tools)
         lm = _litellm()
 
+        attempt = 0
+
         async def _make() -> Any:
+            nonlocal attempt
             kwargs: dict = {
                 "model": self.model,
                 "messages": messages,
@@ -261,7 +264,8 @@ class LLM:
                 **self.params,
             }
             if tools_payload is not None:
-                kwargs["tools"] = copy.deepcopy(tools_payload)
+                kwargs["tools"] = copy.deepcopy(tools_payload) if attempt > 0 else tools_payload
+            attempt += 1
             response = cast(Any, await lm.acompletion(**kwargs))
             if not getattr(response, "choices", None):
                 raise LLMResponseError("LLM provider returned a completion without choices")
@@ -278,8 +282,10 @@ class LLM:
         """Streaming variant — returns an async iterable of response chunks."""
         tools_payload = _prepare_tools_payload(tools)
         lm = _litellm()
+        stream_attempt = 0
 
         def _make(include_usage: bool = True) -> Any:
+            nonlocal stream_attempt
             kwargs: dict = {
                 "model": self.model,
                 "messages": messages,
@@ -288,7 +294,10 @@ class LLM:
                 **self.params,
             }
             if tools_payload is not None:
-                kwargs["tools"] = copy.deepcopy(tools_payload)
+                kwargs["tools"] = (
+                    copy.deepcopy(tools_payload) if stream_attempt > 0 else tools_payload
+                )
+            stream_attempt += 1
             if include_usage:
                 kwargs["stream_options"] = {"include_usage": True}
             return lm.acompletion(**kwargs)
