@@ -86,3 +86,37 @@ for line in sys.stdin:
 """
     async with StdioMCPClient([sys.executable, "-u", "-c", script]) as client:
         assert await client.list_tools() == ()
+
+
+@pytest.mark.asyncio
+async def test_mcp_initialize_sends_dynamic_version() -> None:
+    recorded_params = []
+
+    class MockInitClient(_RPCClient):
+        timeout = 1.0
+        max_response_bytes = 10000
+        on_tools_changed = None
+
+        def __init__(self):
+            self._init_rpc()
+
+        async def _ensure_connected(self):
+            pass
+
+        async def _write(self, payload):
+            if payload.get("method") == "initialize":
+                recorded_params.append(payload["params"])
+                self._accept(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": payload["id"],
+                        "result": {"protocolVersion": "2024-11-05"},
+                    }
+                )
+
+    client = MockInitClient()
+    await client._initialize()
+    assert recorded_params
+    client_info = recorded_params[0].get("clientInfo", {})
+    assert client_info.get("name") == "lughus"
+    assert client_info.get("version") is not None
