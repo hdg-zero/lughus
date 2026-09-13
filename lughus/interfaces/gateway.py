@@ -7,6 +7,7 @@ import base64
 import contextlib
 import logging
 from collections.abc import AsyncIterator
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any
 
 from a2a.server.agent_execution import AgentExecutor
@@ -34,8 +35,6 @@ if TYPE_CHECKING:
     from ..agent.runner import GovernedAgentRunner
     from ..engine.llm import LLM
     from ..governance.policy import Principal
-
-from concurrent.futures import ThreadPoolExecutor
 
 __all__ = ["BaseGateway"]
 

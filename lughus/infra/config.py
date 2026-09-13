@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import os
+import threading
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 
@@ -21,6 +22,7 @@ __all__ = ["BaseSettings", "isolated_env"]
 
 
 _DOTENV_LOADED = False
+_DOTENV_LOCK = threading.Lock()
 _current_env: contextvars.ContextVar[Mapping[str, str] | None] = contextvars.ContextVar(
     "_current_env", default=None
 )
@@ -38,21 +40,24 @@ def isolated_env(env: Mapping[str, str] | None = None) -> Iterator[None]:
 
 def _ensure_dotenv() -> None:
     global _DOTENV_LOADED
-    if not _DOTENV_LOADED:
-        _DOTENV_LOADED = True
-        try:
-            from dotenv import load_dotenv
+    if _DOTENV_LOADED:
+        return
+    with _DOTENV_LOCK:
+        if not _DOTENV_LOADED:
+            _DOTENV_LOADED = True
+            try:
+                from dotenv import load_dotenv
 
-            path = os.path.join(os.getcwd(), ".env")
-            load_dotenv(path if os.path.exists(path) else None)
-        except ImportError:
-            if os.path.exists(".env"):
-                with open(".env", encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if "=" in line and not line.startswith("#"):
-                            k, v = line.split("=", 1)
-                            os.environ.setdefault(k.strip(), v.strip().strip("'\""))
+                path = os.path.join(os.getcwd(), ".env")
+                load_dotenv(path if os.path.exists(path) else None)
+            except ImportError:
+                if os.path.exists(".env"):
+                    with open(".env", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if "=" in line and not line.startswith("#"):
+                                k, v = line.split("=", 1)
+                                os.environ.setdefault(k.strip(), v.strip().strip("'\""))
 
 
 def _get_raw_env(key: str) -> str | None:
