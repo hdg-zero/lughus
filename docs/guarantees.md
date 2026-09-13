@@ -16,3 +16,11 @@ Integrated recovery requires the SQLite execution journal, not merely the presen
 of a CheckpointStore. See [recovery](operations/recovery.md) for ownership, state,
 budget and unknown-effect limitations. Token accounting is observed after calls;
 it is not a hard pre-call monetary ceiling. Beta minors may break APIs.
+
+## 0.22 scope clarification
+
+Internal framework invariants are enforced through explicit runtime exceptions, ensuring
+identical behavior when running with Python optimizations (`python -O`). Pruning of conversation
+history purges token cache references. Requests exceeding `MAX_HTTP_BODY_BYTES` are forcibly
+terminated even if the ASGI response cycle has commenced.
+

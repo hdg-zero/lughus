@@ -33,3 +33,21 @@ execution for reconciliation. See the recovery guide for operational boundaries.
 
 No compatibility shims, implicit store migrations, image auto-pulls, transport
 auto-replays or fake sandbox fallback are retained.
+
+## 0.22
+
+Production invariants no longer rely on `assert` statements; explicit runtime
+exceptions (`RuntimeError`, `ValueError`) are raised uniformly across persistence,
+governance, and transports, guaranteeing enforcement under `python -O`.
+
+MCP client transports dynamically resolve `clientInfo` version from package metadata
+and safely handle transport stream exhaustion without assertion errors.
+
+The message history manager purges evicted message identities from the token cache
+upon context pruning, preventing unbounded memory growth and identifier-reuse
+collisions in long-running loops.
+
+The ASGI production guard terminates incoming HTTP request streams immediately
+upon exceeding `MAX_HTTP_BODY_BYTES`, even when response headers have already
+started emitting.
+

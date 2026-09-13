@@ -207,6 +207,7 @@ an explicit Docker/Podman backend and artifact store; there is no unsafe fallbac
 
 ## Durable beta execution
 
-Version 0.21 adds [SQLite-backed resume/resume_stream](docs/operations/recovery.md).
+Versions 0.21 and 0.22 provide [SQLite-backed resume/resume_stream](docs/operations/recovery.md).
 Read its single-host, stateless-tool and reconciliation constraints before deployment.
 See [the breaking upgrade guide](docs/guides/beta-upgrades.md).
+

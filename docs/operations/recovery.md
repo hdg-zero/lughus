@@ -1,4 +1,4 @@
-# Durable execution and resumption (0.21)
+# Durable execution and resumption (0.21 / 0.22)
 
 The integrated reference implementation is SQLiteStore on a local filesystem.
 This is **not** multi-replica/distributed execution and does not claim universal
