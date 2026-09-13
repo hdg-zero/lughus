@@ -282,6 +282,8 @@ def prune_history(
     # Remove indices in a single pass
     to_remove = set(indices_to_remove)
     if to_remove:
+        for idx in to_remove:
+            cache.pop((id(messages[idx]), model), None)
         messages[:] = [m for i, m in enumerate(messages) if i not in to_remove]
 
     if pruned_count > 0:
