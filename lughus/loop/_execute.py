@@ -878,6 +878,9 @@ async def _execute_tasks_group(
             for idx, (tc_id, name, raw_args) in enumerate(tool_calls):
                 tg.create_task(_task(idx, tc_id, name, raw_args))
     except ExceptionGroup as eg:
+        if len(eg.exceptions) > 1:
+            for extra in eg.exceptions[1:]:
+                _logger.error("Suppressed concurrent tool execution exception: %s", extra)
         raise eg.exceptions[0] from eg
 
     if approval_errors:
