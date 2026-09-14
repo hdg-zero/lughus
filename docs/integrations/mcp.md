@@ -1,4 +1,4 @@
-# Native MCP transports (0.20)
+# Native MCP transports
 
 Supported binding: MCP **2024-11-05 stdio and legacy HTTP+SSE**. Streamable HTTP,
 OAuth discovery, sampling and server-initiated client requests are not implemented.

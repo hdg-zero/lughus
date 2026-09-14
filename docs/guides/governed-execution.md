@@ -1,4 +1,4 @@
-# Governed execution (0.19)
+# Governed execution
 
 `GovernedAgentRunner(runtime).run()` and `.stream()` use the same lifecycle.
 Both require `objective`, authenticated `principal` and `registry`. The runner
@@ -8,11 +8,17 @@ Streaming also enforces approvals, budget accounting and context selection.
 
 ```python
 runner = GovernedAgentRunner(runtime)
-result = await runner.run(llm, objective="Inspect orders", principal=principal,
-                          registry=registry)
-async with contextlib.aclosing(runner.stream(
-    llm, objective="Inspect orders", principal=principal, registry=registry,
-)) as events:
+result = await runner.run(
+    llm, objective="Inspect orders", principal=principal, registry=registry
+)
+async with contextlib.aclosing(
+    runner.stream(
+        llm,
+        objective="Inspect orders",
+        principal=principal,
+        registry=registry,
+    )
+) as events:
     async for event in events:
         print(event.type, event.data)
 ```
@@ -33,5 +39,6 @@ Python thread cannot be killed: cancellation drains it before releasing effect
 locks. Thus synchronous timeouts are cooperative, not a hard latency guarantee.
 Use async I/O or the confined interpreter for hard termination requirements.
 
-Events are written as they happen, but 0.19 is not a durable resumption engine.
-See the release-specific recovery documentation before assuming crash recovery.
+Events are written as they happen, but this is not a durable resumption engine.
+See the recovery documentation before assuming crash recovery.
+

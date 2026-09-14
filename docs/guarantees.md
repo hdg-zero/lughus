@@ -10,9 +10,17 @@ Streaming supports two explicit modes (`StreamingMode`):
 
 A timeout around a synchronous Python tool stops waiting but cannot terminate its worker thread. Tools that perform side effects remain responsible for idempotency and cooperative cancellation. Prompts are not authorization controls.
 
-## 0.21 scope clarification
+## Recovery and Runtime Invariant Scope
 
 Integrated recovery requires the SQLite execution journal, not merely the presence
 of a CheckpointStore. See [recovery](operations/recovery.md) for ownership, state,
 budget and unknown-effect limitations. Token accounting is observed after calls;
-it is not a hard pre-call monetary ceiling. Beta minors may break APIs.
+it is not a hard pre-call monetary ceiling. During the beta period, APIs may evolve
+without backward compatibility.
+
+Internal framework invariants are enforced through explicit runtime exceptions, ensuring
+identical behavior when running with Python optimizations (`python -O`). Pruning of conversation
+history purges token cache references. Requests exceeding `MAX_HTTP_BODY_BYTES` are forcibly
+terminated even if the ASGI response cycle has commenced.
+
+

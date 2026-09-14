@@ -23,6 +23,69 @@ async def test_scenario_evaluation_is_deterministic():
     assert result.passed
 
 
+@pytest.mark.asyncio
+async def test_scenario_evaluation_failure_branches():
+    # 1. max_events exceeded
+    scenario = Scenario(
+        "exceeded",
+        "obj",
+        max_events=1,
+        required_event_types=frozenset({"run.started"}),
+        forbidden_event_types=frozenset({"run.error"}),
+        expected_terminal_event="run.completed",
+    )
+
+    async def _exec_exceeded(_):
+        return [RunEvent("run.started", "run", 0), RunEvent("run.completed", "run", 1)]
+
+    result = await evaluate_scenario(scenario, _exec_exceeded)
+    assert not result.passed
+    assert any("event count" in f for f in result.failures)
+
+    # 2. missing required event and forbidden event present
+    scenario_missing_forbidden = Scenario(
+        "missing_forbidden",
+        "obj",
+        required_event_types=frozenset({"run.started", "run.required"}),
+        forbidden_event_types=frozenset({"run.forbidden"}),
+        expected_terminal_event="run.completed",
+    )
+
+    async def _exec_missing_forbidden(_):
+        return [
+            RunEvent("run.started", "run", 0),
+            RunEvent("run.forbidden", "run", 1),
+            RunEvent("run.completed", "run", 2),
+        ]
+
+    result2 = await evaluate_scenario(scenario_missing_forbidden, _exec_missing_forbidden)
+    assert not result2.passed
+    assert any("missing events: run.required" in f for f in result2.failures)
+    assert any("forbidden events: run.forbidden" in f for f in result2.failures)
+
+    # 3. empty events (terminal event missing)
+    async def _exec_empty(_):
+        return []
+
+    result_empty = await evaluate_scenario(
+        Scenario("empty", "obj", expected_terminal_event="run.completed"),
+        _exec_empty,
+    )
+    assert not result_empty.passed
+    assert any("terminal event must be run.completed" in f for f in result_empty.failures)
+
+    # 4. non-monotonic / non-unique sequences
+    async def _exec_seq(_):
+        return [RunEvent("run.started", "run", 1), RunEvent("run.completed", "run", 0)]
+
+    result_seq = await evaluate_scenario(
+        Scenario("bad_seq", "obj", expected_terminal_event="run.completed"),
+        _exec_seq,
+    )
+    assert not result_seq.passed
+    assert any("event sequences are not unique and monotonic" in f for f in result_seq.failures)
+
+
 class _MCP:
     origin = "https://mcp.example"
 

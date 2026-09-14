@@ -6,6 +6,7 @@ import asyncio
 import dataclasses
 import functools
 import json
+import logging
 import threading
 import time
 from typing import Any
@@ -15,7 +16,8 @@ import pytest
 from lughus import ConcurrencyMode, ToolRegistry
 from lughus.infra.runtime import ExecutionRuntime, RuntimeConfig
 from lughus.loop import ToolExecutionConfig, collect_tool_events
-from lughus.loop import _execute_tools as _raw_execute_tools
+from lughus.loop._execute import _execute_tasks_group
+from lughus.loop._execute import _execute_tools as _raw_execute_tools
 
 
 def _test_runtime(max_workers: int = 32) -> ExecutionRuntime:
@@ -581,3 +583,24 @@ async def test_sync_tool_worker_pool_is_bounded() -> None:
 
     assert len(results) == 4
     assert max_seen == 2
+
+
+@pytest.mark.asyncio
+async def test_execute_tasks_group_logs_multiple_concurrent_exceptions(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def _failing_run(tc_id: str, name: str, raw_args: str) -> tuple[str, str]:
+        if tc_id == "call_1":
+            raise RuntimeError("failure 1")
+        if tc_id == "call_2":
+            raise RuntimeError("failure 2")
+        return (tc_id, "ok")
+
+    tool_calls = [("call_1", "t1", "{}"), ("call_2", "t2", "{}")]
+    with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError):
+        await _execute_tasks_group(tool_calls, _failing_run)
+
+    assert any(
+        "Suppressed concurrent tool execution exception: failure" in record.message
+        for record in caplog.records
+    )

@@ -278,6 +278,31 @@ async def test_production_guard_rejects_streamed_body_without_content_length() -
     assert b"request_body_too_large" in body
 
 
+async def _streaming_read_body_app(scope, receive, send) -> None:
+    await send({"type": "http.response.start", "status": 200, "headers": []})
+    await send({"type": "http.response.body", "body": b"chunk", "more_body": True})
+    while True:
+        message = await receive()
+        if message.get("type") != "http.request" or not message.get("more_body", False):
+            break
+    await send({"type": "http.response.body", "body": b"done", "more_body": False})
+
+
+@pytest.mark.asyncio
+async def test_production_guard_terminates_stream_when_body_exceeds_after_response_start() -> None:
+    from lughus.interfaces.server import RequestBodyTooLarge
+
+    app = ProductionGuardMiddleware(_streaming_read_body_app, max_body_bytes=4)
+
+    with pytest.raises(RequestBodyTooLarge):
+        await _call_asgi(
+            app,
+            method="POST",
+            path="/",
+            body=b"12345",
+        )
+
+
 @pytest.mark.asyncio
 async def test_production_guard_limits_concurrent_requests() -> None:
     started = asyncio.Event()

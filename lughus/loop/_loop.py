@@ -5,7 +5,7 @@ import contextvars
 import logging
 import time
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping, Sequence
-from contextlib import aclosing, asynccontextmanager
+from contextlib import aclosing, asynccontextmanager, suppress
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
@@ -278,7 +278,8 @@ async def _stream_with_timeout(
     finally:
         close = getattr(iterator, "aclose", None)
         if close is not None:
-            await close()
+            with suppress(Exception):
+                await close()
 
 
 def _resolve_tool_config(

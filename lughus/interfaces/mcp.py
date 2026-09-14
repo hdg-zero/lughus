@@ -9,6 +9,8 @@ import os
 import shlex
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlsplit
@@ -31,6 +33,11 @@ __all__ = [
 ]
 
 _logger = logging.getLogger(__name__)
+
+try:
+    _CLIENT_VERSION = _pkg_version("lughus")
+except PackageNotFoundError:
+    _CLIENT_VERSION = "0.0.0.dev0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,7 +148,7 @@ class _RPCClient:
             {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "lughus", "version": "0.21.0"},
+                "clientInfo": {"name": "lughus", "version": _CLIENT_VERSION},
             },
         )
         if not isinstance(result, dict) or result.get("protocolVersion") != "2024-11-05":
@@ -267,7 +274,8 @@ class StdioMCPClient(_RPCClient):
                 await self._initialize()
 
     async def _read_loop(self) -> None:
-        assert self._process is not None and self._process.stdout is not None
+        if self._process is None or self._process.stdout is None:
+            raise ConnectionError("MCP subprocess stdout is unavailable")
         try:
             while line := await self._process.stdout.readline():
                 if len(line) > self.max_response_bytes:
@@ -281,7 +289,8 @@ class StdioMCPClient(_RPCClient):
             self._fail(self._failure or ConnectionError("MCP stdout closed"))
 
     async def _drain_stderr(self) -> None:
-        assert self._process is not None and self._process.stderr is not None
+        if self._process is None or self._process.stderr is None:
+            return
         while await self._process.stderr.read(8192):
             pass  # drain without retaining unbounded diagnostics or logging secrets
 

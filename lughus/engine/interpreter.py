@@ -201,9 +201,8 @@ class ContainerPythonBackend:
             stderr=asyncio.subprocess.PIPE,
             env=env,
         )
-        assert (
-            process.stdin is not None and process.stdout is not None and process.stderr is not None
-        )
+        if process.stdin is None or process.stdout is None or process.stderr is None:
+            raise RuntimeError("Subprocess I/O streams are unavailable")
         payload = json.dumps(
             {
                 "code": code,

@@ -296,3 +296,19 @@ class TestMessageHistoryMisc:
         ]
         history = MessageHistory(msgs)
         assert list(history.view) == msgs
+
+    def test_prune_evicts_deleted_messages_from_token_cache(self) -> None:
+        from lughus.loop._messages import prune_history
+
+        msg1 = {"role": "system", "content": "sys"}
+        msg2 = {"role": "user", "content": "obj"}
+        msg3 = {"role": "assistant", "content": "res1"}
+        msg4 = {"role": "user", "content": "res2"}
+
+        messages = [msg1, msg2, msg3, msg4]
+        token_cache: dict[tuple[int, str | None], int] = {}
+
+        pruned = prune_history(messages, max_tokens=25, prefix_len=2, token_cache=token_cache)
+        assert pruned > 0
+        assert (id(msg3), None) not in token_cache
+        assert msg3 not in messages

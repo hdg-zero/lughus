@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-09-13
+
+### Added
+- Added comprehensive failure branch tests for `evaluate_scenario` in `lughus.testing.evaluation`, raising test suite coverage.
+- Added test coverage for `ProductionGuardMiddleware` streaming body cutoff and `MessageHistory` token cache eviction.
+
+### Changed
+- Eliminated redundant `copy.deepcopy(tools_payload)` inside `LLM.generate` and `LLM.astream` on initial call paths, reducing memory pressure and inference latency.
+- Enhanced `_execute_tasks_group` to log all concurrent tool exceptions in `ExceptionGroup` before propagating the primary failure.
+- Reordered `ThreadPoolExecutor` standard library import in `lughus.interfaces.gateway` according to Ruff import sorting standards.
+
+### Fixed
+- Fixed token cache memory address collision in `MessageHistory.prune`: purged `(id(msg), model)` cache keys for deleted messages to prevent incorrect token estimations after CPython `pymalloc` reallocations.
+- Fixed incomplete ASGI socket termination on `RequestBodyTooLarge`: re-raised exception when response headers have already been sent to force immediate TCP connection drop.
+- Fixed hardcoded version in MCP client initialization: resolved `clientInfo.version` dynamically via `importlib.metadata` with fallback.
+- Fixed thread-safety in `_ensure_dotenv()` by protecting initial `.env` file loads with a module-level `threading.Lock`.
+- Fixed potential stream closure masking in `_stream_with_timeout` by suppressing non-fatal exceptions during generator `aclose()`.
+
+### Security
+- Eliminated all production-code `assert` statements across `runner.py`, `interpreter.py`, and `mcp.py`, replacing them with explicit `RuntimeError` and `ConnectionError` checks to prevent invariant bypass under Python `-O` (optimized bytecode).
+
 ## [0.21.0] - 2026-09-07
 
 ### Breaking

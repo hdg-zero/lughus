@@ -1,4 +1,4 @@
-# Confined Python execution (0.20)
+# Confined Python execution
 
 There is no local `run_python` fallback. Configure a `ContainerPythonBackend`
 with an image pinned by digest, pre-pulled by the operator. Docker or Podman must

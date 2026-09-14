@@ -148,6 +148,7 @@ class ProductionGuardMiddleware:
                 await response(scope, receive, send)
             else:
                 _logger.warning("Request body exceeded limit after response start")
+                raise
 
     async def _acquire_slot(self) -> bool:
         if self._semaphore is None:
