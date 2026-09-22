@@ -111,6 +111,8 @@ class BudgetLedger:
                 self._reserved_totals[field] -= getattr(amount, field)
             return True
 
+    cancel = release
+
     async def outstanding(self) -> Mapping[str, BudgetAmount]:
         """Return a snapshot of currently outstanding reservations."""
         async with self._lock:

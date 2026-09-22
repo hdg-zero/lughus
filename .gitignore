@@ -21,6 +21,8 @@ scratch/
 *.pptx
 *.xlsx
 *.pdf
+*.mp4
+lughus_post1_*.svg
 
 # --- Python compile & package artifacts ---
 __pycache__/

@@ -328,7 +328,12 @@ def build_app(
         enable_console: If True, exposes the developer console at /ui.
     """
     if setup_otel:
-        setup_telemetry(service_name=agent_card.name)
+        try:
+            setup_telemetry(service_name=agent_card.name)
+        except ImportError:
+            _logger.debug(
+                "OpenTelemetry SDK not installed (lughus[otel]); telemetry remains in no-op mode."
+            )
 
     _validate_production_config(
         gateway=gateway,
