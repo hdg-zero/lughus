@@ -1,0 +1,23 @@
+# Ignore all example agents by default
+*
+!.gitignore
+!README.md
+
+# Explicitly un-ignore data_ingestion_agent
+!data_ingestion_agent/
+!data_ingestion_agent/**
+
+# Universal exclusions for ALL agents (environments, caches, bytecode, build artifacts)
+.*
+.*/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/build/
+**/dist/
+**/uv.lock
+**/py.typed
+
+# Always track .gitignore and .env.example files
+!**/.gitignore
+!**/.env.example
