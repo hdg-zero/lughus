@@ -140,13 +140,35 @@ def deploy(service: str) -> str:
 
 ### Container-confined Python Code Interpreter
 
-Lughus provides an isolated Python code execution tool with automatic output truncation and timeout handling:
+Lughus provides a fail-closed, container-confined Python code execution tool (`code_interpreter`) with zero-network isolation, resource ceilings, and automatic binary artifact capture:
 
 ```python
-from lughus import ToolRegistry, register_code_interpreter
+from lughus import (
+    ContainerConfig,
+    ContainerPythonBackend,
+    FileArtifactStore,
+    ToolRegistry,
+    register_code_interpreter,
+)
 
 registry = ToolRegistry()
-register_code_interpreter(registry, timeout_s=30.0, requires_approval=True)
+backend = ContainerPythonBackend(
+    ContainerConfig(
+        image="python:3.12-slim@sha256:4b4c730e160a28f4d80a1c6a2e8cfa10bf23bc7155e8ccbe0ffc4c23f2f5abde",
+        engine="docker",  # or "podman"
+        timeout_s=30.0,
+        memory_mb=512,
+    )
+)
+artifact_store = FileArtifactStore("./artifacts")
+
+# Registers canonical "code_interpreter" tool (ToolRisk.HIGH, ToolEffect.WRITE | EXTERNAL)
+register_code_interpreter(
+    registry,
+    backend=backend,
+    artifact_store=artifact_store,
+    requires_approval=True,
+)
 ```
 
 ---
@@ -177,6 +199,14 @@ All configuration is managed through environment variables loaded automatically 
 | **Developer UI** | Terminal / Logging | Rich web console at `/ui` |
 | **Telemetry** | OpenTelemetry spans & counters | OpenTelemetry spans, counters & metrics |
 | **Scaffolding** | Single-script import | CLI scaffold via `lughus new` |
+
+---
+
+## 🤖 Production Agent Example
+
+Explore an end-to-end governed agent implementation in [`examples/data_ingestion_agent/`](examples/data_ingestion_agent/):
+
+- **[Data Ingestion & SQL Specialist Agent](examples/data_ingestion_agent/)**: Autonomous on-premise relational database inspection, schema discovery, and read-only querying with Pydantic `@tool` definitions, Least Privilege constraints (`ToolEffect.READ`), and zero schema/data leakage via `SafeToolError`. Includes offline tests and an interactive developer console (`/ui`).
 
 ---
 

@@ -155,22 +155,90 @@ def get_tool(self, name: str) -> ToolDef | None:
 
 ## Built-in Tools: Code Interpreter
 
-Lughus ships with an isolated Python execution environment with timeout handling, output character limits, and high-risk approval flags:
+Lughus ships with a fail-closed, container-confined Python execution environment with OCI sandboxing, resource ceilings, approval gating, and binary artifact export:
 
 ```python
-from lughus.tools import register_code_interpreter
+from lughus import (
+    ContainerConfig,
+    ContainerPythonBackend,
+    FileArtifactStore,
+    ToolRegistry,
+    register_code_interpreter,
+)
 
-# Register a sandboxed python interpreter tool
-register_code_interpreter(
+registry = ToolRegistry()
+backend = ContainerPythonBackend(
+    ContainerConfig(
+        image="python:3.12-slim@sha256:4b4c730e160a28f4d80a1c6a2e8cfa10bf23bc7155e8ccbe0ffc4c23f2f5abde",
+        engine="docker",  # or "podman"
+        timeout_s=30.0,
+        memory_mb=512,
+        cpus=1.0,
+    )
+)
+artifact_store = FileArtifactStore("./artifacts")
+
+# Register canonical "code_interpreter" tool
+tool_name = register_code_interpreter(
     registry,
-    name="code_interpreter",
-    timeout_s=30.0,
+    backend=backend,
+    artifact_store=artifact_store,
     requires_approval=True,
 )
 ```
 
-Exported from `lughus` root and `lughus.tools`.
+### Signature: `register_code_interpreter`
+
+```python
+def register_code_interpreter(
+    registry: ToolRegistry,
+    *,
+    backend: PythonBackend,
+    artifact_store: BinaryArtifactStore,
+    requires_approval: bool = True,
+) -> str:
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `registry` | `ToolRegistry` | Target registry where `"code_interpreter"` is registered. |
+| `backend` | `PythonBackend` | Backend implementation conforming to `PythonBackend` protocol. |
+| `artifact_store` | `BinaryArtifactStore` | Store for indexing binary files produced during script execution. |
+| `requires_approval` | `bool` | Whether invocations require governance approval (defaults to `True`). |
+
+**Registered tool characteristics:**
+- **Tool Name:** `"code_interpreter"`
+- **Risk Level:** `ToolRisk.HIGH`
+- **Effects:** `frozenset({ToolEffect.WRITE, ToolEffect.EXTERNAL})`
+- **Input Argument:** `code: str`
+- **Output Schema:** `{"stdout": str, "stderr": str, "exit_code": int, "truncated": bool, "files": list[dict]}`
+
+### Protocol: `PythonBackend`
+
+Any execution backend can be plugged into `register_code_interpreter` by implementing the `PythonBackend` protocol:
+
+```python
+class PythonBackend(Protocol):
+    async def execute(self, code: str) -> InterpreterResult: ...
+```
+
+### Container Configuration: `ContainerConfig`
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `image` | `str` | *(required)* | Immutable image pinned with `@sha256:...` digest. |
+| `engine` | `str` | `"docker"` | Container CLI (`"docker"` or `"podman"`). |
+| `timeout_s` | `float` | `30.0` | Host-enforced execution deadline in seconds. |
+| `memory_mb` | `int` | `256` | RAM ceiling enforced via Linux cgroups. |
+| `cpus` | `float` | `1.0` | CPU core quota limit. |
+| `pids_limit` | `int` | `64` | Process limit protecting against fork bombs. |
+| `workspace_mb` | `int` | `32` | In-memory `tmpfs` scratch workspace size. |
+| `max_output_bytes`| `int` | `20_000` | Truncation limit on captured stdout/stderr. |
+| `max_artifact_bytes`| `int` | `10_000_000` | Maximum aggregate size of collected output files. |
+| `max_files` | `int` | `32` | Maximum count of exported files per run. |
+
+Exported from `lughus` root and `lughus.engine.interpreter`.
 
 ---
 
-**Related:** [Tools Guide](../guides/tools.md) · [Tools Contract](../contracts/tools.md) · [Policy API](policy.md) · [MCP Integration](../integrations/mcp.md)
+**Related:** [Sandboxed Execution Guide](../guides/sandboxed-execution.md) · [Confined Python Security](../security/python-execution.md) · [Tools Guide](../guides/tools.md) · [Tools Contract](../contracts/tools.md) · [Policy API](policy.md) · [MCP Integration](../integrations/mcp.md)

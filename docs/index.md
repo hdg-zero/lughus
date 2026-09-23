@@ -26,6 +26,7 @@ Welcome to the lughus documentation. Every page below links back to this index (
 |---|---|
 | [Agentic Design](guides/agentic-design.md) | Structuring workspaces, prompts and loops |
 | [Tools](guides/tools.md) | Concurrency modes, resource keys, safe tool design |
+| [Sandboxed Execution](guides/sandboxed-execution.md) | OCI container confinement, binary artifacts, local dev fallback |
 | [LLM Configuration](guides/llm.md) | Model strings, timeouts, retries |
 | [Budgets](guides/budget.md) | Token/cost budgets and ledgers |
 | [Testing](guides/testing.md) | MockLLM, offline tests, evaluation scenarios |
@@ -87,6 +88,7 @@ Decision records — read in order if you want the "why":
 | Page | Description |
 |---|---|
 | [Threat Model](security/threat-model.md) | Attack surfaces and mitigations |
+| [Confined Python Execution](security/python-execution.md) | Fail-closed OCI sandboxing, digest pinning, network isolation |
 | [Error Disclosure](security/error-disclosure.md) | Exception redaction policy |
 | [Data Handling](security/data-handling.md) | Payload, artifact and telemetry data flows |
 

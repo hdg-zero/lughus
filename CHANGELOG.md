@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Added `BudgetLedger.cancel` as an alias to `BudgetLedger.release` for ergonomic and safe cancellation of outstanding budget reservations.
+- Added comprehensive Sandboxed Python Execution guide (`docs/guides/sandboxed-execution.md`) covering fail-closed OCI container execution, local development subprocess fallback patterns (`PythonBackend`), and binary artifact persistence (`FileArtifactStore`).
+
+### Fixed
+- Fixed `build_app()` and `serve()` crashing with `ImportError` when `setup_otel=True` is used without optional `lughus[otel]` dependency installed.
+- Fixed outdated and invalid `register_code_interpreter` signatures across `README.md` and `docs/api/tools.md`, aligning examples with the modern backend-driven signature (`backend=...`, `artifact_store=...`).
+- Updated `docs/security/python-execution.md` with complete imports, confinement flags matrix, and path traversal mitigation details.
+
 ## [0.22.0] — 2026-09-13
 
 ### Added

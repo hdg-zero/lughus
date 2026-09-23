@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "data_ingestion_agent"
+version = "0.22.0"
+description = "Lughus Data Ingestion & SQL Specialist Agent (On-Premise & Zero-Leak)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "lughus[server]",
+    "pydantic>=2.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+data_ingestion_agent = "data_ingestion_agent.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["data_ingestion_agent*"]
+
