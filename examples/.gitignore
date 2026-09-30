@@ -3,9 +3,11 @@
 !.gitignore
 !README.md
 
-# Explicitly un-ignore data_ingestion_agent
+# Explicitly un-ignore published agents
 !data_ingestion_agent/
 !data_ingestion_agent/**
+!code_interpreter_agent/
+!code_interpreter_agent/**
 
 # Universal exclusions for ALL agents (environments, caches, bytecode, build artifacts)
 .*
@@ -16,7 +18,10 @@
 **/build/
 **/dist/
 **/uv.lock
-**/py.typed
+**/artifacts/
+**/artifacts/**
+**/.env
+**/.env.*
 
 # Always track .gitignore and .env.example files
 !**/.gitignore

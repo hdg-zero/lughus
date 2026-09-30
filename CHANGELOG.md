@@ -15,6 +15,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Fixed outdated and invalid `register_code_interpreter` signatures across `README.md` and `docs/api/tools.md`, aligning examples with the modern backend-driven signature (`backend=...`, `artifact_store=...`).
 - Updated `docs/security/python-execution.md` with complete imports, confinement flags matrix, and path traversal mitigation details.
 
+### Security
+- Upgraded `litellm` to `1.92.2` (mitigates CVE-2026-84377) and `urllib3` to `2.8.0` (mitigates CVE-2026-97687, CVE-2026-97688, CVE-2026-97689).
+
 ## [0.22.0] — 2026-09-13
 
 ### Added
